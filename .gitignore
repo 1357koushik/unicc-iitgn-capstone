@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+#temp
+.pytest_cache/
+progress/
+implimentation.md 
+plan.html 
+UNICC_IITGN_AI_Cybersecurity_Capstone_Workplan (1).docx

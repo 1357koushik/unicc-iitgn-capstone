@@ -1,0 +1,27 @@
+# Retrieval & Storage Configuration
+
+# Storage paths
+qdrant_storage_path: "./data/qdrant_storage"
+sqlite_db_path: "./data/sqlite/corpus_store.db"
+quarantine_path: "./data/quarantined"
+
+# Qdrant HNSW index settings
+hnsw_m: 32
+hnsw_ef_construct: 200
+hnsw_ef_search: 64
+
+# Qdrant scalar quantization
+quantization_type: "Int8"
+quantization_quantile: 0.99
+quantization_always_ram: true
+
+# MinHash deduplication
+minhash_num_permutations: 128
+minhash_similarity_threshold: 0.90
+minhash_shingle_size: 3
+
+# Ingestion pipeline
+pipeline_batch_size: 500
+min_text_chars: 15
+max_text_chars: 32000
+epss_min_score_threshold: 0.5
