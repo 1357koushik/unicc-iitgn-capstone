@@ -120,6 +120,82 @@ End-to-end integration test. Runs the whole pipeline on tiny fake data files.
 
 ---
 
+### `test_tokenizer.py`
+Verifies `tokenizer.py` — cyber-aware tokenization for lexical search.
+
+| Test | What it proves |
+|------|---------------|
+| `test_cve_preserved_as_single_token` | `CVE-2017-0144` stays intact, not split into `2017`/`0144` |
+| `test_ipv4_preserved` / `test_sha256_preserved` / `test_md5_preserved` | IPs and hashes survive as atomic tokens |
+| `test_mitre_technique_preserved` | `T1021.002` kept whole |
+| `test_domain_preserved` / `test_url_preserved` | Domains and URLs kept whole |
+| `test_version_string_not_mistaken_for_ip` | `1.2.3.4567` is not captured as an IPv4 |
+| `test_extract_identifiers_*` | Identifiers are grouped by kind and de-duplicated |
+
+---
+
+### `test_bm25_index.py`
+Verifies `bm25_index.py` — the Okapi BM25 lexical index.
+
+| Test | What it proves |
+|------|---------------|
+| `test_search_ranks_relevant_doc_first` | BM25 ranks the on-topic document top |
+| `test_cve_exact_match_lands_on_right_doc` | An exact CVE query hits the right chunk |
+| `test_allowed_ids_restricts_results` | The metadata-filter allow-list hook works |
+| `test_replacing_document_updates_postings` | Re-adding a chunk_id replaces its old terms |
+| `test_build_from_sqlite` | Index builds directly from the SQLite corpus |
+
+---
+
+### `test_exact_lookup.py`
+Verifies `exact_lookup.py` — deterministic IOC/CVE lookup.
+
+| Test | What it proves |
+|------|---------------|
+| `test_cve_exact_lookup` | A CVE query matches via the Qdrant payload filter |
+| `test_ipv4_exact_lookup` / `test_hash_exact_lookup` | IOCs match via the SQLite `entities_json` scan |
+| `test_no_identifiers_returns_empty` | A query with no observables returns nothing |
+| `test_dedup_across_kinds` | A chunk matching two identifiers appears once |
+
+---
+
+### `test_hybrid_search.py`
+Verifies `hybrid_search.py` — RRF fusion of BM25 + dense with metadata filtering.
+
+| Test | What it proves |
+|------|---------------|
+| `test_rrf_rewards_agreement` | RRF ranks a doc agreed on by both retrievers first |
+| `test_hybrid_returns_fused_results` | Lexical + dense candidates fuse into one list |
+| `test_hybrid_result_carries_ranks` | Each result reports its dense and lexical ranks |
+| `test_metadata_filter_restricts_to_source` | A `source_org` filter is applied at search time |
+| `test_resolve_filter_to_ids` | A filter resolves to the correct chunk_id allow-list |
+
+---
+
+### `test_reranker.py`
+Verifies `reranker.py` — the cross-encoder reranking layer (model stubbed).
+
+| Test | What it proves |
+|------|---------------|
+| `test_rerank_orders_by_relevance` | The most relevant passage is elevated to the top |
+| `test_rerank_single_pair_scalar_score` | A bare-float score (FlagReranker's single-pair case) is handled |
+| `test_rerank_hybrid_results_bridge` | Hybrid results are hydrated from SQLite, reranked, and re-ordered |
+
+---
+
+### `test_mitre_graph.py`
+Verifies `mitre_graph.py` — the in-process MITRE ATT&CK STIX graph (synthetic bundle).
+
+| Test | What it proves |
+|------|---------------|
+| `test_resolve_by_attack_id` / `test_resolve_by_alias` | Nodes resolve by ATT&CK id and by alias |
+| `test_deprecated_nodes_skipped` | Deprecated/revoked objects are ignored |
+| `test_techniques_for_actor` / `test_actors_for_technique_reverse` | Actor↔technique traversal both directions |
+| `test_relationship_paths_are_readable` | Edges render as `G0016 -[uses]-> T1021.002` |
+| `test_expand_from_actor` | `expand()` returns linked techniques, malware, and relationships |
+
+---
+
 ## Interpreting Results
 
 ```

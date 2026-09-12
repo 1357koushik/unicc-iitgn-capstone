@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +63,8 @@ class BGEVectorizer:
     MODEL_NAME = "BAAI/bge-m3"
 
     def __init__(self) -> None:
+        import torch  # imported lazily so callers using only VectorResult avoid the heavy dep
+
         self._model: Any = None  # loaded lazily on first call
         self._use_gpu = torch.cuda.is_available()
         self._batch_size = GPU_BATCH_SIZE if self._use_gpu else CPU_BATCH_SIZE
