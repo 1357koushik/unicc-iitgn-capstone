@@ -222,5 +222,10 @@ __marimo__/
 .pytest_cache/
 progress/
 implimentation.md 
+AGENTS.md
+GEMINI.md
 plan.html 
 UNICC_IITGN_AI_Cybersecurity_Capstone_Workplan (1).docx
+
+#data
+cve_data_fetching/normalized_json_output

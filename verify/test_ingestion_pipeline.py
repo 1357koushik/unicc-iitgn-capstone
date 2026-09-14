@@ -1,14 +1,14 @@
 """
-test_main_pipeline.py
-=====================
-End-to-end integration tests for main.py
+test_ingestion_pipeline.py
+==========================
+End-to-end integration tests for ingestion_pipeline.py
 
 These tests run the complete pipeline on small fake CSV/JSON data
 and verify chunks end up in both Qdrant and SQLite.
 
 The BGE-M3 model is MOCKED so tests run instantly with no GPU or download.
 
-Run with: pytest verify/test_main_pipeline.py -v
+Run with: pytest verify/test_ingestion_pipeline.py -v
 """
 
 import json
@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import run_pipeline
+from ingestion_pipeline import run_pipeline
 from vector_database import fetch_text, setup_sqlite
 from vectorizer import BGEVectorizer, VectorResult
 

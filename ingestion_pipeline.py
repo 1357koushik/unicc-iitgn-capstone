@@ -1,7 +1,7 @@
 """
-main.py
-=======
-The main pipeline orchestrator.
+ingestion_pipeline.py
+=====================
+The CTI data ingestion and indexing pipeline orchestrator.
 
 Pipeline flow (in order):
   1. validator.py   — Parse raw data → ThreatChunks (clean + validated)
@@ -10,10 +10,10 @@ Pipeline flow (in order):
   4. vector_database.py — Store vectors in Qdrant, full text in SQLite
 
 Usage:
-    python main.py --nvd-dir ./data/nvd_cve_data
-                   --cvelist-dir ./cve_data_fetching/cvelistV5-live/cves
-                   --kev-csv ./cve_data_fetching/cisa_kev-2026-09-12.csv
-                   --epss-csv ./cve_data_fetching/epss_scores-2026-09-12.csv
+    python ingestion_pipeline.py --nvd-dir ./data/nvd_cve_data
+                                 --cvelist-dir ./cve_data_fetching/cvelistV5-live/cves
+                                 --kev-csv ./cve_data_fetching/cisa_kev-2026-09-12.csv
+                                 --epss-csv ./cve_data_fetching/epss_scores-2026-09-12.csv
 
     Or run with --help to see all options.
 """
@@ -158,7 +158,7 @@ def _process_batch(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the full CTI ingestion pipeline: Parse → Deduplicate → Vectorize → Store"
+        description="Run the full CTI ingestion pipeline: Parse -> Deduplicate -> Vectorize -> Store"
     )
     parser.add_argument(
         "--normalized-dir",

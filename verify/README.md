@@ -27,7 +27,8 @@ pytest verify/test_validator.py -v
 pytest verify/test_vectorizer.py -v
 pytest verify/test_vector_database.py -v
 pytest verify/test_duplicate_checker.py -v
-pytest verify/test_main_pipeline.py -v
+pytest verify/test_ingestion_pipeline.py -v
+pytest verify/test_api_single_endpoint.py -v
 ```
 
 ### 4. Run with coverage report (shows which lines of code are tested)
@@ -108,8 +109,8 @@ Verifies `src/duplicate_checker.py` — the MinHash deduplication engine.
 
 ---
 
-### `test_main_pipeline.py`
-End-to-end integration test. Runs the whole pipeline on tiny fake data files.
+### `test_ingestion_pipeline.py`
+End-to-end integration test. Runs the whole CTI ingestion pipeline on tiny fake data files.
 
 | Test | What it proves |
 |------|---------------|
