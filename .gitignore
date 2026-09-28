@@ -228,5 +228,30 @@ plan.html
 UNICC_IITGN_AI_Cybersecurity_Capstone_Workplan (1).docx
 verify/
 
-#data
-cve_data_fetching/normalized_json_output
+# ---------------------------------------------------------------------------
+# Knowledge Foundation: Data Pulled from Team 1 / Live Feeds
+# ---------------------------------------------------------------------------
+**/nvd_cve_data/
+**/cvelistV5-live/
+**/*cisa_kev-*.csv
+**/*epss_scores-*.csv
+knowledge_foundation/nvd_cve_data/
+knowledge_foundation/cvelistV5-live/
+knowledge_foundation/cisa_kev-*.csv
+knowledge_foundation/epss_scores-*.csv
+knowledge_foundation/feeds/nvd_cve_data/
+knowledge_foundation/feeds/cvelistV5-live/
+knowledge_foundation/feeds/cisa_kev-*.csv
+knowledge_foundation/feeds/epss_scores-*.csv
+.*.tmp
+*.tmp
+*.json.gz
+*.csv.gz
+
+# ---------------------------------------------------------------------------
+# Local Runtime Databases & Storage
+# ---------------------------------------------------------------------------
+data/qdrant_storage/
+data/sqlite/
+*.sqlite
+*.db
