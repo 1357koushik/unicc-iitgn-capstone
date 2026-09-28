@@ -125,7 +125,7 @@ class ThreatRetrieverEngine:
         self.attack_graph = attack_graph
         self._initialized = False
 
-    def initialize(self) -> None:
+    def initialize(self, qdrant_path: str | None = None, sqlite_path: str | None = None) -> None:
         """Initialize all three search engines and knowledge graph."""
         if self._initialized:
             return
@@ -133,7 +133,12 @@ class ThreatRetrieverEngine:
         # 1. Databases (Qdrant + SQLite)
         if self.qdrant is None or self.sqlite is None:
             from vector_database import setup_databases
-            self.qdrant, self.sqlite = setup_databases()
+            db_kwargs = {}
+            if qdrant_path:
+                db_kwargs["qdrant_path"] = qdrant_path
+            if sqlite_path:
+                db_kwargs["sqlite_path"] = sqlite_path
+            self.qdrant, self.sqlite = setup_databases(**db_kwargs)
 
         # 2. Knowledge Graph (MITRE STIX)
         if self.attack_graph is None:

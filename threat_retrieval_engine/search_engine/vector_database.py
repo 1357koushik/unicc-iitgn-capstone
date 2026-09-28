@@ -61,7 +61,7 @@ DENSE_DIM = 1024
 # ---------------------------------------------------------------------------
 
 
-def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH) -> QdrantClient:
+def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH, reset: bool = False) -> QdrantClient:
     """
     Initialize embedded Qdrant (zero Docker, zero ports — runs in-process on disk).
     Creates the threat_intelligence_kb collection if it does not already exist.
@@ -71,6 +71,11 @@ def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH) -> QdrantClient:
     logger.info("Qdrant embedded client ready at: %s", qdrant_path)
 
     existing = {col.name for col in client.get_collections().collections}
+    if reset and COLLECTION_NAME in existing:
+        logger.info("Resetting Qdrant collection '%s' …", COLLECTION_NAME)
+        client.delete_collection(COLLECTION_NAME)
+        existing.remove(COLLECTION_NAME)
+
     if COLLECTION_NAME not in existing:
         logger.info("Creating Qdrant collection '%s' …", COLLECTION_NAME)
         client.create_collection(
@@ -108,7 +113,7 @@ def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH) -> QdrantClient:
     return client
 
 
-def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH) -> sqlite3.Connection:
+def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) -> sqlite3.Connection:
     """
     Open the SQLite corpus store in WAL mode for fast concurrent reads.
     Creates the table if it does not exist.
@@ -117,6 +122,11 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(sqlite_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    if reset:
+        logger.info("Resetting SQLite table 'corpus' …")
+        conn.execute("DROP TABLE IF EXISTS corpus;")
+        conn.commit()
+
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS corpus (
@@ -142,10 +152,11 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH) -> sqlite3.Connection:
 def setup_databases(
     qdrant_path: str = DEFAULT_QDRANT_PATH,
     sqlite_path: str = DEFAULT_SQLITE_PATH,
+    reset: bool = False,
 ) -> tuple[QdrantClient, sqlite3.Connection]:
     """Call once at startup. Returns (qdrant_client, sqlite_conn)."""
-    qdrant = setup_qdrant(qdrant_path)
-    sqlite = setup_sqlite(sqlite_path)
+    qdrant = setup_qdrant(qdrant_path, reset=reset)
+    sqlite = setup_sqlite(sqlite_path, reset=reset)
     return qdrant, sqlite
 
 

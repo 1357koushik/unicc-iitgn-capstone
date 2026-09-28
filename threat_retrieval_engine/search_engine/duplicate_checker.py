@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Generator
+from typing import Generator, Iterable
 
 from datasketch import MinHash, MinHashLSH
 
@@ -134,7 +134,7 @@ class DuplicateChecker:
             pass
         return False
 
-    def filter(self, chunks: list[ThreatChunk]) -> Generator[ThreatChunk, None, None]:
+    def filter(self, chunks: Iterable[ThreatChunk]) -> Generator[ThreatChunk, None, None]:
         """
         Yield only unique chunks, dropping near-duplicates.
         Logs how many were dropped.
