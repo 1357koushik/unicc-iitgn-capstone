@@ -8,28 +8,69 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-# Ensure root directory is on sys.path
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(_ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(_ROOT_DIR))
+# Ensure root and internal directories are on sys.path
+_API_DIR = Path(__file__).resolve().parent
+_ENGINE_DIR = _API_DIR.parent
+_ROOT_DIR = _ENGINE_DIR.parent
+for p in [_ROOT_DIR, _ENGINE_DIR, _API_DIR, _ENGINE_DIR / "search_engine"]:
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
-from api.helpers import (
-    build_citation,
-    calculate_composite_score,
-    classify_confidence_tier,
-    extract_attribution,
-    jaccard_similarity,
-    parse_query_entities,
-    ParsedEntities,
-)
-from api.schemas import (
-    AttributionSchema,
-    CitationSchema,
-    EvidenceBreakdownSchema,
-    MatchResponse,
-    PipelineProfileSchema,
-    TopMatchSchema,
-)
+try:
+    from threat_retrieval_engine.api.helpers import (
+        build_citation,
+        calculate_composite_score,
+        classify_confidence_tier,
+        extract_attribution,
+        jaccard_similarity,
+        parse_query_entities,
+        ParsedEntities,
+    )
+    from threat_retrieval_engine.api.schemas import (
+        AttributionSchema,
+        CitationSchema,
+        EvidenceBreakdownSchema,
+        MatchResponse,
+        PipelineProfileSchema,
+        TopMatchSchema,
+    )
+except ImportError:
+    try:
+        from api.helpers import (
+            build_citation,
+            calculate_composite_score,
+            classify_confidence_tier,
+            extract_attribution,
+            jaccard_similarity,
+            parse_query_entities,
+            ParsedEntities,
+        )
+        from api.schemas import (
+            AttributionSchema,
+            CitationSchema,
+            EvidenceBreakdownSchema,
+            MatchResponse,
+            PipelineProfileSchema,
+            TopMatchSchema,
+        )
+    except ImportError:
+        from helpers import (
+            build_citation,
+            calculate_composite_score,
+            classify_confidence_tier,
+            extract_attribution,
+            jaccard_similarity,
+            parse_query_entities,
+            ParsedEntities,
+        )
+        from schemas import (
+            AttributionSchema,
+            CitationSchema,
+            EvidenceBreakdownSchema,
+            MatchResponse,
+            PipelineProfileSchema,
+            TopMatchSchema,
+        )
 
 logger = logging.getLogger(__name__)
 

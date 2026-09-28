@@ -26,7 +26,10 @@ from typing import Generator
 
 from datasketch import MinHash, MinHashLSH
 
-from validator import ThreatChunk
+try:
+    from threat_retrieval_engine.search_engine.validator import ThreatChunk
+except ImportError:
+    from validator import ThreatChunk
 
 logger = logging.getLogger(__name__)
 

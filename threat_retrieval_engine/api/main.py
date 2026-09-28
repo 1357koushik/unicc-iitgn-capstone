@@ -4,16 +4,27 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# Ensure root directory is on sys.path
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(_ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(_ROOT_DIR))
+# Ensure root and internal directories are on sys.path
+_API_DIR = Path(__file__).resolve().parent
+_ENGINE_DIR = _API_DIR.parent
+_ROOT_DIR = _ENGINE_DIR.parent
+for p in [_ROOT_DIR, _ENGINE_DIR, _API_DIR, _ENGINE_DIR / "search_engine"]:
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.pipeline import get_orchestrator
-from api.schemas import MatchRequest, MatchResponse
+try:
+    from threat_retrieval_engine.api.pipeline import get_orchestrator
+    from threat_retrieval_engine.api.schemas import MatchRequest, MatchResponse
+except ImportError:
+    try:
+        from api.pipeline import get_orchestrator
+        from api.schemas import MatchRequest, MatchResponse
+    except ImportError:
+        from pipeline import get_orchestrator
+        from schemas import MatchRequest, MatchResponse
 
 
 @asynccontextmanager

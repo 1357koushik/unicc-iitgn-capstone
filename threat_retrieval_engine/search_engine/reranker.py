@@ -24,7 +24,10 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from vector_database import fetch_chunk_metadata
+try:
+    from threat_retrieval_engine.search_engine.vector_database import fetch_chunk_metadata
+except ImportError:
+    from vector_database import fetch_chunk_metadata
 
 logger = logging.getLogger(__name__)
 

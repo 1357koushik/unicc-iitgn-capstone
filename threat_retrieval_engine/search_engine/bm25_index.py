@@ -35,7 +35,10 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from tokenizer import tokenize
+try:
+    from threat_retrieval_engine.search_engine.tokenizer import tokenize
+except ImportError:
+    from tokenizer import tokenize
 
 logger = logging.getLogger(__name__)
 

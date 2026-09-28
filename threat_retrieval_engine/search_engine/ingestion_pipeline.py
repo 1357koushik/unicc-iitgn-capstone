@@ -25,19 +25,36 @@ import logging
 import sys
 from pathlib import Path
 
-from validator import (
-    ThreatChunk,
-    build_context,
-    parse_cisa_kev_csv,
-    parse_cvelist_directory,
-    parse_epss_csv,
-    parse_normalized_directory,
-    parse_normalized_jsonl,
-    parse_nvd_directory,
-)
-from duplicate_checker import DuplicateChecker
-from vectorizer import BGEVectorizer
-from vector_database import setup_databases, store_chunks
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+try:
+    from threat_retrieval_engine.search_engine.validator import (
+        ThreatChunk,
+        build_context,
+        parse_cisa_kev_csv,
+        parse_cvelist_directory,
+        parse_epss_csv,
+        parse_normalized_directory,
+        parse_normalized_jsonl,
+        parse_nvd_directory,
+    )
+    from threat_retrieval_engine.search_engine.duplicate_checker import DuplicateChecker
+    from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
+    from threat_retrieval_engine.search_engine.vector_database import setup_databases, store_chunks
+except ImportError:
+    from validator import (
+        ThreatChunk,
+        build_context,
+        parse_cisa_kev_csv,
+        parse_cvelist_directory,
+        parse_epss_csv,
+        parse_normalized_directory,
+        parse_normalized_jsonl,
+        parse_nvd_directory,
+    )
+    from duplicate_checker import DuplicateChecker
+    from vectorizer import BGEVectorizer
+    from vector_database import setup_databases, store_chunks
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -199,13 +216,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--qdrant-path",
         type=str,
-        default="./data/qdrant_storage",
+        default=str(_REPO_ROOT / "data" / "qdrant_storage"),
         help="Directory for embedded Qdrant storage.",
     )
     parser.add_argument(
         "--sqlite-path",
         type=str,
-        default="./data/sqlite/corpus_store.db",
+        default=str(_REPO_ROOT / "data" / "sqlite" / "corpus_store.db"),
         help="Path for SQLite corpus database.",
     )
     return parser.parse_args()

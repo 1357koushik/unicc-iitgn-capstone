@@ -37,16 +37,22 @@ from qdrant_client.models import (
     VectorParams,
 )
 
-from vectorizer import VectorResult
-from validator import ThreatChunk
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+try:
+    from threat_retrieval_engine.search_engine.vectorizer import VectorResult
+    from threat_retrieval_engine.search_engine.validator import ThreatChunk
+except ImportError:
+    from vectorizer import VectorResult
+    from validator import ThreatChunk
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Defaults (can be overridden via config)
+# Defaults (anchored to repository root, can be overridden via config)
 # ---------------------------------------------------------------------------
-DEFAULT_QDRANT_PATH = "./data/qdrant_storage"
-DEFAULT_SQLITE_PATH = "./data/sqlite/corpus_store.db"
+DEFAULT_QDRANT_PATH = str(_REPO_ROOT / "data" / "qdrant_storage")
+DEFAULT_SQLITE_PATH = str(_REPO_ROOT / "data" / "sqlite" / "corpus_store.db")
 COLLECTION_NAME = "threat_intelligence_kb"
 DENSE_DIM = 1024
 

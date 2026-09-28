@@ -1137,7 +1137,7 @@ def main() -> int:
     )
     parser.add_argument("cve_id", nargs="?", help="CVE ID, for example CVE-2024-3094")
     parser.add_argument(
-        "--data-dir", type=Path, default=Path(__file__).resolve().parent,
+        "--data-dir", type=Path, default=Path(__file__).resolve().parent.parent,
         help="Directory containing nvd_cve_data and cvelistV5-main",
     )
     parser.add_argument("--json-only", action="store_true", help="Print only normalized JSON")

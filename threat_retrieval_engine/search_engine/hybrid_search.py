@@ -46,8 +46,12 @@ from qdrant_client.models import (
     MatchValue,
 )
 
-from bm25_index import BM25Index
-from vector_database import COLLECTION_NAME, search_vectors
+try:
+    from threat_retrieval_engine.search_engine.bm25_index import BM25Index
+    from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, search_vectors
+except ImportError:
+    from bm25_index import BM25Index
+    from vector_database import COLLECTION_NAME, search_vectors
 
 logger = logging.getLogger(__name__)
 

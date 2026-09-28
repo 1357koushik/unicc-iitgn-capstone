@@ -96,47 +96,57 @@ Modern Security Operations Centers (SOCs) face an overwhelming influx of dispara
 ## 📁 Repository Structure
 
 ```text
-unicc-team2-threat-retrieval/
-├── .github/                      # CI/CD workflows, issue templates, PR governance
-├── config/                       # Centralized configuration matrices (YAML/Env)
-│   ├── retrieval_config.yaml     # Weights for RRF, alpha thresholds, top-k limits
-│   └── model_config.yaml         # Hugging Face model identifiers and inference configs
-├── data/                         # Local data contracts (gitignored; samples only)
-│   └── sample_chunks.jsonl       # Mock intake schema for contract testing
-├── docs/                         # Architectural diagrams, specifications, academic papers
-│   ├── ARCHITECTURE.md           # In-depth architectural decomposition
-│   └── API_CONTRACT.md           # Interface contract between Teams 1, 2, 3, and 4
-├── src/                          # Production source code
-│   ├── __init__.py
-│   ├── api/                      # REST API interface layer
-│   │   ├── routes.py             # FastAPI routes (/search, /threats/match, /entities, /health)
-│   │   └── schemas.py            # Pydantic v2 request/response contracts
-│   ├── core/                     # Internal engine configuration and logging
-│   │   └── logger.py
-│   ├── ingestion/                # Data intake and validation pipeline
-│   │   ├── validator.py          # Team 1 Pydantic v2 schema enforcement
-│   │   └── preprocessor.py       # Cyber-aware regex tokenization (preserving CVEs/hashes)
-│   ├── indexing/                 # Sparse & Dense indexing pipelines
-│   │   ├── vector_indexer.py     # Qdrant client connection, HNSW & INT8 quantization
-│   │   └── bm25_indexer.py       # BM25 sparse index lifecycle
-│   ├── graph/                    # Knowledge Graph & STIX Layer
-│   │   └── stix_graph.py         # Neo4j connector & MITRE ATT&CK STIX relationship queries
-│   ├── retrieval/                # Multi-stage search execution
-│   │   ├── hybrid.py             # Qdrant RRF fusion with dynamic α routing
-│   │   └── reranker.py           # BGE-Reranker-v2-m3 cross-encoder execution
-│   └── matching/                 # Threat matching & evidence generation
-│       ├── engine.py             # 5-Tier Composite Threat Matching (Exact/Strong/Partial/Weak)
-│       └── citation.py           # LlamaIndex citation packaging & provenance tracking
-├── tests/                        # Comprehensive test suite
-│   ├── unit/                     # Unit tests for tokenizers, schemas, and math formulas
-│   ├── integration/              # End-to-end retrieval and API tests
-│   └── mock_data/                # Synthetic CTI threat reports
-├── .env.example                  # Environment variable blueprint
-├── .gitignore                    # Python & ML-optimized gitignore
-├── docker-compose.yml            # Local orchestration (Qdrant + Neo4j + API container)
-├── Dockerfile                    # Containerization for standalone service deployment
-├── pyproject.toml                # Project metadata, dependencies, and tooling config
-└── README.md                     # Institutional project documentation
+unicc-iitgn-capstone/
+├── knowledge_foundation/              # [Team 1] Threat data intake, normalization, and live feeds
+│   ├── feeds/                         # Live updaters and lookup scripts
+│   │   ├── updater.ipynb              # NVD, CISA KEV, EPSS synchronization
+│   │   ├── lookup.ipynb               # Interactive normalization and lookup
+│   │   └── cve_normalized_lookup.py   # Multi-source joiner and normalizer CLI
+│   ├── normalized_cves/               # Verified unified JSON files (sample CVEs)
+│   ├── quarantined/                   # Malformed / invalid incoming CVE records
+│   └── NORMALIZED_CVE_DATA_GUIDE.md   # Schema and normalization specification
+│
+├── threat_retrieval_engine/           # [Team 2] Threat Retrieval & Matching Subsystem
+│   ├── search_engine/                 # Core RAG retrieval & indexing engine
+│   │   ├── ingestion_pipeline.py      # Parse → Deduplicate → Vectorize → Store coordinator
+│   │   ├── validator.py               # Intake validation & ThreatChunk creation
+│   │   ├── tokenizer.py               # Cyber-aware regex tokenizer
+│   │   ├── duplicate_checker.py       # MinHash deduplication engine
+│   │   ├── vectorizer.py              # BGE-M3 dense/sparse embedding
+│   │   ├── vector_database.py         # Qdrant client & SQLite full-text store
+│   │   ├── bm25_index.py              # BM25 sparse keyword index
+│   │   ├── exact_lookup.py            # Sub-millisecond deterministic IOC lookup
+│   │   ├── hybrid_search.py           # Dense + BM25 RRF fusion with dynamic alpha
+│   │   ├── reranker.py                # Cross-Encoder (bge-reranker-v2-m3)
+│   │   └── mitre_graph.py             # MITRE ATT&CK STIX graph relations
+│   ├── api/                           # Serving interface (FastAPI REST service)
+│   │   ├── main.py                    # App entry point & unified /match route
+│   │   ├── pipeline.py                # End-to-end query router and threat matcher
+│   │   ├── schemas.py                 # Pydantic v2 request/response contracts
+│   │   └── helpers.py                 # Indicator extraction and scoring helpers
+│   └── benchmarks/                    # Dedicated benchmark suite
+│       └── README.md                  # Latency, NDCG@10, and RAGAS benchmark setup
+│
+├── config/                            # Runtime parameters
+│   └── retrieval_config.yaml          # Fusion weights, alpha thresholds, top-k limits
+├── data/                              # Local database storage (gitignored)
+│   ├── qdrant_storage/                # Embedded Qdrant vector index
+│   └── sqlite/                        # Full-text SQLite corpus database
+├── verify/                            # Complete unit and integration test suite
+│   ├── test_api_single_endpoint.py
+│   ├── test_bm25_index.py
+│   ├── test_duplicate_checker.py
+│   ├── test_exact_lookup.py
+│   ├── test_hybrid_search.py
+│   ├── test_ingestion_pipeline.py
+│   ├── test_mitre_graph.py
+│   ├── test_reranker.py
+│   ├── test_tokenizer.py
+│   ├── test_validator.py
+│   ├── test_vector_database.py
+│   └── test_vectorizer.py
+├── pyproject.toml                     # Project metadata and dependencies
+└── README.md                          # Institutional project documentation
 ```
 
 ---
