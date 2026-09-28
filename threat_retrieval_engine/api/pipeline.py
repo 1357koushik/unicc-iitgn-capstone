@@ -160,10 +160,14 @@ class ThreatRetrieverEngine:
             except Exception:
                 bm25 = BM25Index()
 
-            # Vectorizer
+            # Vectorizer: Eagerly load model weights at startup & run warmup inference
             try:
-                vectorizer = BGEVectorizer()
+                logger.info("Pre-loading BGE-M3 embedding model during server startup...")
+                vectorizer = BGEVectorizer(eager_load=True)
                 query_encoder = default_query_encoder(vectorizer)
+                # Warm up so first query does not suffer PyTorch initialization latency
+                query_encoder("startup warmup query")
+                logger.info("BGE-M3 embedding model preloaded and warmed up successfully.")
             except Exception as exc:
                 logger.warning("BGEVectorizer load deferred or stubbed: %s", exc)
                 query_encoder = lambda q: [0.0] * 1024

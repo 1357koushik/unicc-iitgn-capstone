@@ -62,10 +62,10 @@ class BGEVectorizer:
 
     MODEL_NAME = "BAAI/bge-m3"
 
-    def __init__(self) -> None:
+    def __init__(self, eager_load: bool = False) -> None:
         import torch  # imported lazily so callers using only VectorResult avoid the heavy dep
 
-        self._model: Any = None  # loaded lazily on first call
+        self._model: Any = None  # loaded lazily on first call or when eager_load=True
         self._use_gpu = torch.cuda.is_available()
         self._batch_size = GPU_BATCH_SIZE if self._use_gpu else CPU_BATCH_SIZE
         logger.info(
@@ -73,6 +73,12 @@ class BGEVectorizer:
             "CUDA" if self._use_gpu else "CPU",
             self._batch_size,
         )
+        if eager_load:
+            self._load_model()
+
+    def load_model(self) -> None:
+        """Explicitly load the BGE-M3 model weights into memory (e.g. during server startup)."""
+        self._load_model()
 
     def _load_model(self) -> None:
         """Lazy-load the model so import time stays fast."""
