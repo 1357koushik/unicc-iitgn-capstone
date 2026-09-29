@@ -1,0 +1,254 @@
+{
+  "timestamp": "2026-09-29T17:08:49.318153+00:00",
+  "retrieval_engine": "Teammates' Okapi BM25Index (unicc-iitgn-capstone-main/bm25_index.py)",
+  "queries_count": 10,
+  "summary_metrics": {
+    "hit_at_3": 0.75,
+    "mrr_at_10": 0.6792,
+    "ndcg_at_10": 0.7236,
+    "macro_f1": 0.3278,
+    "p95_latency_ms": 1176.93
+  },
+  "quality_gates": {
+    "retrieval": "FAIL",
+    "latency_sla": "FAIL",
+    "classification": "INFORMATIONAL"
+  },
+  "confusion_matrix": {
+    "EXACT": {
+      "EXACT": 0,
+      "STRONG": 0,
+      "PARTIAL": 0,
+      "WEAK": 0,
+      "UNSUPPORTED": 1
+    },
+    "STRONG": {
+      "EXACT": 0,
+      "STRONG": 0,
+      "PARTIAL": 0,
+      "WEAK": 0,
+      "UNSUPPORTED": 1
+    },
+    "PARTIAL": {
+      "EXACT": 0,
+      "STRONG": 0,
+      "PARTIAL": 0,
+      "WEAK": 1,
+      "UNSUPPORTED": 0
+    },
+    "WEAK": {
+      "EXACT": 0,
+      "STRONG": 0,
+      "PARTIAL": 0,
+      "WEAK": 4,
+      "UNSUPPORTED": 0
+    },
+    "UNSUPPORTED": {
+      "EXACT": 0,
+      "STRONG": 0,
+      "PARTIAL": 0,
+      "WEAK": 0,
+      "UNSUPPORTED": 3
+    }
+  },
+  "per_class_metrics": {
+    "EXACT": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 1
+    },
+    "STRONG": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 1
+    },
+    "PARTIAL": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 1
+    },
+    "WEAK": {
+      "precision": 0.8,
+      "recall": 1.0,
+      "f1": 0.8889,
+      "support": 4
+    },
+    "UNSUPPORTED": {
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75,
+      "support": 3
+    }
+  },
+  "per_query_results": [
+    {
+      "query_id": "bench_01_eternalblue_exact",
+      "query": "Attacker exploited CVE-2017-0144 using T1021.002 from host 198.51.100.24",
+      "expected_tier": "EXACT",
+      "predicted_tier": "UNSUPPORTED",
+      "relevant_documents": [
+        "CVE-2017-0144"
+      ],
+      "expected_top_chunk": "80d012b2da2575e69d44b66f29fc49ba",
+      "top_match": {
+        "chunk_id": "446e0fd5adfb0305972d02030e8949fe",
+        "document_id": "CVE-2017-0144_EPSS",
+        "confidence_tier": "UNSUPPORTED",
+        "composite_score": 0.2994
+      },
+      "latency_ms": 1176.93
+    },
+    {
+      "query_id": "bench_02_eternalblue_strong",
+      "query": "Observed lateral movement from 198.51.100.24 using technique T1021.002",
+      "expected_tier": "STRONG",
+      "predicted_tier": "UNSUPPORTED",
+      "relevant_documents": [
+        "CVE-2017-0144"
+      ],
+      "expected_top_chunk": "80d012b2da2575e69d44b66f29fc49ba",
+      "top_match": {
+        "chunk_id": "64ae5b38d1275c03a10235f3f66a5772",
+        "document_id": "CVE-2019-19895",
+        "confidence_tier": "UNSUPPORTED",
+        "composite_score": 0.1777
+      },
+      "latency_ms": 388.59
+    },
+    {
+      "query_id": "bench_03_follina_partial",
+      "query": "MSDT remote code execution vulnerability CVE-2022-30190 executing arbitrary PowerShell T1059.001",
+      "expected_tier": "PARTIAL",
+      "predicted_tier": "WEAK",
+      "relevant_documents": [
+        "CVE-2022-30190"
+      ],
+      "expected_top_chunk": "c6c76d942d79eaf85ad0610c5dc94261",
+      "top_match": {
+        "chunk_id": "930af83b40252b5ee48ee0aed120c574",
+        "document_id": "CVE-2018-8327",
+        "confidence_tier": "WEAK",
+        "composite_score": 0.4322
+      },
+      "latency_ms": 834.25
+    },
+    {
+      "query_id": "bench_04_log4shell_weak",
+      "query": "Apache Log4j2 JNDI Remote Code Execution vulnerability in LDAP configuration CVE-2021-44228",
+      "expected_tier": "WEAK",
+      "predicted_tier": "WEAK",
+      "relevant_documents": [
+        "CVE-2021-44228"
+      ],
+      "expected_top_chunk": "a0c37b2ad1d94af02193ad7fd7574edd",
+      "top_match": {
+        "chunk_id": "cc445baed9f2647bc4b483290cccee76",
+        "document_id": "CVE-2021-44228_KEV",
+        "confidence_tier": "WEAK",
+        "composite_score": 0.4
+      },
+      "latency_ms": 1113.3
+    },
+    {
+      "query_id": "bench_05_proxylogon_weak",
+      "query": "Microsoft Exchange Server SSRF vulnerability CVE-2021-26855 permitting webshell writes",
+      "expected_tier": "WEAK",
+      "predicted_tier": "WEAK",
+      "relevant_documents": [
+        "CVE-2021-26855"
+      ],
+      "expected_top_chunk": "55bdf355bc563e85eb6f676e141aaaaf",
+      "top_match": {
+        "chunk_id": "59c024a8b7632007490cd53a403a9e94",
+        "document_id": "CVE-2021-26855_KEV",
+        "confidence_tier": "WEAK",
+        "composite_score": 0.4
+      },
+      "latency_ms": 653.43
+    },
+    {
+      "query_id": "bench_06_zerologon_weak",
+      "query": "Netlogon elevation of privilege via MS-NRPC domain controller channel CVE-2020-1472",
+      "expected_tier": "WEAK",
+      "predicted_tier": "WEAK",
+      "relevant_documents": [
+        "CVE-2020-1472"
+      ],
+      "expected_top_chunk": "d37f54d4fe1caf56baa41f559a261de5",
+      "top_match": {
+        "chunk_id": "57379a7d69a25d8e107536ea97f7374e",
+        "document_id": "CVE-2020-1472",
+        "confidence_tier": "WEAK",
+        "composite_score": 0.4
+      },
+      "latency_ms": 653.26
+    },
+    {
+      "query_id": "bench_07_winrar_weak",
+      "query": "WinRAR code execution via crafted ZIP archive parameter CVE-2023-38831",
+      "expected_tier": "WEAK",
+      "predicted_tier": "WEAK",
+      "relevant_documents": [
+        "CVE-2023-38831"
+      ],
+      "expected_top_chunk": "e663dafdfd2e2eabce7b5b8c86cdf669",
+      "top_match": {
+        "chunk_id": "d1ae30857d9afb4313253254b45f060a",
+        "document_id": "CVE-2023-38831_KEV",
+        "confidence_tier": "WEAK",
+        "composite_score": 0.4
+      },
+      "latency_ms": 523.47
+    },
+    {
+      "query_id": "bench_08_citrix_unsupported",
+      "query": "Remote path traversal and information disclosure in network gateway appliance",
+      "expected_tier": "UNSUPPORTED",
+      "predicted_tier": "UNSUPPORTED",
+      "relevant_documents": [
+        "CVE-2019-19781"
+      ],
+      "expected_top_chunk": "fdc96f8aec20cbe46e61f9a62e48a79f",
+      "top_match": {
+        "chunk_id": "c26cf3e77a0510e397b977c85fbbe706",
+        "document_id": "CVE-2020-8195_KEV",
+        "confidence_tier": "UNSUPPORTED",
+        "composite_score": 0.192
+      },
+      "latency_ms": 707.9
+    },
+    {
+      "query_id": "bench_09_benign_unsupported",
+      "query": "Routine software deployment and scheduled weekly backup maintenance across Linux servers",
+      "expected_tier": "UNSUPPORTED",
+      "predicted_tier": "UNSUPPORTED",
+      "relevant_documents": [],
+      "expected_top_chunk": "",
+      "top_match": {
+        "chunk_id": "0ae40c988321727321c491bcd0620f05",
+        "document_id": "CVE-2014-0609",
+        "confidence_tier": "UNSUPPORTED",
+        "composite_score": 0.1821
+      },
+      "latency_ms": 265.66
+    },
+    {
+      "query_id": "bench_10_desktop_unsupported",
+      "query": "Configuring printer queue parameters and desktop wallpaper group policy objects",
+      "expected_tier": "UNSUPPORTED",
+      "predicted_tier": "UNSUPPORTED",
+      "relevant_documents": [],
+      "expected_top_chunk": "",
+      "top_match": {
+        "chunk_id": "b5b8a18feaa180c1f8bd1ba97a5f756c",
+        "document_id": "CVE-2026-52976",
+        "confidence_tier": "UNSUPPORTED",
+        "composite_score": 0.1329
+      },
+      "latency_ms": 246.42
+    }
+  ]
+}
