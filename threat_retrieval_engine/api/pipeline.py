@@ -292,32 +292,7 @@ class ThreatRetrieverEngine:
                     "rrf_score": hr["rrf_score"],
                 }
 
-        # If no candidates returned from DB, construct sample match for test queries
-        if not candidate_map:
-            candidate_map["cisa_aa23_145a_c004"] = {
-                "chunk_id": "cisa_aa23_145a_c004",
-                "text": (
-                    "The threat actors utilized SMB remote code execution (CVE-2017-0144) to move "
-                    "laterally from 198.51.100.24 using PsExec (T1021.002)..."
-                ),
-                "metadata": {
-                    "doc_id": "CISA-AA23-145A",
-                    "doc_title": "APT29 Phishing and Malware Campaign",
-                    "source_org": "CISA",
-                    "published_date": "2023-05-25T00:00:00Z",
-                    "page_number": 4,
-                    "entities": {
-                        "cves": ["CVE-2017-0144"],
-                        "iocs": {"ipv4": ["198.51.100.24"]},
-                        "mitre_ttps": ["T1021.002"],
-                        "threat_actors": ["APT29"],
-                        "malware_families": ["PsExec"],
-                    },
-                },
-                "is_exact": True,
-                "dense_score": 0.95,
-                "rrf_score": 0.98,
-            }
+        # If no candidates returned from DB or search engines, candidate_map remains empty.
 
         # -------------------------------------------------------------------
         # Engine 2.5: Cross-Encoder Reranking
@@ -372,20 +347,9 @@ class ThreatRetrieverEngine:
             )
             rels = list(expanded.get("relationships", []))
 
-            # Include actor uses relationships for techniques found
+            # Enrich with authentic STIX relationships for any actors discovered during graph traversal
             for actor in expanded.get("actors", []):
-                for tech in chunk_ttps:
-                    rels.append(f"{actor} -[uses]-> {tech}")
-                for mal in chunk_malware:
-                    rels.append(f"{actor} -[uses]-> {mal}")
-
-            # Enrich with CVE targeting edges if present
-            cves = list(set(list(raw_ent.get("cves", [])) + query_ent.cves + attr_dict["matching_cves"]))
-            if cves:
-                actors_to_link = expanded.get("actors", []) or chunk_actors
-                for actor in actors_to_link:
-                    for cve in cves:
-                        rels.append(f"{actor} -[targets]-> {cve}")
+                rels.extend(self.attack_graph.relationship_paths(actor))
 
             # Preserve order and eliminate duplicates
             chunk_graph_relations[cid] = list(dict.fromkeys(rels))
@@ -421,9 +385,7 @@ class ThreatRetrieverEngine:
             else:
                 ttp_sim = 0.0
 
-            semantic_sim = float(cand.get("dense_score", 0.70))
-            if cve_sim > 0.0 or ioc_sim > 0.0:
-                semantic_sim = max(semantic_sim, 0.95)
+            semantic_sim = float(cand.get("dense_score", 0.0))
 
             composite = calculate_composite_score(
                 ioc_score=ioc_sim,
