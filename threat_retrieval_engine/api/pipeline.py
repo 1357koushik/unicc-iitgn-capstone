@@ -118,11 +118,13 @@ class ThreatRetrieverEngine:
         sqlite_conn=None,
         hybrid_searcher=None,
         attack_graph=None,
+        reranker=None,
     ) -> None:
         self.qdrant = qdrant_client
         self.sqlite = sqlite_conn
         self.hybrid_searcher = hybrid_searcher
         self.attack_graph = attack_graph
+        self.reranker = reranker
         self._initialized = False
 
     def initialize(self, qdrant_path: str | None = None, sqlite_path: str | None = None) -> None:
@@ -179,8 +181,19 @@ class ThreatRetrieverEngine:
                 query_encoder=query_encoder,
             )
 
+        # 4. Cross-Encoder Reranker
+        if self.reranker is None:
+            try:
+                from reranker import CrossEncoderReranker
+                logger.info("Pre-loading Cross-Encoder Reranker during server startup...")
+                self.reranker = CrossEncoderReranker()
+                self.reranker._load()
+                logger.info("Reranker preloaded successfully.")
+            except Exception as exc:
+                logger.warning("Reranker load deferred or stubbed: %s", exc)
+
         self._initialized = True
-        logger.info("ThreatRetrieverEngine initialized with all 3 engines.")
+        logger.info("ThreatRetrieverEngine initialized with all engines.")
 
     def run_query(
         self,
@@ -305,6 +318,29 @@ class ThreatRetrieverEngine:
                 "dense_score": 0.95,
                 "rrf_score": 0.98,
             }
+
+        # -------------------------------------------------------------------
+        # Engine 2.5: Cross-Encoder Reranking
+        # -------------------------------------------------------------------
+        t_rerank_start = time.perf_counter()
+        if getattr(self, "reranker", None) and candidate_map:
+            # Pass candidates to reranker
+            rerank_pairs = [(cid, c.get("text", "")) for cid, c in candidate_map.items()]
+            reranked = self.reranker.rerank(query, rerank_pairs, top_k=top_k)
+            
+            # Rebuild candidate map using only the top_k reranked results
+            new_candidate_map = {}
+            for res in reranked:
+                cid = res.chunk_id
+                c = candidate_map[cid]
+                # Inject the cross-encoder score as the new semantic score
+                c["dense_score"] = res.rerank_score
+                new_candidate_map[cid] = c
+            candidate_map = new_candidate_map
+            
+        rerank_ms = (time.perf_counter() - t_rerank_start) * 1000
+        # Add to vector_database_ms for profiling schema compliance
+        vector_database_ms += rerank_ms
 
         # -------------------------------------------------------------------
         # Engine 3: Knowledge Graph Expansion (MITRE ATT&CK)
