@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Generator, Iterable
-
-from datasketch import MinHash, MinHashLSH
+from typing import Any, Generator, Iterable
+try:
+    from datasketch import MinHash, MinHashLSH
+except ImportError:
+    MinHash = Any  # type: ignore
+    MinHashLSH = Any  # type: ignore
 
 try:
     from threat_retrieval_engine.search_engine.validator import ThreatChunk

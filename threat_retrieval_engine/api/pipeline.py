@@ -155,7 +155,6 @@ class ThreatRetrieverEngine:
         if self.hybrid_searcher is None:
             from bm25_index import build_from_sqlite, BM25Index
             from hybrid_search import HybridSearcher, default_query_encoder
-            from vectorizer import BGEVectorizer
 
             try:
                 bm25 = build_from_sqlite(self.sqlite)
@@ -164,6 +163,7 @@ class ThreatRetrieverEngine:
 
             # Vectorizer: Eagerly load model weights at startup & run warmup inference
             try:
+                from vectorizer import BGEVectorizer
                 logger.info("Pre-loading BGE-M3 embedding model during server startup...")
                 vectorizer = BGEVectorizer(eager_load=True)
                 query_encoder = default_query_encoder(vectorizer)
@@ -186,11 +186,13 @@ class ThreatRetrieverEngine:
             try:
                 from reranker import CrossEncoderReranker
                 logger.info("Pre-loading Cross-Encoder Reranker during server startup...")
-                self.reranker = CrossEncoderReranker()
-                self.reranker._load()
+                reranker_instance = CrossEncoderReranker()
+                reranker_instance._load()
+                self.reranker = reranker_instance
                 logger.info("Reranker preloaded successfully.")
             except Exception as exc:
                 logger.warning("Reranker load deferred or stubbed: %s", exc)
+                self.reranker = None
 
         self._initialized = True
         logger.info("ThreatRetrieverEngine initialized with all engines.")
@@ -299,19 +301,22 @@ class ThreatRetrieverEngine:
         # -------------------------------------------------------------------
         t_rerank_start = time.perf_counter()
         if getattr(self, "reranker", None) and candidate_map:
-            # Pass candidates to reranker
-            rerank_pairs = [(cid, c.get("text", "")) for cid, c in candidate_map.items()]
-            reranked = self.reranker.rerank(query, rerank_pairs, top_k=top_k)
-            
-            # Rebuild candidate map using only the top_k reranked results
-            new_candidate_map = {}
-            for res in reranked:
-                cid = res.chunk_id
-                c = candidate_map[cid]
-                # Inject the cross-encoder score as the new semantic score
-                c["dense_score"] = res.rerank_score
-                new_candidate_map[cid] = c
-            candidate_map = new_candidate_map
+            try:
+                # Pass candidates to reranker
+                rerank_pairs = [(cid, c.get("text", "")) for cid, c in candidate_map.items()]
+                reranked = self.reranker.rerank(query, rerank_pairs, top_k=top_k)
+                
+                # Rebuild candidate map using only the top_k reranked results
+                new_candidate_map = {}
+                for res in reranked:
+                    cid = res.chunk_id
+                    c = candidate_map[cid]
+                    # Inject the cross-encoder score as the new semantic score
+                    c["dense_score"] = res.rerank_score
+                    new_candidate_map[cid] = c
+                candidate_map = new_candidate_map
+            except Exception as exc:
+                logger.warning("Reranking bypassed: %s", exc)
             
         rerank_ms = (time.perf_counter() - t_rerank_start) * 1000
         # Add to vector_database_ms for profiling schema compliance
@@ -394,11 +399,15 @@ class ThreatRetrieverEngine:
                 cve_score=cve_sim,
             )
 
-            # Boost exact match if both IOC and CVE confirmed
+            # Calibrated scoring thresholds across the 5 tiers:
             if ioc_sim == 1.0 and cve_sim == 1.0:
                 composite = max(composite, 0.965)
-            elif cve_sim == 1.0 and (ttp_sim > 0.0 or semantic_sim >= 0.80):
-                composite = max(composite, 0.885)
+            elif ioc_sim == 1.0 and ttp_sim == 1.0:
+                composite = max(composite, 0.825)
+            elif cve_sim == 1.0 and ttp_sim == 1.0:
+                composite = max(composite, 0.650)
+            elif cve_sim == 1.0:
+                composite = max(composite, 0.400)
 
             tier = classify_confidence_tier(composite)
 

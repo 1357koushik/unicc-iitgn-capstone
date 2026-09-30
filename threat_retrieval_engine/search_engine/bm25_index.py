@@ -153,10 +153,14 @@ class BM25Index:
 
         scores: dict[str, float] = defaultdict(float)
         for term in query_terms:
-            idf = self._idf(term, n_docs)
-            if idf == 0.0:
+            postings = self._postings.get(term, ())
+            # Skip stop words / ultra-high-frequency terms present in >20% of docs
+            if not postings or (n_docs > 500 and len(postings) > n_docs * 0.20):
                 continue
-            for chunk_id in self._postings.get(term, ()):  # only docs containing the term
+            idf = self._idf(term, n_docs)
+            if idf <= 0.0:
+                continue
+            for chunk_id in postings:  # only docs containing the term
                 if allowed_ids is not None and chunk_id not in allowed_ids:
                     continue
                 tf = self._term_freqs[chunk_id][term]
