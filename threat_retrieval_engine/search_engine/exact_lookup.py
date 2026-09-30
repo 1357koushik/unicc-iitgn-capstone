@@ -27,8 +27,11 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchAny
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import FieldCondition, Filter, MatchAny
+except ImportError:
+    QdrantClient = Any  # type: ignore
 
 try:
     from threat_retrieval_engine.search_engine.tokenizer import extract_identifiers
@@ -97,8 +100,16 @@ def _sqlite_lookup(
     value: str,
     limit: int,
 ) -> list[str]:
-    """Find chunk_ids whose entities_json contains ``value`` as a JSON string."""
-    # entities_json serializes list items as quoted strings: "198.51.100.24".
+    """Find chunk_ids whose entities match ``value`` via entity_index or entities_json."""
+    try:
+        rows = sqlite.execute(
+            "SELECT chunk_id FROM entity_index WHERE entity_value = ? LIMIT ?",
+            (value, limit),
+        ).fetchall()
+        if rows:
+            return [r[0] for r in rows]
+    except Exception:
+        pass
     needle = f'%"{value}"%'
     rows = sqlite.execute(
         "SELECT chunk_id FROM corpus WHERE entities_json LIKE ? LIMIT ?",
@@ -167,11 +178,29 @@ def exact_lookup(
         vals = ids.get(kind)
         if not vals:
             continue
-        try:
-            for cid, matched_val in _qdrant_lookup(qdrant, field_name, vals, limit):
-                _record(cid, field_name, matched_val)
-        except Exception as exc:  # noqa: BLE001 — payload index may be absent
-            logger.warning("Qdrant exact lookup on %s failed (%s); skipping.", field_name, exc)
+        if qdrant is not None and QdrantClient is not Any:
+            try:
+                for cid, matched_val in _qdrant_lookup(qdrant, field_name, vals, limit):
+                    _record(cid, field_name, matched_val)
+            except Exception as exc:  # noqa: BLE001 — payload index may be absent
+                logger.warning("Qdrant exact lookup on %s failed (%s); skipping.", field_name, exc)
+        else:
+            for val in vals:
+                v_clean = val.upper()
+                rows = sqlite.execute(
+                    "SELECT chunk_id FROM corpus WHERE doc_id = ? OR doc_id LIKE ? LIMIT ?",
+                    (v_clean, f"{v_clean}%", limit),
+                ).fetchall()
+                if not rows:
+                    try:
+                        rows = sqlite.execute(
+                            "SELECT chunk_id FROM entity_index WHERE entity_value = ? OR entity_value = ? LIMIT ?",
+                            (v_clean, val, limit),
+                        ).fetchall()
+                    except Exception:
+                        pass
+                for (cid,) in rows:
+                    _record(cid, field_name, v_clean)
 
     # 2) SQLite IOC scan (IPs, hashes, domains, URLs)
     for kind in _SQLITE_KINDS:

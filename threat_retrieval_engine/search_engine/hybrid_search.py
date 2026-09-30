@@ -37,14 +37,22 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    DatetimeRange,
-    FieldCondition,
-    Filter,
-    MatchAny,
-    MatchValue,
-)
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        DatetimeRange,
+        FieldCondition,
+        Filter,
+        MatchAny,
+        MatchValue,
+    )
+except ImportError:
+    QdrantClient = Any  # type: ignore
+    DatetimeRange = Any  # type: ignore
+    FieldCondition = Any  # type: ignore
+    Filter = Any  # type: ignore
+    MatchAny = Any  # type: ignore
+    MatchValue = Any  # type: ignore
 
 try:
     from threat_retrieval_engine.search_engine.bm25_index import BM25Index
@@ -115,7 +123,7 @@ def resolve_filter_to_ids(
     Scroll Qdrant for every chunk_id satisfying ``qfilter``.
     Returns None when there is no filter (meaning "no restriction").
     """
-    if qfilter is None:
+    if qfilter is None or qdrant is None or qdrant is Any:
         return None
     allowed: set[str] = set()
     next_page = None
@@ -205,16 +213,24 @@ class HybridSearcher:
             return []
 
         # --- dense side (Qdrant) ---
-        dense_vec = self.query_encoder(query)
-        dense_hits = search_vectors(
-            self.qdrant,
-            query_dense_vector=dense_vec,
-            top_k=candidate_k,
-            filter_dict=None,          # richer filter already applied via qfilter below
-        ) if qfilter is None else self._dense_search_filtered(dense_vec, candidate_k, qfilter)
-
-        dense_ranked = [h["chunk_id"] for h in dense_hits if h.get("chunk_id")]
-        dense_meta = {h["chunk_id"]: h for h in dense_hits if h.get("chunk_id")}
+        if self.qdrant is not None and self.qdrant is not Any and self.query_encoder is not None:
+            try:
+                dense_vec = self.query_encoder(query)
+                dense_hits = search_vectors(
+                    self.qdrant,
+                    query_dense_vector=dense_vec,
+                    top_k=candidate_k,
+                    filter_dict=None,          # richer filter already applied via qfilter below
+                ) if qfilter is None else self._dense_search_filtered(dense_vec, candidate_k, qfilter)
+                dense_ranked = [h["chunk_id"] for h in dense_hits if h.get("chunk_id")]
+                dense_meta = {h["chunk_id"]: h for h in dense_hits if h.get("chunk_id")}
+            except Exception as exc:
+                logger.warning("Dense search failed (%s); continuing with lexical only.", exc)
+                dense_ranked = []
+                dense_meta = {}
+        else:
+            dense_ranked = []
+            dense_meta = {}
 
         # --- lexical side (BM25) ---
         lexical_hits = self.bm25.search(query, top_k=candidate_k, allowed_ids=allowed_ids)

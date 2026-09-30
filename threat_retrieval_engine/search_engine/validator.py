@@ -35,8 +35,38 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterator, Literal, Optional
 
-import ftfy
-from pydantic import BaseModel, Field, field_validator
+try:
+    import ftfy
+except ImportError:
+    pass
+
+try:
+    from pydantic import BaseModel, Field, field_validator
+except ImportError:
+    from dataclasses import dataclass, field as _field
+
+    class BaseModel:
+        def __init__(self, **kwargs: Any) -> None:
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+        def dict(self) -> dict[str, Any]:
+            return self.__dict__
+
+        def model_dump(self) -> dict[str, Any]:
+            return self.__dict__
+
+    def Field(default: Any = ..., **kwargs: Any) -> Any:
+        if default is ...:
+            if "default_factory" in kwargs:
+                return _field(default_factory=kwargs["default_factory"])
+            return _field()
+        return _field(default=default)
+
+    def field_validator(*args: Any, **kwargs: Any) -> Any:
+        def decorator(fn: Any) -> Any:
+            return fn
+        return decorator
 
 # ---------------------------------------------------------------------------
 # Logging
