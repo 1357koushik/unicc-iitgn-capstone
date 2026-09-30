@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.backend
+    ports: ["8080:8080"]
+    environment:
+      - DEFAULT_LLM_BACKEND=gemini
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=sqlite:////data/app.db
+      - COOKIE_SECURE=false
+    volumes:
+      - app-data:/data
+
+  retrieval:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.retrieval
+    ports: ["8000:8000"]
+    volumes:
+      - retrieval-data:/app/data
+
+volumes:
+  app-data:
+  retrieval-data:

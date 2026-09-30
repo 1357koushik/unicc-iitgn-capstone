@@ -43,9 +43,17 @@ def get_llm_provider(
             config=config,
         )
 
+    elif selected_backend in ("gemini",):
+        from .api.gemini_provider import GeminiProvider
+        return GeminiProvider(
+            model_name=model_name,
+            api_key=kwargs.get("api_key"),
+            config=config,
+        )
+
     else:
         raise ValueError(
             f"Unknown LLM backend: '{selected_backend}'. "
-            f"Supported backends are: 'local' (Ollama on-premise) or 'api' (Cloud)."
+            f"Supported backends are: 'local' (Ollama on-premise), 'api' (Cloud), or 'gemini'."
         )
 
