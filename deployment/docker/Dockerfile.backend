@@ -1,12 +1,8 @@
-# Multi-stage build for sleek, fast images
-FROM python:3.11-slim AS builder
-WORKDIR /build
-COPY requirements-backend.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements-backend.txt
-
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
-COPY --from=builder /install /usr/local
+COPY requirements-backend.txt .
+RUN uv pip install --system --no-cache -r requirements-backend.txt
 COPY backend/ backend/
 COPY llm/ llm/
 COPY frontend/ frontend/

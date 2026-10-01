@@ -29,7 +29,7 @@ def get_llm_provider(
     if selected_backend in ("local", "onprem", "ollama"):
         host = kwargs.get("host") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
         return OllamaLocalProvider(
-            model_name=model_name or os.getenv("LOCAL_MODEL_NAME", "llama3:8b"),
+            model_name=model_name or os.getenv("OLLAMA_MODEL", "llama3:8b"),
             host=host,
             config=config,
         )

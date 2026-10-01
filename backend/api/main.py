@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from backend.config import get_bool, get_int, get_str   # loads the .env file first
 from backend.database import engine, Base, get_db
@@ -378,6 +378,7 @@ class EntitiesRequest(BaseModel):
 
 class ThreatsRequest(BaseModel):
     entities: List[str] = Field(max_length=MAX_ENTITIES)
+    context: Optional[str] = None
     correlation_id: str = CORRELATION_ID
 
 class SummarizeRequest(BaseModel):
@@ -583,9 +584,9 @@ def extract_entities(req: EntitiesRequest, user: dict = Depends(get_investigator
         llm_result = llm_extract(req.report_text, backend="local" if backend_name == "ollama" else "gemini")
         res["threat_actors"] = llm_result.get("threat_actors", [])
         res["malware_families"] = llm_result.get("malware_families", [])
-    except Exception:
+    except Exception as e:
+        print("Entity Extraction LLM Error:", repr(e))
         pass
-        
     log_action(db, req.correlation_id, user["id"], user["role"], "extract_entities", "doc_current", backend_name, "success")
     return res
 
@@ -601,8 +602,9 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
         raise HTTPException(status_code=422, detail=f"Invalid input - each entity must be at most {MAX_ENTITY_CHARS} characters.")
     
     try:
+        obs_text = "\n".join(req.entities) if req.entities else (req.context or "")
         result = investigate_threat(
-            observation="\\n".join(req.entities),
+            observation=obs_text,
             backend="local" if backend_name == "ollama" else "gemini",
             team2_api_url=os.getenv("TEAM2_API_URL", "http://retrieval:8000")
         )
@@ -613,7 +615,8 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
             frontend_matches.append({
                 "threat": threat,
                 "confidence": result.get("confidence_level", "Medium"),
-                "mitre_tactics": result.get("associated_malware", [])
+                "mitre_tactics": result.get("associated_malware", []),
+                "citations": result.get("supporting_citations", [])
             })
             
         res = {

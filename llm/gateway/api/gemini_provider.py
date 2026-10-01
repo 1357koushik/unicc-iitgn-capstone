@@ -4,14 +4,14 @@ import time
 import urllib.request
 import urllib.error
 from typing import Any, Dict, Optional
-from .interface import LLMProvider, LLMGatewayError, LLMTimeoutError
+from ..interface import LLMProvider, LLMGatewayError, LLMTimeoutError
 
 class GeminiProvider(LLMProvider):
     """API-based AI through Google Gemini using the Team 3 gateway interface."""
 
     def __init__(
         self,
-        model_name: str = "gemini-3.6-flash",
+        model_name: str = "gemma-4-26b-a4b-it",
         api_key: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ):
@@ -31,8 +31,8 @@ class GeminiProvider(LLMProvider):
         if not self.api_key:
             raise LLMGatewayError("Gemini API key is not set (GEMINI_API_KEY), so the AI model could not be reached.")
 
-        timeout = self.config.get("timeout", 60)
-        max_retries = self.config.get("max_retries", 3)
+        timeout = self.config.get("timeout", 120)
+        max_retries = self.config.get("max_retries", 10)
         
         # Combine system prompt with user prompt since Gemini API expects it in contents
         # or use system_instruction if supported. Using parts combining for simplicity/robustness.
@@ -40,12 +40,17 @@ class GeminiProvider(LLMProvider):
         if system_prompt:
             combined_prompt = f"System Instruction:\n{system_prompt}\n\nUser Request:\n{prompt}"
 
+        generation_config = {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        }
+        
+        if self.model_name and self.model_name.startswith("gemma"):
+            generation_config["thinkingConfig"] = {"thinkingLevel": "MINIMAL"}
+
         payload = {
             "contents": [{"parts": [{"text": combined_prompt}]}],
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-            }
+            "generationConfig": generation_config
         }
         
         data = json.dumps(payload).encode("utf-8")
@@ -74,9 +79,11 @@ class GeminiProvider(LLMProvider):
 
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8")
-                if e.code == 503:
-                    print(f"INFO: Gemini model experiencing high demand (503). Retrying attempt {attempt+1}/{max_retries}...")
-                    time.sleep(2 ** attempt)
+                if e.code in (500, 503):
+                    if attempt == max_retries - 1:
+                        raise LLMGatewayError(f"Gemini server is failing ({e.code}) after {max_retries} attempts: {err_body}")
+                    print(f"INFO: Gemini model returned {e.code}. Retrying attempt {attempt+1}/{max_retries}...")
+                    time.sleep(min(15, 2 ** attempt))
                     continue
                 elif e.code == 429:
                     raise LLMGatewayError("Gemini Rate Limit Exceeded (429)")
@@ -91,6 +98,13 @@ class GeminiProvider(LLMProvider):
                     time.sleep(2 ** attempt)
                     continue
                 raise LLMGatewayError(f"Gemini request failed: {e.reason}")
+                
+            except TimeoutError as e:
+                if attempt == max_retries - 1:
+                    raise LLMTimeoutError("Gemini request timed out.")
+                print(f"INFO: Gemini request timed out (TimeoutError). Retrying attempt {attempt+1}/{max_retries}...")
+                time.sleep(2 ** attempt)
+                continue
                 
             except Exception as e:
                 raise LLMGatewayError(f"Gemini request failed: {e}")

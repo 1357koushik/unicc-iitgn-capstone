@@ -176,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!text.trim()) return showToast("Report text cannot be empty", "error");
 
         const btn = document.getElementById("analyze-btn");
-        btn.textContent = "Processing...";
+        btn.textContent = "Processing... (AI is analyzing, hang tight!)";
         btn.disabled = true;
 
         try {
@@ -206,15 +206,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (res.ok) {
                 const entitiesData = await res.json();
-                extractedEntities = entitiesData.iocs;
+                const iocs = entitiesData.iocs || [];
+                const actors = entitiesData.threat_actors || [];
+                const malware = entitiesData.malware_families || [];
+                extractedEntities = [...iocs, ...actors, ...malware];
                 
                 const title = textElement("strong", "Extracted IOCs:");
+                
+                const displayElements = [title];
                 if (entitiesData.iocs.length === 0) {
-                    showInBox("entities-display", title,
-                        textElement("p", "No indicators (CVEs, IPs, domains, hashes) found in this report.", "placeholder-text"));
+                    displayElements.push(textElement("p", "No indicators (CVEs, IPs, domains, hashes) found in this report.", "placeholder-text"));
                 } else {
-                    showInBox("entities-display", title, textList(entitiesData.iocs));
+                    displayElements.push(textList(entitiesData.iocs));
                 }
+
+                if (entitiesData.threat_actors && entitiesData.threat_actors.length > 0) {
+                    displayElements.push(textElement("strong", "Threat Actors:"));
+                    displayElements.push(textList(entitiesData.threat_actors));
+                }
+                
+                if (entitiesData.malware_families && entitiesData.malware_families.length > 0) {
+                    displayElements.push(textElement("strong", "Malware Families:"));
+                    displayElements.push(textList(entitiesData.malware_families));
+                }
+
+                showInBox("entities-display", ...displayElements);
                 document.getElementById("step-2").classList.remove("disabled");
                 document.getElementById("threat-match-btn").disabled = false;
                 showToast("Extraction complete", "success");
@@ -233,14 +249,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Step 2: Threat Matching
     document.getElementById("threat-match-btn").addEventListener("click", async () => {
         const btn = document.getElementById("threat-match-btn");
-        btn.textContent = "Matching...";
+        btn.textContent = "Matching... (AI is querying DB, hang tight!)";
         btn.disabled = true;
 
         try {
             const res = await api("/api/v1/investigation/threats", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ entities: extractedEntities, correlation_id: currentCorrelationId })
+                body: JSON.stringify({ 
+                    entities: extractedEntities, 
+                    context: document.getElementById("report-input").value,
+                    correlation_id: currentCorrelationId 
+                })
             });
 
             if (res.ok) {
@@ -264,6 +284,30 @@ document.addEventListener("DOMContentLoaded", () => {
                         const item = document.createElement("li");
                         const tactics = (m.mitre_tactics || []).join(", ");
                         item.textContent = `${m.threat} (Confidence: ${m.confidence})` + (tactics ? ` - ${tactics}` : "");
+                        
+                        if (m.citations && m.citations.length > 0) {
+                            const citList = document.createElement("ul");
+                            citList.style.marginTop = "0.5rem";
+                            citList.style.marginBottom = "1rem";
+                            m.citations.forEach(c => {
+                                const citItem = document.createElement("li");
+                                citItem.style.color = "var(--accent)";
+                                citItem.style.marginBottom = "0.5rem";
+                                citItem.style.lineHeight = "1.5";
+
+                                const badge = document.createElement("span");
+                                badge.className = "source-badge";
+                                badge.textContent = `Source: ${c.document_id}`;
+
+                                const snippet = document.createTextNode(` "${c.key_excerpt}"`);
+
+                                citItem.appendChild(badge);
+                                citItem.appendChild(snippet);
+                                citList.appendChild(citItem);
+                            });
+                            item.appendChild(citList);
+                        }
+
                         list.appendChild(item);
                     });
                     box.appendChild(list);
@@ -283,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Step 2b: Summarize
     document.getElementById("summarize-btn").addEventListener("click", async () => {
         const btn = document.getElementById("summarize-btn");
-        btn.textContent = "Synthesizing...";
+        btn.textContent = "Synthesizing... (AI is summarizing, hang tight!)";
         btn.disabled = true;
 
         const evidence = document.getElementById("report-input").value + "\n" + document.getElementById("threats-display").innerText;
@@ -398,7 +442,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     const viewBtn = document.createElement("button");
                     viewBtn.className = "btn outline-btn small-btn";
                     viewBtn.textContent = "View";
-                    viewBtn.addEventListener("click", () => alert(JSON.stringify(details, null, 2)));
+                    viewBtn.addEventListener("click", () => {
+                        let msg = "";
+                        for (const [key, value] of Object.entries(details)) {
+                            msg += `${key.replace(/_/g, ' ').toUpperCase()}:\n${value}\n\n`;
+                        }
+                        alert(msg.trim());
+                    });
                     viewCell.appendChild(viewBtn);
                     tr.appendChild(viewCell);
 

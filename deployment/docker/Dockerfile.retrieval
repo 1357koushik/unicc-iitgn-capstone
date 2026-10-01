@@ -1,15 +1,10 @@
-FROM python:3.11 AS builder
-WORKDIR /build
-COPY requirements-retrieval.txt .
-COPY pyproject.toml .
-RUN pip install --no-cache-dir --prefix=/install -r requirements-retrieval.txt
-
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
-COPY --from=builder /install /usr/local
+COPY requirements-retrieval.txt .
+RUN uv pip install --system --no-cache -r requirements-retrieval.txt fastapi uvicorn python-multipart
 COPY threat_retrieval_engine/ threat_retrieval_engine/
 COPY knowledge_foundation/ knowledge_foundation/
 COPY config/ config/
-COPY data/ data/
 EXPOSE 8000
 CMD ["uvicorn", "threat_retrieval_engine.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

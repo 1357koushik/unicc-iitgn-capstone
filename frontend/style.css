@@ -1,14 +1,14 @@
 :root {
-    --bg-color: #0b0f19;
-    --panel-bg: rgba(22, 30, 46, 0.6);
-    --panel-border: rgba(255, 255, 255, 0.08);
-    --text-primary: #e2e8f0;
-    --text-secondary: #94a3b8;
-    --primary-color: #3b82f6;
-    --primary-hover: #2563eb;
-    --secondary-color: #10b981;
-    --accent-color: #8b5cf6;
-    --error-color: #ef4444;
+    --bg-color: #ffffff;
+    --panel-bg: #e7ecf0;
+    --panel-border: #20252c;
+    --text-primary: #0e1116;
+    --text-secondary: #66707b;
+    --primary-color: #0349b4;
+    --primary-hover: #1168e3;
+    --secondary-color: #055d20;
+    --accent-color: #622cbc;
+    --error-color: #a0111f;
     /* Fonts already installed on the computer: nothing is downloaded from the
        internet, so the page works on a private network and makes no outside requests. */
     --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -24,8 +24,8 @@ body {
     font-family: var(--font-family);
     background-color: var(--bg-color);
     background-image: 
-        radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
-        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+        radial-gradient(circle at 15% 50%, rgba(3, 73, 180, 0.05), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(98, 44, 188, 0.05), transparent 25%);
     background-attachment: fixed;
     color: var(--text-primary);
     line-height: 1.6;
@@ -36,9 +36,7 @@ body {
 h1, h2, h3 {
     font-weight: 600;
     margin-bottom: 1rem;
-    background: linear-gradient(to right, #fff, #94a3b8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--text-primary);
 }
 
 /* Glassmorphism Panels */
@@ -117,7 +115,7 @@ label {
 input[type="text"], input[type="password"], textarea, select {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: #ffffff;
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     color: var(--text-primary);
@@ -149,14 +147,15 @@ textarea {
 }
 
 .primary-btn {
-    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
-    color: white;
-    box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+    background: var(--primary-color);
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(3, 73, 180, 0.2);
 }
 
 .primary-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+    box-shadow: 0 4px 8px rgba(17, 104, 227, 0.3);
 }
 
 .secondary-btn {
@@ -221,7 +220,7 @@ textarea {
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background: rgba(11, 15, 25, 0.8);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--panel-border);
     position: sticky;
@@ -269,8 +268,8 @@ textarea {
 }
 
 .badge {
-    background: rgba(139, 92, 246, 0.2);
-    color: #c4b5fd;
+    background: var(--primary-color);
+    color: #ffffff;
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
     font-size: 0.75rem;
@@ -298,12 +297,18 @@ textarea {
 }
 
 .entities-display, .threats-display, .summary-display {
-    background: rgba(0, 0, 0, 0.2);
+    background: #ffffff;
     border-radius: 8px;
-    padding: 1rem;
+    padding: 1.5rem;
     min-height: 100px;
     margin-bottom: 1rem;
     border: 1px solid var(--panel-border);
+}
+
+.entities-display ul, .threats-display ul, .summary-display ul {
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 
 /* AI answers are inserted as plain text; this keeps their line breaks. */
@@ -376,4 +381,16 @@ tr:hover {
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+.source-badge {
+    background-color: #f0f0f0;
+    color: #333333;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-right: 0.5rem;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
