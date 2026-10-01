@@ -29,7 +29,7 @@ from typing import Any
 
 try:
     from qdrant_client import QdrantClient
-    from qdrant_client.models import FieldCondition, Filter, MatchAny
+    from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchText
 except ImportError:
     QdrantClient = Any  # type: ignore
 
@@ -65,13 +65,19 @@ def _qdrant_lookup(
     field_name: str,
     values: list[str],
     limit: int,
+    allowed_sources: list[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Return (chunk_id, matched_value) via a Qdrant payload filter (MatchAny)."""
     if not values:
         return []
     # Qdrant keyword payloads for CVEs are stored upper-case; match both cases.
     variants = sorted({v for val in values for v in (val, val.upper(), val.lower())})
-    flt = Filter(must=[FieldCondition(key=field_name, match=MatchAny(any=variants))])
+    flt_must = [FieldCondition(key=field_name, match=MatchAny(any=variants))]
+    if allowed_sources is not None:
+        # MatchText matches substrings/tokens
+        or_conditions = [FieldCondition(key="source_org", match=MatchText(text=str(s))) for s in allowed_sources]
+        flt_must.append(Filter(should=or_conditions))
+    flt = Filter(must=flt_must)
     points, _ = qdrant.scroll(
         collection_name=COLLECTION_NAME,
         scroll_filter=flt,
@@ -125,6 +131,7 @@ def exact_lookup(
     identifiers: dict[str, list[str]] | None = None,
     limit: int = 50,
     hydrate: bool = True,
+    allowed_sources: list[str] | None = None,
 ) -> list[ExactMatch]:
     """
     Look up historical chunks that contain the given security identifiers.
@@ -164,6 +171,10 @@ def exact_lookup(
             return
         seen.add(chunk_id)
         meta = fetch_chunk_metadata(chunk_id, sqlite) if hydrate else {}
+        if allowed_sources is not None:
+            source_org = meta.get("source_org", "") if meta else ""
+            if not any(a in source_org for a in allowed_sources):
+                return
         matches.append(
             ExactMatch(
                 chunk_id=chunk_id,
@@ -180,7 +191,7 @@ def exact_lookup(
             continue
         if qdrant is not None and QdrantClient is not Any:
             try:
-                for cid, matched_val in _qdrant_lookup(qdrant, field_name, vals, limit):
+                for cid, matched_val in _qdrant_lookup(qdrant, field_name, vals, limit, allowed_sources):
                     _record(cid, field_name, matched_val)
             except Exception as exc:  # noqa: BLE001 — payload index may be absent
                 logger.warning("Qdrant exact lookup on %s failed (%s); skipping.", field_name, exc)

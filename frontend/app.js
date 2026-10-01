@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(".tab-content").forEach(c =>
             c.classList.toggle("active", c.id === targetId));
         if (targetId === "audit-tab") loadAuditLogs();
-        if (targetId === "admin-tab") loadConfig();
+        if (targetId === "admin-tab") { loadConfig(); loadUsers(); }
     }
 
     document.querySelectorAll(".nav-tab").forEach(tab => {
@@ -486,6 +486,61 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("Failed to save config", "error");
         }
     });
+
+    async function loadUsers() {
+        try {
+            const res = await api("/api/v1/admin/users");
+            if (res.ok) {
+                const data = await res.json();
+                const tbody = document.querySelector("#users-table tbody");
+                tbody.innerHTML = "";
+                data.forEach(u => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${u.username}</td>
+                        <td>${u.role}</td>
+                        <td>
+                            <select id="ds-${u.id}" class="dataset-dropdown">
+                                <option value="ALL" ${u.allowed_datasets === 'ALL' ? 'selected' : ''}>ALL (Full Access)</option>
+                                <option value="INTERNAL" ${u.allowed_datasets === 'INTERNAL' ? 'selected' : ''}>INTERNAL Only</option>
+                                <option value="CISA_KEV" ${u.allowed_datasets === 'CISA_KEV' ? 'selected' : ''}>CISA KEV</option>
+                                <option value="NVD" ${u.allowed_datasets === 'NVD' ? 'selected' : ''}>NVD</option>
+                                <option value="MITRE_ATTACK" ${u.allowed_datasets === 'MITRE_ATTACK' ? 'selected' : ''}>MITRE ATT&CK</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn secondary-btn small-btn save-user-btn" data-user-id="${u.id}">Save</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                document.querySelectorAll(".save-user-btn").forEach(btn => {
+                    btn.addEventListener("click", async (e) => {
+                        const userId = e.target.getAttribute("data-user-id");
+                        const datasets = document.getElementById(`ds-${userId}`).value;
+                        try {
+                            const res = await api(`/api/v1/admin/users/${userId}/permissions`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ allowed_datasets: datasets })
+                            });
+                            if (res.ok) showToast("Permissions updated", "success");
+                            else showToast("Failed to update", "error");
+                        } catch(err) {
+                            showToast("Failed to update", "error");
+                        }
+                    });
+                });
+            }
+        } catch(e) {
+            showToast("Failed to load users", "error");
+        }
+    }
+
+    document.getElementById("refresh-users-btn").addEventListener("click", loadUsers);
+
+
 
     // Helpers
     function showView(viewId) {

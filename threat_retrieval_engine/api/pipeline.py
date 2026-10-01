@@ -202,6 +202,7 @@ class ThreatRetrieverEngine:
         query: str,
         top_k: int = 5,
         alpha: float = 0.5,
+        allowed_sources: list[str] | None = None,
     ) -> MatchResponse:
         """Execute exact match, vector hybrid search, and knowledge graph expansion."""
         t_total_start = time.perf_counter()
@@ -223,6 +224,7 @@ class ThreatRetrieverEngine:
                 query=query,
                 limit=top_k,
                 hydrate=True,
+                allowed_sources=allowed_sources,
             )
             for m in exact_matches:
                 meta = m.metadata or fetch_chunk_metadata(m.chunk_id, self.sqlite) or {}
@@ -248,7 +250,7 @@ class ThreatRetrieverEngine:
         hybrid_results = []
         try:
             search_k = max(top_k * 4, 20)
-            hits = self.hybrid_searcher.search(query=query, top_k=search_k)
+            hits = self.hybrid_searcher.search(query=query, top_k=search_k, allowed_sources=allowed_sources)
             for h in hits:
                 hybrid_results.append({
                     "chunk_id": h.chunk_id,

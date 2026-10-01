@@ -393,7 +393,25 @@ class DecisionRequest(BaseModel):
 class ConfigUpdate(BaseModel):
     llm_backend: str = Field(max_length=32)
 
+class UserUpdate(BaseModel):
+    allowed_datasets: str
+
 # --- Endpoints ---
+@app.get("/api/v1/admin/users")
+def get_users(user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return [{"id": u.id, "username": u.username, "role": u.role, "allowed_datasets": u.allowed_datasets} for u in users]
+
+@app.put("/api/v1/admin/users/{user_id}/permissions")
+def update_user_permissions(user_id: str, req: UserUpdate, admin: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    target_user.allowed_datasets = req.allowed_datasets
+    db.commit()
+    log_action(db, "admin", admin["id"], admin["role"], "update_permissions", "users", "none", "success", {"target_user": target_user.username, "new_datasets": req.allowed_datasets})
+    return {"message": "Permissions updated"}
+
 @app.post("/api/v1/auth/login")
 def login(req: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     ip = _client_ip(request)
@@ -603,10 +621,14 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
     
     try:
         obs_text = "\n".join(req.entities) if req.entities else (req.context or "")
+        allowed_sources_str = user.get("allowed_datasets", "ALL")
+        allowed_sources = None if allowed_sources_str == "ALL" else [s.strip() for s in allowed_sources_str.split(",")]
+        
         result = investigate_threat(
             observation=obs_text,
             backend="local" if backend_name == "ollama" else "gemini",
-            team2_api_url=os.getenv("TEAM2_API_URL", "http://retrieval:8000")
+            team2_api_url=os.getenv("TEAM2_API_URL", "http://retrieval:8000"),
+            allowed_sources=allowed_sources
         )
         
         frontend_matches = []

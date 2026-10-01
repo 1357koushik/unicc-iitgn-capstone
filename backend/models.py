@@ -20,6 +20,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False)  # admin, investigator, auditor
+    allowed_datasets = Column(String, default="ALL")
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

@@ -20,13 +20,17 @@ def fetch_team2_evidence(
     query: str,
     api_url: str = "http://localhost:8000",
     top_k: int = 5,
+    allowed_sources: Optional[List[str]] = None,
 ) -> Any:
     """
     Sends an HTTP POST to Team 2's EXISTING API endpoint (/api/v1/threats/match or /match).
     Team 2's code is not modified; we simply call their live API over HTTP.
     """
     base = api_url.rstrip("/")
-    payload = json.dumps({"query": query, "top_k": top_k, "alpha": 0.5}).encode("utf-8")
+    payload_dict = {"query": query, "top_k": top_k, "alpha": 0.5}
+    if allowed_sources is not None:
+        payload_dict["allowed_sources"] = allowed_sources
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     # Try preferred endpoint first
     endpoints = [
@@ -136,6 +140,7 @@ class ThreatInvestigator:
         observation: str,
         retrieved_evidence: Any = None,
         team2_api_url: Optional[str] = None,
+        allowed_sources: Optional[List[str]] = None,
     ) -> InvestigationResult:
         """
         Synthesizes historical evidence to assess a newly observed threat.
@@ -149,7 +154,7 @@ class ThreatInvestigator:
         # If evidence was not pre-fetched, query Team 2's existing API directly
         if retrieved_evidence is None:
             url = team2_api_url or os.getenv("TEAM2_API_URL", "http://localhost:8000")
-            retrieved_evidence = fetch_team2_evidence(query=observation, api_url=url)
+            retrieved_evidence = fetch_team2_evidence(query=observation, api_url=url, allowed_sources=allowed_sources)
 
         # Natively normalize Team 2 format into standard evidence list
         clean_evidence = normalize_team2_evidence(retrieved_evidence)

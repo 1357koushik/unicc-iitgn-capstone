@@ -66,7 +66,7 @@ class DBUserStore(IdentityProvider):
     def authenticate(self, username: str, password: str) -> Optional[Dict[str, str]]:
         user = self.db.query(User).filter(User.username == username).first()
         if user and verify_password(password, user.hashed_password):
-            return {"id": str(user.id), "username": user.username, "role": user.role}
+            return {"id": str(user.id), "username": user.username, "role": user.role, "allowed_datasets": user.allowed_datasets}
         return None
 
 def create_jwt_token(data: dict) -> str:
