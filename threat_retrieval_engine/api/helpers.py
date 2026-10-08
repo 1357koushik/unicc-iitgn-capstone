@@ -79,41 +79,62 @@ def jaccard_similarity(a: set[str] | list[str], b: set[str] | list[str]) -> floa
     return len(set_a & set_b) / len(union)
 
 
+CALIBRATED_SCORING_WEIGHTS: tuple[float, float, float, float] = (0.40, 0.20, 0.20, 0.20)
+CALIBRATED_CONFIDENCE_THRESHOLDS: dict[str, float] = {
+    "unsupported_to_weak": 0.10,
+    "weak_to_partial":     0.45,
+    "partial_to_strong":   0.65,
+    "strong_to_exact":     0.85,
+}
+
+
 def calculate_composite_score(
     ioc_score: float,
     ttp_score: float,
     semantic_score: float,
     cve_score: float,
+    weights: tuple[float, float, float, float] | list[float] | None = None,
 ) -> float:
     """
-    4-factor Composite Scoring Formula:
-      0.35 * IOC + 0.25 * TTP + 0.25 * Semantic + 0.15 * CVE
+    Empirically Calibrated 4-factor Composite Scoring Formula:
+      S(w) = w_IOC * IOC + w_TTP * TTP + w_Semantic * Semantic + w_CVE * CVE
+
+    Default Calibrated Ratios:
+      w_IOC      = 0.40 (Definitive network/host IOC matching: IP, SHA256, MD5)
+      w_TTP      = 0.20 (Behavioral TTP / MITRE technique / malware attribution)
+      w_Semantic = 0.20 (Lexical / dense semantic similarity)
+      w_CVE      = 0.20 (Standard vulnerability identifier match)
     """
+    w = weights if weights is not None else CALIBRATED_SCORING_WEIGHTS
     composite = (
-        (ioc_score * 0.35)
-        + (ttp_score * 0.25)
-        + (semantic_score * 0.25)
-        + (cve_score * 0.15)
+        (ioc_score * w[0])
+        + (ttp_score * w[1])
+        + (semantic_score * w[2])
+        + (cve_score * w[3])
     )
     return round(float(composite), 4)
 
 
-def classify_confidence_tier(composite_score: float) -> str:
+def classify_confidence_tier(
+    composite_score: float,
+    thresholds: dict[str, float] | None = None,
+) -> str:
     """
-    5-Tier Confidence Gating:
-      >= 0.95 -> EXACT
-      0.80 - 0.94 -> STRONG
-      0.55 - 0.79 -> PARTIAL
-      0.30 - 0.54 -> WEAK
-      < 0.30 -> UNSUPPORTED
+    Calibrated 5-Tier Confidence Gating:
+      >= 0.85 -> EXACT
+      0.65 - 0.84 -> STRONG
+      0.45 - 0.64 -> PARTIAL
+      0.10 - 0.44 -> WEAK
+      < 0.10 -> UNSUPPORTED
     """
-    if composite_score >= 0.95:
+    th = thresholds or CALIBRATED_CONFIDENCE_THRESHOLDS
+    if composite_score >= th.get("strong_to_exact", 0.85):
         return "EXACT"
-    elif composite_score >= 0.80:
+    elif composite_score >= th.get("partial_to_strong", 0.65):
         return "STRONG"
-    elif composite_score >= 0.55:
+    elif composite_score >= th.get("weak_to_partial", 0.45):
         return "PARTIAL"
-    elif composite_score >= 0.30:
+    elif composite_score >= th.get("unsupported_to_weak", 0.10):
         return "WEAK"
     return "UNSUPPORTED"
 

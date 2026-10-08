@@ -17,14 +17,32 @@ from fastapi.middleware.cors import CORSMiddleware
 
 try:
     from threat_retrieval_engine.api.pipeline import get_orchestrator
-    from threat_retrieval_engine.api.schemas import MatchRequest, MatchResponse
+    from threat_retrieval_engine.api.schemas import (
+        MatchRequest,
+        MatchResponse,
+        PoCFindRequest,
+        PoCFindResponse,
+    )
+    from threat_retrieval_engine.poc_intelligence import get_poc_finder
 except ImportError:
     try:
         from api.pipeline import get_orchestrator
-        from api.schemas import MatchRequest, MatchResponse
+        from api.schemas import (
+            MatchRequest,
+            MatchResponse,
+            PoCFindRequest,
+            PoCFindResponse,
+        )
+        from poc_intelligence import get_poc_finder
     except ImportError:
         from pipeline import get_orchestrator
-        from schemas import MatchRequest, MatchResponse
+        from schemas import (
+            MatchRequest,
+            MatchResponse,
+            PoCFindRequest,
+            PoCFindResponse,
+        )
+        from poc_intelligence import get_poc_finder
 
 
 @asynccontextmanager
@@ -38,7 +56,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Threat Retrieval & Matching Subsystem",
-    description="Unified API executing Exact Match, Vector Hybrid Search, and MITRE Knowledge Graph",
+    description="Unified API executing Exact Match, Vector Hybrid Search, and MITRE Knowledge Graph with PoC & Exploit Intelligence",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -70,3 +88,21 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
         top_k=request.top_k,
         alpha=request.alpha,
     )
+
+
+@app.post("/api/v1/pocs/find", response_model=PoCFindResponse, tags=["PoC & Exploit Intelligence"])
+@app.post("/pocs/find", response_model=PoCFindResponse, tags=["PoC & Exploit Intelligence"])
+async def find_pocs_for_cve(request: PoCFindRequest) -> PoCFindResponse:
+    """
+    Task 4: Identify Available POCs or Exploits given a specific CVE.
+    Conducts OSINT searches across GitHub, X, Mastodon, and BlueSky,
+    deduplicates and validates links, and returns precision-scored findings.
+    """
+    finder = get_poc_finder()
+    return await finder.find_pocs(
+        cve_id=request.cve_id,
+        max_results=request.max_results,
+        sources=request.sources,
+        min_confidence=request.min_confidence,
+    )
+
