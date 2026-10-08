@@ -60,7 +60,7 @@ Modern Security Operations Centers (SOCs) face an overwhelming influx of dispara
 │                                          ▼                                                  │
 │  ┌───────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ LAYER 4: 5-Tier Threat Matching & Evidence Citation                                   │  │
-│  │ • Composite Score: 0.35*IOC + 0.25*TTP + 0.25*Semantic + 0.15*CVE                     │  │
+│  │ • Composite Score: 0.40*IOC + 0.20*TTP + 0.20*Semantic + 0.20*CVE                     │  │
 │  │ • Classification: EXACT | STRONG | PARTIAL | WEAK | UNSUPPORTED                       │  │
 │  │ • LlamaIndex CitationQueryEngine (Doc ID, Chunk ID, Provenance Page, Confidence)      │  │
 │  └───────────────────────────────────────┬───────────────────────────────────────────────┘  │
@@ -120,10 +120,16 @@ unicc-iitgn-capstone/
 │   │   ├── reranker.py                # Cross-Encoder (bge-reranker-v2-m3)
 │   │   └── mitre_graph.py             # MITRE ATT&CK STIX graph relations
 │   ├── api/                           # Serving interface (FastAPI REST service)
-│   │   ├── main.py                    # App entry point & unified /match route
-│   │   ├── pipeline.py                # End-to-end query router and threat matcher
+│   │   ├── main.py                    # App entry point, unified /match & /pocs/find routes
+│   │   ├── pipeline.py                # End-to-end query router, matcher & PoC enricher
 │   │   ├── schemas.py                 # Pydantic v2 request/response contracts
 │   │   └── helpers.py                 # Indicator extraction and scoring helpers
+│   ├── poc_intelligence/              # [Task 4] Multi-source OSINT PoC & Exploit Harvester
+│   │   ├── sources/                   # Concurrent scrapers: GitHub, X, Mastodon, BlueSky
+│   │   ├── poc_validator.py           # Precision scoring & anti-deception heuristic filters
+│   │   ├── result_aggregator.py       # Cross-platform URL deduplication & corroboration
+│   │   ├── poc_cache.py               # SQLite-backed KEV-aware TTL cache (1h KEV / 6h default)
+│   │   └── poc_finder.py              # Unified async orchestrator (PoCFinderEngine)
 │   └── benchmarks/                    # Dedicated benchmark suite
 │       └── README.md                  # Latency, NDCG@10, and RAGAS benchmark setup
 │
@@ -186,6 +192,7 @@ cp .env.example .env
 Team 2 exposes standard HTTP REST interfaces for inter-team microservice integration:
 
 * `POST /api/v1/threats/match` — Executes 4-layer pipeline and returns 5-tier classification and citation evidence.
+* `POST /api/v1/pocs/find` — [Task 4] Multi-source OSINT PoC & exploit discovery (GitHub, X, Mastodon, BlueSky) with ≥70% precision scoring.
 * `POST /api/v1/search/hybrid` — Standalone hybrid search (dense BGE-M3 + sparse BM25) with dynamic $\alpha$ routing.
 * `POST /api/v1/entities/lookup` — Sub-millisecond deterministic exact lookup for CVEs, hashes, and IPs.
 * `GET /api/v1/health` — Returns status of Qdrant, Neo4j, embedding models, and rerankers.

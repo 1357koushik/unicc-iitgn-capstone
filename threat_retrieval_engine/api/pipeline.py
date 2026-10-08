@@ -32,6 +32,7 @@ try:
         EvidenceBreakdownSchema,
         MatchResponse,
         PipelineProfileSchema,
+        PoCResultSchema,
         TopMatchSchema,
     )
 except ImportError:
@@ -51,6 +52,7 @@ except ImportError:
             EvidenceBreakdownSchema,
             MatchResponse,
             PipelineProfileSchema,
+            PoCResultSchema,
             TopMatchSchema,
         )
     except ImportError:
@@ -69,6 +71,7 @@ except ImportError:
             EvidenceBreakdownSchema,
             MatchResponse,
             PipelineProfileSchema,
+            PoCResultSchema,
             TopMatchSchema,
         )
 
@@ -433,14 +436,44 @@ class ThreatRetrieverEngine:
         scoring_ms = (time.perf_counter() - t_score_start) * 1000
 
         # -------------------------------------------------------------------
-        # Attribution & Citations
+        # Attribution, Citations & PoC Intelligence Enrichment (Task 4)
         # -------------------------------------------------------------------
         t_cite_start = time.perf_counter()
         top_matches: list[TopMatchSchema] = []
 
+        # Discover PoCs for CVEs identified in query text or observables
+        t_poc_start = time.perf_counter()
+        discovered_pocs: dict[str, list[PoCResultSchema]] = {}
+        if query_ent.cves:
+            try:
+                from threat_retrieval_engine.poc_intelligence import get_poc_finder
+                poc_finder = get_poc_finder()
+                for cve in query_ent.cves:
+                    poc_resp = poc_finder.find_pocs_sync(cve, max_results=5)
+                    discovered_pocs[cve.upper()] = poc_resp.results
+            except Exception as exc:
+                logger.debug("PoC discovery enrichment skipped or encountered exception: %s", exc)
+        poc_discovery_ms = (time.perf_counter() - t_poc_start) * 1000
+
         for rank, cand in enumerate(top_candidates, start=1):
             attr_dict = extract_attribution(query_ent, cand["metadata"], cand["text"])
             citation_dict = build_citation(cand["chunk_id"], cand["metadata"], cand["text"])
+
+            # Map relevant PoCs to this candidate
+            cand_pocs: list[PoCResultSchema] = []
+            for cve in attr_dict.get("matching_cves", []):
+                cand_pocs.extend(discovered_pocs.get(cve.upper(), []))
+            if not cand_pocs and query_ent.cves:
+                for cve in query_ent.cves:
+                    cand_pocs.extend(discovered_pocs.get(cve.upper(), []))
+
+            # Deduplicate by URL
+            seen_poc_urls = set()
+            unique_cand_pocs = []
+            for p in cand_pocs:
+                if p.url not in seen_poc_urls:
+                    seen_poc_urls.add(p.url)
+                    unique_cand_pocs.append(p)
 
             top_matches.append(
                 TopMatchSchema(
@@ -452,6 +485,7 @@ class ThreatRetrieverEngine:
                     attribution=AttributionSchema(**attr_dict),
                     stix_relationships=cand["stix_relationships"],
                     citations=[CitationSchema(**citation_dict)],
+                    pocs=unique_cand_pocs,
                 )
             )
         citation_ms = (time.perf_counter() - t_cite_start) * 1000
@@ -467,6 +501,7 @@ class ThreatRetrieverEngine:
                 knowledge_graph_ms=round(knowledge_graph_ms, 1),
                 scoring_ms=round(scoring_ms, 1),
                 citation_ms=round(citation_ms, 1),
+                poc_discovery_ms=round(poc_discovery_ms, 1),
                 total_ms=round(total_ms, 1),
             ),
         )

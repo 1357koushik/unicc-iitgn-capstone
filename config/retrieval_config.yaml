@@ -47,3 +47,30 @@ reranker_top_k: 5           # final evidence chunks after reranking
 
 # MITRE ATT&CK STIX knowledge graph
 mitre_attack_bundle_path: "./data/mitre/enterprise-attack.json"
+
+# ---------------------------------------------------------------------------
+# POC & Exploit Intelligence (Task 4)
+# ---------------------------------------------------------------------------
+poc_intelligence:
+  enabled: true
+  cache_ttl_seconds: 21600          # 6 hours default
+  kev_cache_ttl_seconds: 3600       # 1 hour for CISA KEV listed vulnerabilities
+  max_results_per_source: 10        # cap per individual scraper
+  max_total_results: 30             # cap on merged results
+  min_confidence_threshold: 0.0     # 0.0 = return all (including SUSPICIOUS with warning flags)
+  request_timeout_seconds: 10.0     # per-source async HTTP timeout
+  sources:
+    github:
+      enabled: true
+      token_env_var: "GITHUB_TOKEN"
+    x:
+      enabled: true
+      bearer_token_env_var: "X_BEARER_TOKEN"
+    mastodon:
+      enabled: true
+      instances:
+        - "infosec.exchange"
+        - "defcon.social"
+    bluesky:
+      enabled: true
+
