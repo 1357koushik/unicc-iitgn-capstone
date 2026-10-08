@@ -1,7 +1,27 @@
 from __future__ import annotations
 
-from typing import Any
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field
+except ImportError:
+    from dataclasses import dataclass, field as _field
+
+    class BaseModel:
+        def __init__(self, **kwargs: Any) -> None:
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+        def dict(self) -> dict[str, Any]:
+            return self.__dict__
+
+        def model_dump(self) -> dict[str, Any]:
+            return self.__dict__
+
+    def Field(default: Any = ..., **kwargs: Any) -> Any:
+        if default is ...:
+            if "default_factory" in kwargs:
+                return _field(default_factory=kwargs["default_factory"])
+            return _field()
+        return _field(default=default)
 
 
 class MatchRequest(BaseModel):

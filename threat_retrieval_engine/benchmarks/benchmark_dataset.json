@@ -1,0 +1,132 @@
+[
+  {
+    "query_id": "bench_01_eternalblue_exact",
+    "query": "Attacker exploited CVE-2017-0144 using T1021.002 from host 198.51.100.24",
+    "expected_top_chunk": "80d012b2da2575e69d44b66f29fc49ba",
+    "relevant_documents": ["CVE-2017-0144"],
+    "expected_tier": "EXACT",
+    "metadata": {
+      "cve": "CVE-2017-0144",
+      "severity": "CRITICAL",
+      "observable_type": "cve_ioc_ttp",
+      "description": "Exact match query containing confirmed CVE, IPv4 observable, and MITRE technique"
+    }
+  },
+  {
+    "query_id": "bench_02_eternalblue_strong",
+    "query": "Observed lateral movement from 198.51.100.24 using technique T1021.002",
+    "expected_top_chunk": "80d012b2da2575e69d44b66f29fc49ba",
+    "relevant_documents": ["CVE-2017-0144"],
+    "expected_tier": "STRONG",
+    "metadata": {
+      "cve": "CVE-2017-0144",
+      "severity": "CRITICAL",
+      "observable_type": "ioc_and_ttp",
+      "description": "Strong match with matching IPv4 and technique without explicit CVE code"
+    }
+  },
+  {
+    "query_id": "bench_03_follina_partial",
+    "query": "MSDT remote code execution vulnerability CVE-2022-30190 executing arbitrary PowerShell T1059.001",
+    "expected_top_chunk": "c6c76d942d79eaf85ad0610c5dc94261",
+    "relevant_documents": ["CVE-2022-30190"],
+    "expected_tier": "PARTIAL",
+    "metadata": {
+      "cve": "CVE-2022-30190",
+      "severity": "HIGH",
+      "observable_type": "cve_and_ttp",
+      "description": "Partial match with confirmed CVE and technique but no host IOC"
+    }
+  },
+  {
+    "query_id": "bench_04_log4shell_weak",
+    "query": "Apache Log4j2 JNDI Remote Code Execution vulnerability in LDAP configuration CVE-2021-44228",
+    "expected_top_chunk": "a0c37b2ad1d94af02193ad7fd7574edd",
+    "relevant_documents": ["CVE-2021-44228"],
+    "expected_tier": "WEAK",
+    "metadata": {
+      "cve": "CVE-2021-44228",
+      "severity": "CRITICAL",
+      "observable_type": "cve_only",
+      "description": "Technical query with CVE and description but no IOCs or TTPs"
+    }
+  },
+  {
+    "query_id": "bench_05_proxylogon_weak",
+    "query": "Microsoft Exchange Server SSRF vulnerability CVE-2021-26855 permitting webshell writes",
+    "expected_top_chunk": "55bdf355bc563e85eb6f676e141aaaaf",
+    "relevant_documents": ["CVE-2021-26855"],
+    "expected_tier": "WEAK",
+    "metadata": {
+      "cve": "CVE-2021-26855",
+      "severity": "CRITICAL",
+      "observable_type": "cve_only",
+      "description": "Exchange ProxyLogon query with CVE and keywords"
+    }
+  },
+  {
+    "query_id": "bench_06_zerologon_weak",
+    "query": "Netlogon elevation of privilege via MS-NRPC domain controller channel CVE-2020-1472",
+    "expected_top_chunk": "d37f54d4fe1caf56baa41f559a261de5",
+    "relevant_documents": ["CVE-2020-1472"],
+    "expected_tier": "WEAK",
+    "metadata": {
+      "cve": "CVE-2020-1472",
+      "severity": "CRITICAL",
+      "observable_type": "cve_only",
+      "description": "Zerologon query with CVE and technical description"
+    }
+  },
+  {
+    "query_id": "bench_07_winrar_weak",
+    "query": "WinRAR code execution via crafted ZIP archive parameter CVE-2023-38831",
+    "expected_top_chunk": "e663dafdfd2e2eabce7b5b8c86cdf669",
+    "relevant_documents": ["CVE-2023-38831"],
+    "expected_tier": "WEAK",
+    "metadata": {
+      "cve": "CVE-2023-38831",
+      "severity": "HIGH",
+      "observable_type": "cve_only",
+      "description": "WinRAR CVE query"
+    }
+  },
+  {
+    "query_id": "bench_08_citrix_unsupported",
+    "query": "Remote path traversal and information disclosure in network gateway appliance",
+    "expected_top_chunk": "fdc96f8aec20cbe46e61f9a62e48a79f",
+    "relevant_documents": ["CVE-2019-19781"],
+    "expected_tier": "UNSUPPORTED",
+    "metadata": {
+      "cve": "CVE-2019-19781",
+      "severity": "HIGH",
+      "observable_type": "generic_description",
+      "description": "Vague generic appliance description without identifiers, resulting in sub-0.30 composite score"
+    }
+  },
+  {
+    "query_id": "bench_09_benign_unsupported",
+    "query": "Routine software deployment and scheduled weekly backup maintenance across Linux servers",
+    "expected_top_chunk": "",
+    "relevant_documents": [],
+    "expected_tier": "UNSUPPORTED",
+    "metadata": {
+      "cve": null,
+      "severity": "NONE",
+      "observable_type": "benign_noise",
+      "description": "Benign administrative activity with zero security observables"
+    }
+  },
+  {
+    "query_id": "bench_10_desktop_unsupported",
+    "query": "Configuring printer queue parameters and desktop wallpaper group policy objects",
+    "expected_top_chunk": "",
+    "relevant_documents": [],
+    "expected_tier": "UNSUPPORTED",
+    "metadata": {
+      "cve": null,
+      "severity": "NONE",
+      "observable_type": "unrelated_it",
+      "description": "Unrelated IT operations query with no threat relevance"
+    }
+  }
+]

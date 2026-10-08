@@ -21,30 +21,36 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    FieldCondition,
-    Filter,
-    HnswConfigDiff,
-    MatchValue,
-    PayloadSchemaType,
-    PointStruct,
-    ScalarQuantizationConfig,
-    ScalarType,
-    SparseVector,
-    SparseVectorParams,
-    VectorParams,
-)
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        Distance,
+        FieldCondition,
+        Filter,
+        HnswConfigDiff,
+        MatchValue,
+        PayloadSchemaType,
+        PointStruct,
+        ScalarQuantizationConfig,
+        ScalarType,
+        SparseVector,
+        SparseVectorParams,
+        VectorParams,
+    )
+except ImportError:
+    QdrantClient = Any  # type: ignore
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 try:
     from threat_retrieval_engine.search_engine.vectorizer import VectorResult
+except Exception:
+    VectorResult = Any  # type: ignore
+
+try:
     from threat_retrieval_engine.search_engine.validator import ThreatChunk
-except ImportError:
-    from vectorizer import VectorResult
-    from validator import ThreatChunk
+except Exception:
+    ThreatChunk = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +67,21 @@ DENSE_DIM = 1024
 # ---------------------------------------------------------------------------
 
 
-def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH, reset: bool = False) -> QdrantClient:
+def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH, reset: bool = False) -> Any:
     """
     Initialize embedded Qdrant (zero Docker, zero ports — runs in-process on disk).
     Creates the threat_intelligence_kb collection if it does not already exist.
     """
-    Path(qdrant_path).mkdir(parents=True, exist_ok=True)
-    client = QdrantClient(path=qdrant_path)
-    logger.info("Qdrant embedded client ready at: %s", qdrant_path)
+    if QdrantClient is None or QdrantClient is Any:
+        logger.info("QdrantClient is not installed or available; operating without Qdrant.")
+        return None
+    try:
+        Path(qdrant_path).mkdir(parents=True, exist_ok=True)
+        client = QdrantClient(path=qdrant_path)
+        logger.info("Qdrant embedded client ready at: %s", qdrant_path)
+    except Exception as exc:
+        logger.warning("Failed to initialize Qdrant at %s: %s; running without Qdrant.", qdrant_path, exc)
+        return None
 
     existing = {col.name for col in client.get_collections().collections}
     if reset and COLLECTION_NAME in existing:
@@ -122,6 +135,7 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) ->
     conn = sqlite3.connect(sqlite_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA case_sensitive_like=ON;")
     if reset:
         logger.info("Resetting SQLite table 'corpus' …")
         conn.execute("DROP TABLE IF EXISTS corpus;")
@@ -267,6 +281,8 @@ def search_vectors(
     Search the Qdrant index using a dense vector with optional metadata filtering.
     Used by Suhani (for hybrid search fusion) and Harshith Sai (for matching).
     """
+    if qdrant is None or qdrant is Any:
+        return []
     query_filter = None
     if filter_dict:
         conditions = [
