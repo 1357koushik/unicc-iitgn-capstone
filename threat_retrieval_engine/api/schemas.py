@@ -28,6 +28,7 @@ class MatchRequest(BaseModel):
     query: str = Field(..., description="Threat query string or incident report text")
     top_k: int = Field(5, ge=1, le=50, description="Number of top threat matches to return")
     alpha: float = Field(0.5, ge=0.0, le=1.0, description="Weighting parameter between dense vector and sparse lexical search")
+    allowed_sources: list[str] | None = Field(None, description="List of allowed source_orgs. If None, all are allowed.")
 
 
 class EvidenceBreakdownSchema(BaseModel):

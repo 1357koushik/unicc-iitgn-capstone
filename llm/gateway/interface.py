@@ -9,6 +9,15 @@ import json
 import re
 
 
+class LLMGatewayError(Exception):
+    """Base exception for LLM Gateway failures."""
+    pass
+
+class LLMTimeoutError(LLMGatewayError):
+    """Raised when the LLM provider times out."""
+    pass
+
+
 class LLMProvider(ABC):
     """Abstract interface that all model adapters (local or API) must implement."""
 
