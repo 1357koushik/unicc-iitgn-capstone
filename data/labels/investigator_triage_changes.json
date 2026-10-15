@@ -1,0 +1,78 @@
+[
+  {
+    "query_id": "bench_04_log4shell_weak",
+    "cve": "CVE-2021-44228",
+    "query": "Apache Log4j2 JNDI Remote Code Execution vulnerability in LDAP configuration CVE-2021-44228",
+    "before": {
+      "score": 0.4,
+      "tier": "WEAK",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2021-44228 (Relevance Score: 0.4, Search Tier: WEAK) ---",
+      "triage_decision": "Escalate for manual analyst verification due to WEAK confidence; patch status unconfirmed."
+    },
+    "after": {
+      "score": 1.0,
+      "tier": "EXACT",
+      "match_type": "EXACT_ID",
+      "retrieved_doc_id": "CVE-2021-44228",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2021-44228 (Relevance Score: 1.0, Search Tier: EXACT) ---",
+      "triage_decision": "Automated Tier A Enrichment: High-conviction EXACT match (EXACT_ID). Synthesizes authoritative patch advisory and CISA KEV status without escalation."
+    }
+  },
+  {
+    "query_id": "bench_05_proxylogon_weak",
+    "cve": "CVE-2021-26855",
+    "query": "Microsoft Exchange Server SSRF vulnerability CVE-2021-26855 permitting webshell writes",
+    "before": {
+      "score": 0.4,
+      "tier": "WEAK",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2021-26855_KEV (Relevance Score: 0.4, Search Tier: WEAK) ---",
+      "triage_decision": "Escalate for manual analyst verification due to WEAK confidence; patch status unconfirmed."
+    },
+    "after": {
+      "score": 1.0,
+      "tier": "EXACT",
+      "match_type": "EXACT_ID",
+      "retrieved_doc_id": "CVE-2021-26855_KEV",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2021-26855_KEV (Relevance Score: 1.0, Search Tier: EXACT) ---",
+      "triage_decision": "Automated Tier A Enrichment: High-conviction EXACT match (EXACT_ID). Synthesizes authoritative patch advisory and CISA KEV status without escalation."
+    }
+  },
+  {
+    "query_id": "bench_06_zerologon_weak",
+    "cve": "CVE-2020-1472",
+    "query": "Netlogon elevation of privilege via MS-NRPC domain controller channel CVE-2020-1472",
+    "before": {
+      "score": 0.4,
+      "tier": "WEAK",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2020-1472 (Relevance Score: 0.4, Search Tier: WEAK) ---",
+      "triage_decision": "Escalate for manual analyst verification due to WEAK confidence; patch status unconfirmed."
+    },
+    "after": {
+      "score": 1.0,
+      "tier": "EXACT",
+      "match_type": "EXACT_ID",
+      "retrieved_doc_id": "CVE-2020-1472",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2020-1472 (Relevance Score: 1.0, Search Tier: EXACT) ---",
+      "triage_decision": "Automated Tier A Enrichment: High-conviction EXACT match (EXACT_ID). Synthesizes authoritative patch advisory and CISA KEV status without escalation."
+    }
+  },
+  {
+    "query_id": "bench_07_winrar_weak",
+    "cve": "CVE-2023-38831",
+    "query": "WinRAR code execution via crafted ZIP archive parameter CVE-2023-38831",
+    "before": {
+      "score": 0.4,
+      "tier": "WEAK",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2023-38831_KEV (Relevance Score: 0.4, Search Tier: WEAK) ---",
+      "triage_decision": "Escalate for manual analyst verification due to WEAK confidence; patch status unconfirmed."
+    },
+    "after": {
+      "score": 1.0,
+      "tier": "EXACT",
+      "match_type": "EXACT_ID",
+      "retrieved_doc_id": "CVE-2023-38831_KEV",
+      "evidence_prompt_header": "--- [EVIDENCE #1] Document ID: CVE-2023-38831_KEV (Relevance Score: 1.0, Search Tier: EXACT) ---",
+      "triage_decision": "Automated Tier A Enrichment: High-conviction EXACT match (EXACT_ID). Synthesizes authoritative patch advisory and CISA KEV status without escalation."
+    }
+  }
+]

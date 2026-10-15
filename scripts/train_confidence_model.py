@@ -49,6 +49,7 @@ from threat_retrieval_engine.api.feature_extractor import (
     FEATURE_SCHEMA_VERSION,
     extract_features,
 )
+from threat_retrieval_engine.search_engine.tokenizer import tokenize
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -122,11 +123,17 @@ def extract_dataset_features(
         # Construct QueryProfile strictly from query_masked
         query_profile = parse_query_profile(q_text)
 
+        # Compute lexical alignment (token overlap) between masked query and candidate text
+        q_tokens = set(tokenize(q_text))
+        d_tokens = set(tokenize(pair.get("text", "")))
+        bm25_overlap = len(q_tokens & d_tokens) / len(q_tokens) if q_tokens else 0.0
+
         # Candidate chunk dict with strict anti-leakage isolation (no doc_id)
         candidate_chunk = {
             "chunk_id": pair["chunk_id"],
             "text": pair["text"],
             "metadata": {"text": pair["text"]},
+            "bm25_norm_score": round(bm25_overlap, 4),
         }
 
         # Train-serve parity feature extraction
