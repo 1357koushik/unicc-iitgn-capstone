@@ -35,6 +35,12 @@ try:
         PoCResultSchema,
         TopMatchSchema,
     )
+    from threat_retrieval_engine.api.confidence import (
+        QueryProfile,
+        parse_query_profile,
+        resolve_confidence,
+        get_confidence_model,
+    )
 except ImportError:
     try:
         from api.helpers import (
@@ -55,6 +61,12 @@ except ImportError:
             PoCResultSchema,
             TopMatchSchema,
         )
+        from api.confidence import (
+            QueryProfile,
+            parse_query_profile,
+            resolve_confidence,
+            get_confidence_model,
+        )
     except ImportError:
         from helpers import (
             build_citation,
@@ -73,6 +85,12 @@ except ImportError:
             PipelineProfileSchema,
             PoCResultSchema,
             TopMatchSchema,
+        )
+        from confidence import (
+            QueryProfile,
+            parse_query_profile,
+            resolve_confidence,
+            get_confidence_model,
         )
 
 logger = logging.getLogger(__name__)
@@ -122,12 +140,14 @@ class ThreatRetrieverEngine:
         hybrid_searcher=None,
         attack_graph=None,
         reranker=None,
+        confidence_model=None,
     ) -> None:
         self.qdrant = qdrant_client
         self.sqlite = sqlite_conn
         self.hybrid_searcher = hybrid_searcher
         self.attack_graph = attack_graph
         self.reranker = reranker
+        self.confidence_model = confidence_model
         self._initialized = False
 
     def initialize(self, qdrant_path: str | None = None, sqlite_path: str | None = None) -> None:
@@ -196,6 +216,14 @@ class ThreatRetrieverEngine:
             except Exception as exc:
                 logger.warning("Reranker load deferred or stubbed: %s", exc)
                 self.reranker = None
+
+        # 5. Learned Confidence Model
+        if self.confidence_model is None:
+            try:
+                self.confidence_model = get_confidence_model()
+            except Exception as exc:
+                logger.warning("Failed to load confidence model: %s. Using degraded mode.", exc)
+                self.confidence_model = None
 
         self._initialized = True
         logger.info("ThreatRetrieverEngine initialized with all engines.")
@@ -390,68 +418,52 @@ class ThreatRetrieverEngine:
         t_score_start = time.perf_counter()
         scored_candidates = []
 
+        query_profile = parse_query_profile(query)
+
         for cid, cand in candidate_map.items():
             meta = cand.get("metadata") or {}
             txt = cand.get("text") or ""
             attr_dict = extract_attribution(query_ent, meta, txt)
-
-            # Calculate subscores based on query entity matching
-            if query_ent.cves:
-                cve_sim = 1.0 if attr_dict["matching_cves"] else 0.0
-            else:
-                cve_sim = 0.0
-
-            if query_ent.ips or query_ent.hashes:
-                ioc_sim = 1.0 if attr_dict["matching_iocs"] else 0.0
-            else:
-                ioc_sim = 0.0
-
-            if query_ent.mitre_techniques:
-                ttp_sim = 1.0 if attr_dict["matching_mitre_techniques"] else (0.85 if attr_dict["shared_malware"] else 0.0)
-            elif attr_dict["shared_malware"]:
-                ttp_sim = 0.85
-            else:
-                ttp_sim = 0.0
+            cand["attribution"] = attr_dict
 
             semantic_sim = float(cand.get("dense_score", 0.0))
 
-            composite = calculate_composite_score(
-                ioc_score=ioc_sim,
-                ttp_score=ttp_sim,
-                semantic_score=semantic_sim,
-                cve_score=cve_sim,
+            resolution = resolve_confidence(
+                query_profile=query_profile,
+                candidate_chunk=cand,
+                candidate_score=semantic_sim,
+                model=self.confidence_model,
             )
-
-            # Calibrated scoring thresholds across the 5 tiers:
-            if ioc_sim == 1.0 and cve_sim == 1.0:
-                composite = max(composite, 0.965)
-            elif ioc_sim == 1.0 and ttp_sim == 1.0:
-                composite = max(composite, 0.825)
-            elif cve_sim == 1.0 and ttp_sim == 1.0:
-                composite = max(composite, 0.650)
-            elif cve_sim == 1.0:
-                composite = max(composite, 0.400)
-
-            tier = classify_confidence_tier(composite)
 
             scored_candidates.append({
                 "chunk_id": cid,
-                "composite_score": composite,
-                "confidence_tier": tier,
+                "composite_score": resolution.probability,
+                "confidence_tier": resolution.tier,
+                "match_type": resolution.match_type,
+                "tier_basis": resolution.tier_basis,
+                "calibrated": resolution.calibrated,
+                "degraded": resolution.degraded,
+                "model_version": resolution.model_version,
+                "features": resolution.features,
                 "evidence_breakdown": EvidenceBreakdownSchema(
-                    ioc_similarity=round(ioc_sim, 2),
-                    cve_similarity=round(cve_sim, 2),
-                    ttp_similarity=round(ttp_sim, 2),
+                    ioc_similarity=round(resolution.features.get("ioc_coverage", 0.0), 2),
+                    cve_similarity=round(resolution.features.get("cve_coverage", 0.0), 2),
+                    ttp_similarity=round(resolution.features.get("ttp_coverage", 0.0), 2),
                     semantic_similarity=round(semantic_sim, 2),
+                    features=resolution.features,
                 ),
                 "metadata": meta,
                 "text": txt,
                 "stix_relationships": chunk_graph_relations.get(cid, []),
                 "attribution": attr_dict,
+                "dense_score": semantic_sim,
             })
 
-        # Sort candidates descending by composite score
-        scored_candidates.sort(key=lambda x: x["composite_score"], reverse=True)
+        # Sort candidates descending by composite score (stable secondary sort by dense score)
+        scored_candidates.sort(
+            key=lambda x: (x["composite_score"], x.get("dense_score", 0.0)),
+            reverse=True,
+        )
         top_candidates = scored_candidates[:top_k]
         scoring_ms = (time.perf_counter() - t_score_start) * 1000
 
@@ -506,8 +518,14 @@ class ThreatRetrieverEngine:
                     stix_relationships=cand["stix_relationships"],
                     citations=[CitationSchema(**citation_dict)],
                     pocs=unique_cand_pocs,
+                    match_type=cand.get("match_type"),
+                    tier_basis=cand.get("tier_basis"),
+                    calibrated=cand.get("calibrated", False),
+                    degraded=cand.get("degraded", False),
+                    model_version=cand.get("model_version"),
                 )
             )
+
         citation_ms = (time.perf_counter() - t_cite_start) * 1000
 
         total_ms = (time.perf_counter() - t_total_start) * 1000

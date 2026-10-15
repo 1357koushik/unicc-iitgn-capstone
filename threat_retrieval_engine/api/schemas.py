@@ -36,6 +36,7 @@ class EvidenceBreakdownSchema(BaseModel):
     cve_similarity: float = 0.0
     ttp_similarity: float = 0.0
     semantic_similarity: float = 0.0
+    features: dict[str, float] = Field(default_factory=dict)
 
 
 class AttributionSchema(BaseModel):
@@ -78,6 +79,11 @@ class TopMatchSchema(BaseModel):
     stix_relationships: list[str] = Field(default_factory=list)
     citations: list[CitationSchema]
     pocs: list[PoCResultSchema] = Field(default_factory=list, description="Verified public PoCs or exploits for matched CVEs")
+    match_type: str | None = Field(None, description="EXACT_ID | EXACT_HASH | LEARNED_MODEL | HEURISTIC_PRESENCE")
+    tier_basis: str | None = Field(None, description="DETERMINISTIC_L1 | CALIBRATED_LOGISTIC_REGRESSION | UNCALIBRATED_BEHAVIORAL_HEURISTIC")
+    calibrated: bool = Field(False, description="Whether the score represents a calibrated probability")
+    degraded: bool = Field(False, description="Whether confidence was resolved in safe degraded mode")
+    model_version: str | None = Field(None, description="Model or heuristic version identifier")
 
 
 class PipelineProfileSchema(BaseModel):
