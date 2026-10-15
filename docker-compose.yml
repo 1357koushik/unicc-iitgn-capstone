@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  retrieval:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.retrieval
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - TEAM2_API_URL=http://retrieval:8000
+    depends_on:
+      - retrieval
+    restart: unless-stopped

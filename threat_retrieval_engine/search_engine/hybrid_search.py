@@ -45,6 +45,7 @@ try:
         Filter,
         MatchAny,
         MatchValue,
+        MatchText,
     )
 except ImportError:
     QdrantClient = Any  # type: ignore
@@ -104,9 +105,16 @@ def build_qdrant_filter(filters: dict[str, Any] | None) -> Filter | None:
                 )
             )
         elif isinstance(value, (list, tuple, set)):
-            conditions.append(
-                FieldCondition(key=key, match=MatchAny(any=list(value)))
-            )
+            if key == "source_org":
+                # MatchText matches substrings/tokens, suitable for comma-separated source_org strings
+                # Actually, MatchText only takes a string, not a list. So we need to OR multiple MatchText conditions
+                or_conditions = [FieldCondition(key=key, match=MatchText(text=str(v))) for v in value]
+                # Filter(should=[...]) acts as an OR
+                conditions.append(Filter(should=or_conditions))
+            else:
+                conditions.append(
+                    FieldCondition(key=key, match=MatchAny(any=list(value)))
+                )
         else:
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=value))
@@ -202,10 +210,17 @@ class HybridSearcher:
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
         candidate_k: int = DEFAULT_CANDIDATE_K,
+        allowed_sources: list[str] | None = None,
     ) -> list[HybridResult]:
         """
         Run lexical + dense retrieval, fuse with RRF, return the top_k.
         """
+        if allowed_sources is not None:
+            if filters is None:
+                filters = {}
+            # MatchText allows token matching, which handles comma-separated strings!
+            filters["source_org"] = allowed_sources
+
         qfilter = build_qdrant_filter(filters)
         allowed_ids = resolve_filter_to_ids(self.qdrant, qfilter)
         if allowed_ids is not None and not allowed_ids:

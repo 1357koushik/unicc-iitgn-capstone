@@ -202,6 +202,7 @@ class ThreatRetrieverEngine:
         query: str,
         top_k: int = 5,
         alpha: float = 0.5,
+        allowed_sources: list[str] | None = None,
     ) -> MatchResponse:
         """Execute exact match, vector hybrid search, and knowledge graph expansion."""
         t_total_start = time.perf_counter()
@@ -223,6 +224,7 @@ class ThreatRetrieverEngine:
                 query=query,
                 limit=top_k,
                 hydrate=True,
+                allowed_sources=allowed_sources,
             )
             for m in exact_matches:
                 meta = m.metadata or fetch_chunk_metadata(m.chunk_id, self.sqlite) or {}
@@ -248,7 +250,7 @@ class ThreatRetrieverEngine:
         hybrid_results = []
         try:
             search_k = max(top_k * 4, 20)
-            hits = self.hybrid_searcher.search(query=query, top_k=search_k)
+            hits = self.hybrid_searcher.search(query=query, top_k=search_k, allowed_sources=allowed_sources)
             for h in hits:
                 hybrid_results.append({
                     "chunk_id": h.chunk_id,
@@ -302,18 +304,36 @@ class ThreatRetrieverEngine:
         t_rerank_start = time.perf_counter()
         if getattr(self, "reranker", None) and candidate_map:
             try:
-                # Pass candidates to reranker
-                rerank_pairs = [(cid, c.get("text", "")) for cid, c in candidate_map.items()]
-                reranked = self.reranker.rerank(query, rerank_pairs, top_k=top_k)
+                # Pass candidates to reranker (use enriched_text if available, else text)
+                rerank_pairs = []
+                for cid, c in candidate_map.items():
+                    # Prefix doc_title to give reranker context of the CVE ID
+                    title = c.get("metadata", {}).get("doc_title", "")
+                    content = f"{title}: {c.get('text', '')}" if title else c.get("text", "")
+                    rerank_pairs.append((cid, content))
+
+                # Request more from reranker to ensure exact matches can surface
+                reranked = self.reranker.rerank(query, rerank_pairs, top_k=max(top_k * 2, len(candidate_map)))
                 
-                # Rebuild candidate map using only the top_k reranked results
+                # Rebuild candidate map using only the top_k reranked results, BUT always keep exact matches
                 new_candidate_map = {}
+                # First, ensure all exact matches survive
+                for cid, c in candidate_map.items():
+                    if c.get("is_exact"):
+                        # Give exact matches a forced high semantic score
+                        c["dense_score"] = 1.0
+                        new_candidate_map[cid] = c
+
+                # Then fill the rest with top reranked results
                 for res in reranked:
+                    if len(new_candidate_map) >= top_k:
+                        break
                     cid = res.chunk_id
-                    c = candidate_map[cid]
-                    # Inject the cross-encoder score as the new semantic score
-                    c["dense_score"] = res.rerank_score
-                    new_candidate_map[cid] = c
+                    if cid not in new_candidate_map:
+                        c = candidate_map[cid]
+                        c["dense_score"] = res.rerank_score
+                        new_candidate_map[cid] = c
+                
                 candidate_map = new_candidate_map
             except Exception as exc:
                 logger.warning("Reranking bypassed: %s", exc)

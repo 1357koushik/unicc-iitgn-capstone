@@ -6,11 +6,10 @@ Natively ingests Team 2's MatchResponse, TopMatchSchema, or dict formats directl
 Can also directly query Team 2's existing HTTP POST endpoint automatically.
 """
 
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Optional
 import os
 import json
 import urllib.request
-import urllib.error
 from ..gateway.interface import LLMProvider
 from ..schemas.investigation import InvestigationResult
 from ..prompts.investigation_prompts import INVESTIGATION_SYSTEM_PROMPT, build_investigation_prompt
@@ -74,7 +73,6 @@ def normalize_team2_evidence(evidence_input: Any) -> List[Dict[str, Any]]:
     if evidence_input is None:
         return []
 
-    # If evidence_input is Team 2's MatchResponse
     if hasattr(evidence_input, "top_matches"):
         raw_items = evidence_input.top_matches
     elif isinstance(evidence_input, dict) and "top_matches" in evidence_input:
@@ -111,7 +109,6 @@ def normalize_team2_evidence(evidence_input: Any) -> List[Dict[str, Any]]:
                 source = item.get("source", "Team 2 Knowledge Base")
 
         else:
-            # Pydantic or dataclass object from Team 2 (e.g. TopMatchSchema)
             chunk_id = getattr(item, "chunk_id", "EVIDENCE")
             score = getattr(item, "composite_score", getattr(item, "relevance_score", 0.0))
             citations = getattr(item, "citations", [])
@@ -175,7 +172,6 @@ class ThreatInvestigator:
                 allowed_sources=allowed_sources,
             )
 
-        # Natively normalize Team 2 format into standard evidence list
         clean_evidence = normalize_team2_evidence(retrieved_evidence)
 
         prompt = build_investigation_prompt(observation, clean_evidence)
@@ -210,8 +206,7 @@ class ThreatInvestigator:
             elif any(raw_cid in valid_id or valid_id in raw_cid for valid_id in doc_id_map):
                 matching_real_id = next(doc_id_map[k] for k in doc_id_map if raw_cid in k or k in raw_cid)
                 citation.document_id = matching_real_id
-            else:
-                if doc_id_map:
-                    citation.key_excerpt = f"[Unverified Reference] {citation.key_excerpt}"
+            elif doc_id_map:
+                citation.key_excerpt = f"[Unverified Reference] {citation.key_excerpt}"
 
         return result

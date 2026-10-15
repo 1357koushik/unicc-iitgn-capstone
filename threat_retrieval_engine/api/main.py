@@ -69,4 +69,5 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
         query=request.query,
         top_k=request.top_k,
         alpha=request.alpha,
+        allowed_sources=request.allowed_sources,
     )
