@@ -1,0 +1,32 @@
+{
+  "OOF": {
+    "M2": {
+      "log_loss": 0.1512,
+      "brier": 0.0449,
+      "ece": 0.05184,
+      "auc": 0.9729
+    },
+    "M4": {
+      "log_loss": 0.2414,
+      "brier": 0.0791,
+      "ece": 0.05104,
+      "auc": 0.9529
+    }
+  },
+  "Sealed_Test": {
+    "M2": {
+      "log_loss": 0.1747,
+      "brier": 0.0544,
+      "ece": 0.03142,
+      "auc": 0.9583
+    },
+    "M4": {
+      "log_loss": 0.253,
+      "brier": 0.0829,
+      "ece": 0.05198,
+      "auc": 0.9474
+    }
+  },
+  "m2_beats_m4_oof": true,
+  "m2_beats_m4_test": true
+}
