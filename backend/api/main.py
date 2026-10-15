@@ -633,12 +633,15 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
         
         frontend_matches = []
         if result.get("match_status") != "Unsupported":
-            threat = f"Status: {result.get('match_status')} | Threat Actors: {', '.join(result.get('potential_threat_actors', []))} | CVEs: {', '.join(result.get('associated_cves', []))}"
+            patch = result.get("patch_details") or {}
+            patch_status = patch.get("patch_status", "N/A")
+            threat = f"Status: {result.get('match_status')} | Patch: {patch_status} | Threat Actors: {', '.join(result.get('potential_threat_actors', []))} | CVEs: {', '.join(result.get('associated_cves', []))}"
             frontend_matches.append({
                 "threat": threat,
                 "confidence": result.get("confidence_level", "Medium"),
                 "mitre_tactics": result.get("associated_malware", []),
-                "citations": result.get("supporting_citations", [])
+                "citations": result.get("supporting_citations", []),
+                "patch_details": patch
             })
             
         res = {
