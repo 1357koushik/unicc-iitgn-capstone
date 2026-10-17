@@ -9,3 +9,4 @@ datasketch>=1.6.4
 ftfy>=6.2.0
 pyyaml>=6.0.1
 numpy>=1.26.0
+beautifulsoup4>=4.12.0

@@ -40,6 +40,9 @@ document.addEventListener("DOMContentLoaded", () => {
         currentRole = null;
         showView("login-view");
         resetWorkflow();
+        // Remove what the previous user loaded, so the next person on this tab cannot read it (e.g. with F12).
+        document.querySelector("#audit-table tbody").replaceChildren();
+        document.querySelector("#users-table tbody").replaceChildren();
         document.getElementById("login-error").textContent = message || "";
     }
 
@@ -280,10 +283,35 @@ document.addEventListener("DOMContentLoaded", () => {
                     box.appendChild(note);
                 } else {
                     const list = document.createElement("ul");
-                    data.matches.forEach(m => {
+                    data.matches.forEach((m, index) => {
                         const item = document.createElement("li");
                         const tactics = (m.mitre_tactics || []).join(", ");
                         item.textContent = `${m.threat} (Confidence: ${m.confidence})` + (tactics ? ` - ${tactics}` : "");
+
+                        // The AI's explanation of the match (the server sends it as "message").
+                        if (index === 0 && data.message) {
+                            item.appendChild(textElement("p", data.message, "match-explanation"));
+                        }
+
+                        // Patch details from Team 3: the update that fixes it, the affected
+                        // versions, and what to do until the update can be installed.
+                        const patch = m.patch_details || {};
+                        const patchRows = [
+                            ["Fixed in", patch.fixed_versions],
+                            ["Affected versions", patch.affected_versions],
+                            ["Workarounds", patch.remediation_workarounds],
+                        ]
+                            .map(([label, values]) => [label, [].concat(values || []).filter(Boolean)])
+                            .filter(([, values]) => values.length > 0);
+                        if (patchRows.length > 0) {
+                            const block = document.createElement("div");
+                            block.className = "patch-details";
+                            block.appendChild(textElement("strong", `Patch: ${patch.patch_status || "Unknown"}`));
+                            patchRows.forEach(([label, values]) => {
+                                block.appendChild(textElement("div", `${label}: ${values.join(", ")}`));
+                            });
+                            item.appendChild(block);
+                        }
                         
                         if (m.citations && m.citations.length > 0) {
                             const citList = document.createElement("ul");

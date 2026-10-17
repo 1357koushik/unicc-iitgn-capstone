@@ -53,7 +53,7 @@ def fetch_team2_evidence(
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=180) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             last_err = e

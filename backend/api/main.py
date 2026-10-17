@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import math
+import mimetypes
 import os
 import secrets
 import uuid
@@ -686,4 +687,13 @@ def final_decision(req: DecisionRequest, user: dict = Depends(get_investigator_u
     return {"message": "Decision recorded"}
 
 # Serve frontend static files
+
+def set_file_types():
+    """Label the dashboard files correctly whatever the computer says (Windows often says .js = text/plain)."""
+    mimetypes.add_type("text/html", ".html")
+    mimetypes.add_type("text/css", ".css")
+    mimetypes.add_type("text/javascript", ".js")
+
+
+set_file_types()
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
