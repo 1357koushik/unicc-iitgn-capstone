@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNICC Cyber AI Gateway</title>
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
     <div id="app">
@@ -35,6 +35,7 @@
                 <div class="nav-links">
                     <!-- data-roles: which roles see this tab (shown by app.js after login) -->
                     <button class="nav-tab" data-target="investigate-tab" data-roles="investigator admin" hidden>Investigate</button>
+                    <button class="nav-tab" data-target="network-tab" data-roles="investigator admin" hidden>Network Sensor</button>
                     <button class="nav-tab" data-target="audit-tab" data-roles="auditor admin" hidden>Audit Logs</button>
                     <button class="nav-tab" data-target="admin-tab" data-roles="admin" hidden>System Config</button>
                 </div>
@@ -86,6 +87,51 @@
                                 <textarea id="decision-notes" placeholder="Notes..." maxlength="5000"></textarea>
                                 <button id="submit-decision-btn" class="btn primary-btn">Submit Decision</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Network Sensor Tab (Task 5.0): filled in by app.js -->
+                <div id="network-tab" class="tab-content">
+                    <div class="glass-panel">
+                        <h2>Network Sensor</h2>
+                        <p class="section-intro">Checks a file of network connection records for attacks. Three machine-learning models check each other, and every alert says why it was raised.</p>
+                        <div id="sensor-status" class="sensor-status">
+                            <p class="placeholder-text">Checking the sensor...</p>
+                        </div>
+                        <div class="file-upload-row">
+                            <button type="button" id="scan-file-btn" class="btn primary-btn small-btn">Choose file and scan</button>
+                            <input type="file" id="scan-file-input" accept=".csv,.txt" hidden>
+                            <span id="scan-file-name" class="file-name">.csv or .txt (NSL-KDD format), up to 5 MB</span>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel mt-4">
+                        <h2>Results</h2>
+                        <div id="scan-summary">
+                            <p class="placeholder-text">No file scanned yet.</p>
+                        </div>
+                        <div id="alert-filter-row" class="alert-filter-row" hidden>
+                            <label for="alert-filter">Show</label>
+                            <select id="alert-filter">
+                                <option value="all">All alerts</option>
+                                <option value="known">Known attack patterns</option>
+                                <option value="new">Possible new attacks (anomaly models only)</option>
+                            </select>
+                        </div>
+                        <div class="table-container">
+                            <table id="alerts-table" hidden>
+                                <thead>
+                                    <tr>
+                                        <th>Row</th>
+                                        <th>Kind</th>
+                                        <th>Raised by</th>
+                                        <th title="Random Forest score: the share of its decision trees voting 'attack'. Use it to rank alerts; it is not a guaranteed probability.">Score</th>
+                                        <th>Why it was flagged</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -152,6 +198,6 @@
     
     <div id="toast-container"></div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

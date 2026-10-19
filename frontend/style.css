@@ -413,3 +413,103 @@ tr:hover {
     line-height: 1.5;
     overflow-wrap: anywhere;
 }
+
+/* Network Sensor tab (Task 5.0) */
+.section-intro {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.sensor-status {
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.sensor-status.ready { border-left-color: var(--secondary-color); }
+.sensor-status.not-ready { border-left-color: var(--error-color); }
+
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat {
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 0.75rem 1.25rem;
+    min-width: 160px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.label-check { margin-bottom: 1rem; }
+
+.muted-text {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.alert-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    max-width: 480px;
+}
+
+/* (the "hidden" attribute, not style="display:none", for the same reason as .nav-tab[hidden]) */
+.alert-filter-row[hidden] { display: none; }
+
+.alert-filter-row label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+#alerts-table td { vertical-align: top; }
+
+.kind-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.kind-badge.known { background: #fbe9eb; color: var(--error-color); }
+.kind-badge.new { background: #efe8fa; color: var(--accent-color); }
+
+.alert-decision {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.reason-list {
+    margin-left: 1.25rem;
+    overflow-wrap: anywhere;
+}
+
+.alert-label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}

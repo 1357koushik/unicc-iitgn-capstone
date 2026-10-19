@@ -82,6 +82,9 @@ def _size_limit(path: str):
     if path == UPLOAD_PATH:
         return MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_UPLOAD_BYTES // (1024 * 1024)} MB). Split the report, or paste its text instead.")
+    if path == NETWORK_SCAN_PATH:
+        return MAX_NETWORK_FILE_BYTES + MULTIPART_OVERHEAD_BYTES, (
+            f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
     return MAX_BODY_BYTES, (
         f"Request too large (limit {MAX_BODY_BYTES // (1024 * 1024)} MB). Shorten the report or split it.")
 
@@ -363,6 +366,10 @@ MAX_BODY_BYTES = 2 * 1024 * 1024    # 2 MB for any single request...
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # ...except a report file: PDFs with pictures are often several MB
 MULTIPART_OVERHEAD_BYTES = 64 * 1024 # the few extra bytes a browser adds around an uploaded file
 UPLOAD_PATH = "/api/v1/investigation/upload"
+# Network sensor (Task 5.0): a file of connection records to check for attacks
+NETWORK_SCAN_PATH = "/api/v1/network/scan"
+MAX_NETWORK_FILE_BYTES = 5 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
+NETWORK_FILE_EXTENSIONS = {".csv", ".txt"}
 CORRELATION_ID = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
 
 # --- Pydantic Schemas ---
@@ -685,6 +692,81 @@ def final_decision(req: DecisionRequest, user: dict = Depends(get_investigator_u
     # Final step in the workflow where investigator makes a decision
     log_action(db, req.correlation_id, user["id"], user["role"], "final_decision", "doc_current", "none", "success", {"decision": req.decision, "notes": req.notes})
     return {"message": "Decision recorded"}
+
+
+# --- Network sensor (Task 5.0) ---
+NETWORK_SENSOR_NOT_INSTALLED = ("The network sensor is not installed on this server. "
+                                "Install it with: pip install -r requirements-network-sensor.txt")
+
+
+def _network_sensor():
+    """The network sensor (network_sensor/ folder), loaded on first use. If its packages
+    (scikit-learn etc.) are not installed, the rest of the app keeps working and only
+    the network sensor answers 'not installed'."""
+    try:
+        from network_sensor import service
+        return service
+    except ImportError as e:
+        _server_log.error(f"The network sensor could not be loaded: {e}")
+        return None
+
+
+@app.get("/api/v1/network/status")
+def network_sensor_status(user: dict = Depends(get_investigator_user)):
+    """Is the network sensor trained, and how did it score in its last evaluation?"""
+    service = _network_sensor()
+    if service is None:
+        return {"ready": False, "message": NETWORK_SENSOR_NOT_INSTALLED}
+    return {**service.sensor.status(), "max_file_mb": MAX_NETWORK_FILE_BYTES // (1024 * 1024),
+            "file_types": sorted(NETWORK_FILE_EXTENSIONS)}
+
+
+@app.post(NETWORK_SCAN_PATH)
+def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(get_investigator_user),
+                             db: Session = Depends(get_db)):
+    """
+    Check a file of network connection records for attacks and return the alerts,
+    most serious first, each with a plain-English explanation.
+
+    The file itself is not kept. Its name, size and fingerprint (hash) and the number
+    of alerts go in the audit log - refused files too.
+    (A plain "def": checking thousands of connections takes a few seconds, and FastAPI
+    runs a plain function in a separate thread, so other users are not kept waiting.)
+    """
+    correlation_id = str(uuid.uuid4())
+    filename = _safe_filename(file.filename)
+    content = file.file.read(MAX_NETWORK_FILE_BYTES + 1)
+    details = {"filename": filename, "file_bytes": len(content), "file_sha256": _sha256(content)}
+
+    def refuse(status: int, reason: str):
+        log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "failure",
+                   {**details, "reason": reason[:256]})
+        raise HTTPException(status_code=status, detail=reason)
+
+    if len(content) > MAX_NETWORK_FILE_BYTES:
+        refuse(413, f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
+    if file_extension(filename) not in NETWORK_FILE_EXTENSIONS:
+        refuse(415, f"Files of type '{file_extension(filename) or 'unknown'}' can't be scanned. "
+                    f"Accepted formats: {', '.join(sorted(NETWORK_FILE_EXTENSIONS))}.")
+    service = _network_sensor()
+    if service is None:
+        refuse(503, NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        result = service.sensor.scan(service.read_connections(content))
+    except service.ScanError as e:
+        refuse(e.status_code, e.message)
+    except Exception as e:
+        # A bug or a damaged model file: the technical details go to the server log only.
+        ref = _new_error_reference()
+        _server_log.error(f"[error ref {ref}] Network scan failed: {type(e).__name__}: {e}",
+                          exc_info=(type(e), e, e.__traceback__))
+        refuse(500, f"The network sensor could not check this file. Reference: {ref} - "
+                    "an administrator can find the details in the server log.")
+
+    log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "success",
+               {**details, "connections": result["connections"], "alerts": result["alerts_total"],
+                "model_trained_at": result["model"]["trained_at"]})
+    return {"correlation_id": correlation_id, "filename": filename, **result}
 
 # Serve frontend static files
 

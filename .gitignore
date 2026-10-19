@@ -255,3 +255,6 @@ data/qdrant_storage/
 data/sqlite/
 *.sqlite
 *.db
+
+# Network sensor (Task 5.0): downloaded dataset, trained models and reports - never committed
+data/network_sensor/

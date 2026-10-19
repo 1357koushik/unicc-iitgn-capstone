@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentRole = null;
         showView("login-view");
         resetWorkflow();
+        resetNetworkTab();
         // Remove what the previous user loaded, so the next person on this tab cannot read it (e.g. with F12).
         document.querySelector("#audit-table tbody").replaceChildren();
         document.querySelector("#users-table tbody").replaceChildren();
@@ -120,6 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
             c.classList.toggle("active", c.id === targetId));
         if (targetId === "audit-tab") loadAuditLogs();
         if (targetId === "admin-tab") { loadConfig(); loadUsers(); }
+        if (targetId === "network-tab") loadSensorStatus();
     }
 
     document.querySelectorAll(".nav-tab").forEach(tab => {
@@ -567,6 +569,179 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.getElementById("refresh-users-btn").addEventListener("click", loadUsers);
+
+    // ------------------------------------------------------------------
+    // Network Sensor tab (Task 5.0).
+    // A scan result contains text from the uploaded file (e.g. service names)
+    // and from the sensor, so it is shown with textElement (plain text) only,
+    // never innerHTML: a crafted file must not be able to put code in the page.
+    // ------------------------------------------------------------------
+    const MAX_SCAN_MB = 5;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
+    const SCAN_HINT = `.csv or .txt (NSL-KDD format), up to ${MAX_SCAN_MB} MB`;
+    const scanInput = document.getElementById("scan-file-input");
+    const scanBtn = document.getElementById("scan-file-btn");
+    let lastScanAlerts = [];
+
+    const pct = (x) => `${(100 * x).toFixed(1)}%`;
+    const localTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { timeZoneName: "short" }) : "unknown";
+
+    async function loadSensorStatus() {
+        const box = document.getElementById("sensor-status");
+        try {
+            const res = await api("/api/v1/network/status");
+            if (!res.ok) {
+                if (res.status !== 401) {
+                    box.className = "sensor-status not-ready";
+                    showInBox("sensor-status", textElement("p", "Could not check the sensor."));
+                }
+                return;
+            }
+            const s = await res.json();
+            if (!s.ready) {
+                box.className = "sensor-status not-ready";
+                showInBox("sensor-status", textElement("strong", "Sensor not ready"), textElement("p", s.message || ""));
+                scanBtn.disabled = true;
+                return;
+            }
+            scanBtn.disabled = false;
+            box.className = "sensor-status ready";
+            const lines = [
+                textElement("strong", "Sensor ready"),
+                textElement("p", `Trained ${localTime(s.trained_at)} on ${Number(s.training_connections).toLocaleString()} connections.`),
+            ];
+            const ev = s.evaluation;
+            if (ev) {
+                lines.push(textElement("p",
+                    `Last evaluation (${ev.dataset}): precision ${pct(ev.precision)} ` +
+                    `(target ${pct(ev.target_precision)}, ${ev.passed ? "passed" : "NOT met"}), ` +
+                    `attacks caught ${pct(ev.recall)}, false alarms on ${pct(ev.false_alarm_rate)} of normal traffic.`));
+            } else {
+                lines.push(textElement("p", "No evaluation report yet. On the server, run: python -m network_sensor.evaluate", "muted-text"));
+            }
+            showInBox("sensor-status", ...lines);
+        } catch (e) {
+            showInBox("sensor-status", textElement("p", "Network error while checking the sensor."));
+        }
+    }
+
+    scanBtn.addEventListener("click", () => scanInput.click());
+
+    scanInput.addEventListener("change", async () => {
+        const file = scanInput.files[0];
+        scanInput.value = "";                 // so choosing the same file again still works
+        if (!file) return;
+        if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+            return showToast(`This file is larger than ${MAX_SCAN_MB} MB. Split it into smaller files.`, "error");
+        }
+
+        scanBtn.disabled = true;
+        scanBtn.textContent = "Scanning... (can take a few seconds)";
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+            const res = await api("/api/v1/network/scan", { method: "POST", body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById("scan-file-name").textContent = data.filename;
+                renderScan(data);
+                showToast(`Scan complete: ${data.alerts_total.toLocaleString()} alert(s)`, "success");
+            } else if (res.status !== 401) {  // 401 is already handled by api()
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || "The file could not be scanned", "error");
+            }
+        } catch (error) {
+            showToast("Network error while scanning the file", "error");
+        } finally {
+            scanBtn.disabled = false;
+            scanBtn.textContent = "Choose file and scan";
+        }
+    });
+
+    function statTile(value, label) {
+        const tile = document.createElement("div");
+        tile.className = "stat";
+        tile.append(textElement("div", value, "stat-value"), textElement("div", label, "stat-label"));
+        return tile;
+    }
+
+    function renderScan(data) {
+        const tiles = document.createElement("div");
+        tiles.className = "stat-row";
+        tiles.append(
+            statTile(data.connections.toLocaleString(), "Connections checked"),
+            statTile(data.alerts_total.toLocaleString(), "Alerts"),
+            statTile(data.possible_new_attacks.toLocaleString(), "Possible new attacks"));
+        const parts = [tiles];
+        if (data.label_check) {
+            const c = data.label_check;
+            parts.push(textElement("p",
+                `Compared with the labels in this file: precision ${pct(c.precision)}, attacks caught ${pct(c.recall)}, ` +
+                `${c.false_positives.toLocaleString()} false alarm(s). The labels were not used to decide.`, "label-check"));
+        }
+        if (data.alerts_shown < data.alerts_total) {
+            parts.push(textElement("p", `Showing ${data.alerts_shown.toLocaleString()} of ` +
+                `${data.alerts_total.toLocaleString()} alerts: the ${data.max_alerts_per_kind} most serious ` +
+                `known-pattern alerts and the ${data.max_alerts_per_kind} most serious possible new attacks.`, "muted-text"));
+        }
+        if (data.alerts_total === 0) {
+            parts.push(textElement("p", "No connection in this file looks like an attack.", "muted-text"));
+        }
+        showInBox("scan-summary", ...parts);
+
+        lastScanAlerts = data.alerts || [];
+        document.getElementById("alert-filter").value = "all";
+        document.getElementById("alert-filter-row").hidden = lastScanAlerts.length === 0;
+        renderAlerts();
+    }
+
+    // "Possible new attack" = raised only by the two anomaly models: it does not
+    // match any attack the Random Forest learned, but looks clearly abnormal.
+    const isPossibleNewAttack = (alert) => alert.votes.random_forest === 0;
+
+    function renderAlerts() {
+        const filter = document.getElementById("alert-filter").value;
+        const shown = lastScanAlerts.filter(a =>
+            filter === "all" || (filter === "new") === isPossibleNewAttack(a));
+        const rows = shown.map(alert => {
+            const isNew = isPossibleNewAttack(alert);
+            const tr = document.createElement("tr");
+            const kindCell = document.createElement("td");
+            kindCell.appendChild(textElement("span", isNew ? "Possible new attack" : "Known pattern",
+                isNew ? "kind-badge new" : "kind-badge known"));
+
+            const why = document.createElement("td");
+            why.appendChild(textElement("div", alert.decision, "alert-decision"));
+            if (alert.reasons.length > 0) {
+                const list = textList(alert.reasons.map(r => r.text));
+                list.className = "reason-list";
+                why.appendChild(list);
+            } else {
+                why.appendChild(textElement("div", "No single measurement is unusual on its own.", "muted-text"));
+            }
+            if (alert.label_in_file !== undefined) {
+                why.appendChild(textElement("div", `Label in file: ${alert.label_in_file}`, "alert-label"));
+            }
+            tr.append(textElement("td", String(alert.row)), kindCell,
+                textElement("td", alert.flagged_by.join(", ")),
+                textElement("td", pct(alert.random_forest_score)), why);
+            return tr;
+        });
+        document.querySelector("#alerts-table tbody").replaceChildren(...rows);
+        document.getElementById("alerts-table").hidden = rows.length === 0;
+    }
+
+    document.getElementById("alert-filter").addEventListener("change", renderAlerts);
+
+    function resetNetworkTab() {
+        lastScanAlerts = [];
+        document.getElementById("scan-file-name").textContent = SCAN_HINT;
+        showInBox("scan-summary", textElement("p", "No file scanned yet.", "placeholder-text"));
+        document.getElementById("alert-filter-row").hidden = true;
+        document.querySelector("#alerts-table tbody").replaceChildren();
+        document.getElementById("alerts-table").hidden = true;
+        document.getElementById("sensor-status").className = "sensor-status";
+        showInBox("sensor-status", textElement("p", "Checking the sensor...", "placeholder-text"));
+    }
 
 
 
