@@ -21,7 +21,7 @@ from network_sensor import download_data
 from network_sensor.explain import GROUP_OF, NormalProfile
 from network_sensor.datasets import (FEATURE_COLUMNS, NUMERIC_COLUMNS, DatasetError,
                                      attack_category, load_nsl_kdd)
-from network_sensor.evaluate import compute_metrics, evaluate_model, render_markdown, write_reports
+from network_sensor.evaluate import compute_metrics, evaluate_model, measure_speed, render_markdown, write_reports
 from network_sensor.features import InputError, prepare_features
 from network_sensor.models import NetworkSensorModel, SensorSettings
 from network_sensor.paths import dataset_dir
@@ -162,6 +162,13 @@ class ModelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             json_path, md_path = write_reports(r, Path(tmp))     # JSON must be writable (no odd types)
             self.assertTrue(json_path.exists() and md_path.exists())
+
+    def test_speed_measurement_is_reported(self):
+        speed = measure_speed(self.model, self.test, batch_sizes=(1, 50), repeats=2)
+        self.assertEqual([m["batch_size"] for m in speed["measurements"]], [1, 50])
+        self.assertTrue(all(m["batch_ms"] > 0 and m["connections_per_second"] > 0 for m in speed["measurements"]))
+        report = render_markdown({**evaluate_model(self.model, self.test), "speed": speed})
+        self.assertIn("Speed (real-time capacity)", report)
 
     def test_old_model_file_format_is_refused_with_advice(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -83,6 +83,7 @@ class NetworkSensorModel:
         self.random_forest = RandomForestClassifier(
             n_estimators=s.n_trees, class_weight="balanced", n_jobs=-1, random_state=s.random_seed
         ).fit(X, y)
+        _answer_with_one_thread(self)
 
         self.normal_profile = NormalProfile(features[y == 0], self._importance_per_measurement())
 
@@ -183,7 +184,18 @@ class NetworkSensorModel:
         if saved_with != sklearn.__version__:
             warnings.warn(f"This model was trained with scikit-learn {saved_with}, but {sklearn.__version__} "
                           "is installed. Retrain it to be safe: python -m network_sensor.train")
-        return bundle["model"]
+        model = bundle["model"]
+        _answer_with_one_thread(model)       # also for files saved before this setting existed
+        return model
+
+
+def _answer_with_one_thread(model: "NetworkSensorModel") -> None:
+    """Training uses every processor core, but answering uses one. Starting the extra
+    worker threads costs ~40 ms each time, which dominated the small batches a live
+    sensor checks (measured: 1 connection 122 ms -> 48 ms; 1,000 connections 365 ms ->
+    271 ms). The answers are exactly the same either way. Trade-off: one very large file
+    (22,544 connections) took 6.4 s instead of 5.4 s on a 2-core machine."""
+    model.random_forest.set_params(n_jobs=1)
 
 
 def _library_versions() -> dict:

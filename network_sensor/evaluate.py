@@ -10,7 +10,10 @@ Usage (in the project folder, with the .venv switched on):
 Writes  data/network_sensor/reports/evaluation_report.json  and  .md
 """
 import json
+import os
+import statistics
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Tuple
@@ -94,6 +97,29 @@ def explanation_check(model: NetworkSensorModel, test_df: pd.DataFrame, explanat
         "cleared_when_reasons_reset": float(1 - still_flagged(reset_reasons).mean()),
         "cleared_when_random_reset": float(1 - still_flagged(reset_random).mean()),
     }
+
+
+def measure_speed(model: NetworkSensorModel, test_df: pd.DataFrame, batch_sizes=(1, 100, 1000),
+                  repeats: int = 5) -> dict:
+    """How long the sensor takes to check (and explain) connections on THIS computer.
+    Live mode checks each second's arrivals as one batch, so the 1,000 row tells how
+    much of each second a 1,000-connections-per-second feed uses."""
+    model.explain(test_df.head(5))                                   # warm-up
+    rows = []
+    for n in batch_sizes:
+        n = min(n, len(test_df))
+        timings = []
+        for k in range(repeats):
+            start = (k * n) % max(1, len(test_df) - n + 1)
+            batch = test_df.iloc[start:start + n]
+            started = time.perf_counter()
+            model.explain(batch)
+            timings.append(time.perf_counter() - started)
+        seconds = statistics.median(timings)
+        rows.append({"batch_size": n, "batch_ms": round(seconds * 1000, 1),
+                     "ms_per_connection": round(seconds * 1000 / n, 2),
+                     "connections_per_second": int(n / seconds) if seconds > 0 else 0})
+    return {"processor_cores": os.cpu_count(), "measurements": rows}
 
 
 def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame) -> dict:
@@ -256,6 +282,22 @@ def render_markdown(r: dict) -> str:
                   f"> {e['decision']}"]
         lines += [f"> - {reason['text']}" for reason in e["reasons"]]
 
+    speed = r.get("speed")
+    if speed:
+        lines += ["", "## Speed (real-time capacity)", "",
+                  f"Measured on the computer that made this report ({speed['processor_cores']} processor cores). "
+                  "Times include the plain-English explanations. Live mode checks each second's "
+                  "arrivals together as one batch.", "",
+                  "| Connections checked together | Time | Per connection | Connections per second |",
+                  "|---|---|---|---|"]
+        for m in speed["measurements"]:
+            lines.append(f"| {m['batch_size']:,} | {m['batch_ms']:,} ms | {m['ms_per_connection']} ms | "
+                         f"{m['connections_per_second']:,} |")
+        biggest = speed["measurements"][-1]
+        lines += ["", f"So one second of traffic at {biggest['batch_size']:,} connections per second takes about "
+                      f"{biggest['batch_ms']:,} ms to check: alerts appear within about a second of the "
+                      "connection arriving, as long as this stays below 1,000 ms."]
+
     lines += [
         "", "## How to read this", "",
         "- **Precision** - of everything the sensor flagged, the share that really were attacks. "
@@ -300,6 +342,8 @@ def main() -> int:
         return 1
     print(f"Checking {len(test):,} test connections ...")
     results = evaluate_model(model, test)
+    print("Measuring speed ...")
+    results["speed"] = measure_speed(model, test)
 
     print(f"\n{'Model':<18}{'Precision':>11}{'Recall':>9}{'False alarms':>14}")
     for name in list(MODEL_NAMES) + ["combined"]:
@@ -314,6 +358,9 @@ def main() -> int:
         print(f"Explanation check - alerts that disappear when the named reasons are reset: "
               f"{_pct(check['cleared_when_reasons_reset'])} (random other measurements: "
               f"{_pct(check['cleared_when_random_reset'])})")
+    fastest = results["speed"]["measurements"][-1]
+    print(f"Speed - {fastest['batch_size']:,} connections checked together in {fastest['batch_ms']:,} ms "
+          f"(about {fastest['connections_per_second']:,} per second on this computer)")
     c = results["criterion"]
     print(f"\nTask 5.0 target: precision >= {_pct(c['target'])}   "
           f"result: {_pct(c['achieved'])}   {'PASSED' if c['passed'] else 'NOT MET'}")

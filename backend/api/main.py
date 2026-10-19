@@ -82,7 +82,7 @@ def _size_limit(path: str):
     if path == UPLOAD_PATH:
         return MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_UPLOAD_BYTES // (1024 * 1024)} MB). Split the report, or paste its text instead.")
-    if path == NETWORK_SCAN_PATH:
+    if path in (NETWORK_SCAN_PATH, NETWORK_LIVE_START_PATH):
         return MAX_NETWORK_FILE_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
     return MAX_BODY_BYTES, (
@@ -368,6 +368,7 @@ MULTIPART_OVERHEAD_BYTES = 64 * 1024 # the few extra bytes a browser adds around
 UPLOAD_PATH = "/api/v1/investigation/upload"
 # Network sensor (Task 5.0): a file of connection records to check for attacks
 NETWORK_SCAN_PATH = "/api/v1/network/scan"
+NETWORK_LIVE_START_PATH = "/api/v1/network/live/start"
 MAX_NETWORK_FILE_BYTES = 5 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
 NETWORK_FILE_EXTENSIONS = {".csv", ".txt"}
 CORRELATION_ID = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
@@ -721,6 +722,43 @@ def network_sensor_status(user: dict = Depends(get_investigator_user)):
             "file_types": sorted(NETWORK_FILE_EXTENSIONS)}
 
 
+def _network_file_request(file: UploadFile, user: dict, db: Session, correlation_id: str, action: str, work):
+    """
+    Shared by the scan and the live replay: read the uploaded file of connection
+    records, apply the limits, then run work(service, connections, details).
+    Every refusal goes in the audit log with the file's name, size and fingerprint.
+    Returns (what work returned, details).
+    """
+    filename = _safe_filename(file.filename)
+    content = file.file.read(MAX_NETWORK_FILE_BYTES + 1)
+    details = {"filename": filename, "file_bytes": len(content), "file_sha256": _sha256(content)}
+
+    def refuse(status: int, reason: str):
+        log_action(db, correlation_id, user["id"], user["role"], action, "network_file", "none", "failure",
+                   {**details, "reason": reason[:256]})
+        raise HTTPException(status_code=status, detail=reason)
+
+    if len(content) > MAX_NETWORK_FILE_BYTES:
+        refuse(413, f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
+    if file_extension(filename) not in NETWORK_FILE_EXTENSIONS:
+        refuse(415, f"Files of type '{file_extension(filename) or 'unknown'}' can't be scanned. "
+                    f"Accepted formats: {', '.join(sorted(NETWORK_FILE_EXTENSIONS))}.")
+    service = _network_sensor()
+    if service is None:
+        refuse(503, NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        return work(service, service.read_connections(content), details), details
+    except service.ScanError as e:
+        refuse(e.status_code, e.message)
+    except Exception as e:
+        # A bug or a damaged model file: the technical details go to the server log only.
+        ref = _new_error_reference()
+        _server_log.error(f"[error ref {ref}] Network sensor request failed: {type(e).__name__}: {e}",
+                          exc_info=(type(e), e, e.__traceback__))
+        refuse(500, f"The network sensor could not check this file. Reference: {ref} - "
+                    "an administrator can find the details in the server log.")
+
+
 @app.post(NETWORK_SCAN_PATH)
 def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(get_investigator_user),
                              db: Session = Depends(get_db)):
@@ -734,39 +772,68 @@ def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(
     runs a plain function in a separate thread, so other users are not kept waiting.)
     """
     correlation_id = str(uuid.uuid4())
-    filename = _safe_filename(file.filename)
-    content = file.file.read(MAX_NETWORK_FILE_BYTES + 1)
-    details = {"filename": filename, "file_bytes": len(content), "file_sha256": _sha256(content)}
-
-    def refuse(status: int, reason: str):
-        log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "failure",
-                   {**details, "reason": reason[:256]})
-        raise HTTPException(status_code=status, detail=reason)
-
-    if len(content) > MAX_NETWORK_FILE_BYTES:
-        refuse(413, f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
-    if file_extension(filename) not in NETWORK_FILE_EXTENSIONS:
-        refuse(415, f"Files of type '{file_extension(filename) or 'unknown'}' can't be scanned. "
-                    f"Accepted formats: {', '.join(sorted(NETWORK_FILE_EXTENSIONS))}.")
-    service = _network_sensor()
-    if service is None:
-        refuse(503, NETWORK_SENSOR_NOT_INSTALLED)
-    try:
-        result = service.sensor.scan(service.read_connections(content))
-    except service.ScanError as e:
-        refuse(e.status_code, e.message)
-    except Exception as e:
-        # A bug or a damaged model file: the technical details go to the server log only.
-        ref = _new_error_reference()
-        _server_log.error(f"[error ref {ref}] Network scan failed: {type(e).__name__}: {e}",
-                          exc_info=(type(e), e, e.__traceback__))
-        refuse(500, f"The network sensor could not check this file. Reference: {ref} - "
-                    "an administrator can find the details in the server log.")
-
+    result, details = _network_file_request(
+        file, user, db, correlation_id, "network_scan",
+        lambda service, connections, details: service.sensor.scan(connections))
     log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "success",
                {**details, "connections": result["connections"], "alerts": result["alerts_total"],
                 "model_trained_at": result["model"]["trained_at"]})
-    return {"correlation_id": correlation_id, "filename": filename, **result}
+    return {"correlation_id": correlation_id, "filename": details["filename"], **result}
+
+
+# Live mode ("real-time"): the server replays a recorded file as if its connections were
+# arriving now, and the dashboard asks about once a second for what has arrived since.
+# See network_sensor/live.py. The start and the end of each replay go in the audit log.
+@app.post(NETWORK_LIVE_START_PATH)
+def start_network_live_replay(file: UploadFile = File(...), speed: int = 100,
+                              user: dict = Depends(get_investigator_user), db: Session = Depends(get_db)):
+    """Start replaying a file at `speed` connections per second (10, 100 or 1000)."""
+    def begin(service, connections, details):
+        service.sensor.model()                     # refuse now if the sensor is not trained
+        return service.live.start(user["id"], connections, speed, details)
+
+    (session, replaced), details = _network_file_request(
+        file, user, db, str(uuid.uuid4()), "network_live_start", begin)
+    if replaced:
+        log_action(db, replaced["session_id"], user["id"], user["role"], "network_live_end", "network_file",
+                   "none", "success", replaced)
+    log_action(db, session.id, user["id"], user["role"], "network_live_start", "network_file", "none", "success",
+               {**details, "connections": len(session.connections), "speed": session.speed})
+    return {"session_id": session.id, "filename": details["filename"],
+            "total": len(session.connections), "speed": session.speed}
+
+
+@app.post("/api/v1/network/live/{session_id}/next")
+def next_network_live_step(session_id: str, user: dict = Depends(get_investigator_user),
+                           db: Session = Depends(get_db)):
+    """Check the connections that have 'arrived' since the last call. Only the user who
+    started a replay can use it; for anyone else it does not exist (404)."""
+    service = _network_sensor()
+    if service is None:
+        raise HTTPException(status_code=503, detail=NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        result = service.live.step(session_id, user["id"], service.sensor.model())
+    except service.ScanError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    if "summary" in result:
+        log_action(db, session_id, user["id"], user["role"], "network_live_end", "network_file", "none",
+                   "success", result["summary"])
+    return result
+
+
+@app.post("/api/v1/network/live/{session_id}/stop")
+def stop_network_live_replay(session_id: str, user: dict = Depends(get_investigator_user),
+                             db: Session = Depends(get_db)):
+    service = _network_sensor()
+    if service is None:
+        raise HTTPException(status_code=503, detail=NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        summary = service.live.stop(session_id, user["id"])
+    except service.ScanError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    log_action(db, session_id, user["id"], user["role"], "network_live_end", "network_file", "none",
+               "success", summary)
+    return summary
 
 # Serve frontend static files
 

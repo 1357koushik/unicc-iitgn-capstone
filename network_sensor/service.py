@@ -5,6 +5,7 @@ that file only needs two short endpoints).
   read_connections(file_bytes) - turns an uploaded file into a table, or refuses it
   sensor.scan(table)           - checks every connection and returns ranked alerts
   sensor.status()              - is the sensor trained, and how well did it score?
+  live                         - live replays (see live.py)
 
 The file size limit and accepted file types are checked by main.py, next to the
 app's other input limits, before anything here runs.
@@ -19,8 +20,10 @@ from typing import Optional
 import pandas as pd
 
 from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS, attack_category
+from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError
+from network_sensor.live import LiveSessions
 from network_sensor.models import NetworkSensorModel
 from network_sensor.paths import model_path, reports_dir
 
@@ -31,15 +34,6 @@ MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few 
 # possible new attacks would never be shown. The totals are always reported.
 MAX_ALERTS_PER_KIND = 300
 MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag names are short
-
-
-class ScanError(Exception):
-    """The request cannot be done. status_code is the HTTP code to answer with."""
-
-    def __init__(self, status_code: int, message: str):
-        super().__init__(message)
-        self.status_code = status_code
-        self.message = message
 
 
 def read_connections(content: bytes) -> pd.DataFrame:
@@ -102,6 +96,10 @@ class SensorService:
         self._loaded_from = None             # (file path, file modification time)
         self._load_lock = threading.Lock()
         self._scan_lock = threading.Lock()
+
+    def model(self) -> NetworkSensorModel:
+        """The trained sensor (raises ScanError 503 if there is none)."""
+        return self._get_model()
 
     def _get_model(self) -> NetworkSensorModel:
         """The trained sensor. Loaded on first use, and loaded again automatically if
@@ -186,8 +184,9 @@ class SensorService:
         return result
 
 
-# The one shared sensor the web app uses.
+# The one shared sensor, and the live replays, that the web app uses.
 sensor = SensorService()
+live = LiveSessions()
 
 
 def _latest_evaluation(path: Path) -> Optional[dict]:

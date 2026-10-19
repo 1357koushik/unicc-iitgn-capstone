@@ -39,7 +39,7 @@ python -m network_sensor.download_data   # downloads NSL-KDD (~22 MB), checks fi
 python -m network_sensor.train           # trains the three models (under a minute)
 python -m network_sensor.evaluate        # precision / recall report on the official test file
 
-python -m unittest test_network_sensor test_network_sensor_api -v   # automatic checks
+python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live -v   # automatic checks
 ```
 
 Everything the commands create goes into `data/network_sensor/` (ignored by git):
@@ -53,6 +53,9 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 |---|---|
 | `GET /api/v1/network/status` | Is the sensor trained? When? Latest evaluation score. |
 | `POST /api/v1/network/scan` | Upload a file of connections (form field `file`); get back the alerts, most serious first, each with its explanation. |
+| `POST /api/v1/network/live/start?speed=100` | Start a live replay of an uploaded file at 10, 100 or 1,000 connections per second. |
+| `POST /api/v1/network/live/{id}/next` | Check what has "arrived" since the last call (the dashboard calls this once a second). |
+| `POST /api/v1/network/live/{id}/stop` | Stop a live replay early. |
 
 - **File formats:** `.csv` with a header row naming the 41 NSL-KDD columns, or a raw NSL-KDD
   file with no header (41 values per row, optionally followed by the label and difficulty,
@@ -67,6 +70,25 @@ Train the sensor first (above), then start the app as usual. Investigators and a
   these endpoints say how to install the sensor.
 - Retraining is picked up automatically, without restarting the app.
 
+## Live mode (real-time)
+
+The dashboard's **Live Mode** panel replays a recorded file as if its connections were
+arriving now. Once a second it checks everything that has arrived since the last second,
+as one batch ("micro-batching", the way network sensors usually work: checking 1,000
+connections together takes about as long as checking 5 one by one). New alerts appear
+at the top of a live feed, with counters and the time each second of traffic took to
+check. `python -m network_sensor.evaluate` measures these times on your computer and
+writes them in the report's "Speed" section.
+
+- It is a **replay of recorded traffic**, not a capture of this computer's own network:
+  working out the 41 NSL-KDD measurements from live packets needs extra tools.
+- Only the user who started a replay can see or stop it. One replay per user; at most
+  3 on the whole server. A replay nobody has checked on for 10 minutes is dropped.
+- The start and the end of every replay (completed, stopped, or logged out) go in the
+  audit log, with the file's fingerprint, the speed and the number of alerts.
+- Replays are kept in the server's memory, so they assume one server process (the
+  normal `uvicorn backend.api.main:app`).
+
 ## Files
 
 | File | What it does |
@@ -79,6 +101,8 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 | `train.py` | trains on `KDDTrain+.txt` and saves the model |
 | `evaluate.py` | scores the model on `KDDTest+.txt`, checks the explanations, writes the report |
 | `service.py` | used by the web app: reads uploaded files, runs scans, reports status |
+| `live.py` | live replays: speed, micro-batches, who may use them, limits |
+| `errors.py` | the error type the web app turns into an answer |
 | `paths.py` | where files are kept |
 
 ## Security notes
@@ -91,6 +115,6 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 
 - NSL-KDD comes from 1998 traffic. A newer dataset (CIC-IDS2017) is planned.
 - The 41 measurements come with the dataset; the sensor does not yet compute them from
-  live traffic.
+  live traffic (live mode replays recorded traffic).
 - Remote-access attacks (R2L, e.g. password guessing) are mostly missed, because the
   training file has very few examples of them. The evaluation report shows this per family.

@@ -107,6 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Logout
     document.getElementById("logout-btn").addEventListener("click", async () => {
+        await stopLiveReplay();   // end a running network-sensor live replay first, so it is audited
         try {
             await fetch("/api/v1/auth/logout", { method: "POST" });
         } catch (e) { /* still leave the page logged out */ }
@@ -732,7 +733,174 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("alert-filter").addEventListener("change", renderAlerts);
 
+    // ------------------------------------------------------------------
+    // Live mode: the server replays a file as if its connections were arriving
+    // now; this page asks once a second what has arrived and shows new alerts at
+    // the top of the feed. Plain text only, like the rest of this tab.
+    // ------------------------------------------------------------------
+    const LIVE_POLL_MS = 1000;
+    const LIVE_FEED_MAX = 200;           // older feed entries are removed from the page
+    const liveInput = document.getElementById("live-file-input");
+    const liveStartBtn = document.getElementById("live-start-btn");
+    const liveStopBtn = document.getElementById("live-stop-btn");
+    let liveReplay = null;               // { id, timer } while a replay runs
+
+    function setLiveRunning(running) {
+        liveStartBtn.hidden = running;
+        liveStopBtn.hidden = !running;
+        document.getElementById("live-speed").disabled = running;
+    }
+
+    liveStartBtn.addEventListener("click", () => liveInput.click());
+
+    liveInput.addEventListener("change", async () => {
+        const file = liveInput.files[0];
+        liveInput.value = "";
+        if (!file) return;
+        if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+            return showToast(`This file is larger than ${MAX_SCAN_MB} MB. Split it into smaller files.`, "error");
+        }
+        const speed = document.getElementById("live-speed").value;
+        const formData = new FormData();
+        formData.append("file", file);
+        liveStartBtn.disabled = true;
+        try {
+            const res = await api(`/api/v1/network/live/start?speed=${encodeURIComponent(speed)}`,
+                { method: "POST", body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                resetLivePanel();
+                liveReplay = { id: data.session_id, timer: null };
+                setLiveRunning(true);
+                document.getElementById("live-progress").hidden = false;
+                document.getElementById("live-status").textContent =
+                    `Replaying ${data.filename}: ${data.total.toLocaleString()} connections at ` +
+                    `${Number(data.speed).toLocaleString()} per second...`;
+                liveReplay.timer = setTimeout(pollLiveReplay, LIVE_POLL_MS);
+            } else if (res.status !== 401) {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || "The live replay could not start", "error");
+            }
+        } catch (error) {
+            showToast("Network error while starting the live replay", "error");
+        } finally {
+            liveStartBtn.disabled = false;
+        }
+    });
+
+    async function pollLiveReplay() {
+        if (!liveReplay) return;
+        const id = liveReplay.id;
+        try {
+            const res = await api(`/api/v1/network/live/${encodeURIComponent(id)}/next`, { method: "POST" });
+            if (!liveReplay || liveReplay.id !== id) return;      // stopped meanwhile
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                endLiveReplay(res.status === 401 ? "Not running." : (err.detail || "The live replay stopped."));
+                return;
+            }
+            const step = await res.json();
+            renderLiveStep(step);
+            if (step.done) {
+                endLiveReplay(`Finished: ${step.checked.toLocaleString()} connections checked, ` +
+                    `${step.totals.alerts.toLocaleString()} alert(s).`);
+                return;
+            }
+        } catch (error) {
+            endLiveReplay("Network error - the live replay stopped.");
+            return;
+        }
+        liveReplay.timer = setTimeout(pollLiveReplay, LIVE_POLL_MS);
+    }
+
+    function renderLiveStep(step) {
+        const progress = document.getElementById("live-progress");
+        progress.max = step.total;
+        progress.value = step.checked;
+        let status = `Checked ${step.checked.toLocaleString()} of ${step.total.toLocaleString()} connections ` +
+            `(${step.speed.toLocaleString()} per second). Last second: ${step.batch_size.toLocaleString()} ` +
+            `connection(s) checked in ${step.check_ms} ms.`;
+        if (step.behind_by > 0) status += ` ${step.behind_by.toLocaleString()} waiting to be checked.`;
+        document.getElementById("live-status").textContent = status;
+
+        const t = step.totals;
+        const tiles = document.createElement("div");
+        tiles.className = "stat-row";
+        tiles.append(
+            statTile(step.checked.toLocaleString(), "Connections checked"),
+            statTile(t.alerts.toLocaleString(), "Alerts"),
+            statTile(t.possible_new_attacks.toLocaleString(), "Possible new attacks"),
+            statTile(`${t.average_check_ms} ms`, "Check time per second of traffic"));
+        if (t.label_check) tiles.append(statTile(pct(t.label_check.precision), "Precision so far (labels)"));
+        showInBox("live-stats", tiles);
+
+        const feed = document.getElementById("live-feed");
+        const now = new Date().toLocaleTimeString();
+        step.alerts.forEach(alert => {
+            const isNew = isPossibleNewAttack(alert);
+            const item = document.createElement("li");
+            const head = document.createElement("div");
+            head.className = "live-alert-head";
+            head.append(textElement("span", now, "live-time"),
+                textElement("span", isNew ? "Possible new attack" : "Known pattern",
+                    isNew ? "kind-badge new" : "kind-badge known"),
+                textElement("span", `Row ${alert.row}`, "live-row"));
+            item.append(head, textElement("div", alert.decision, "alert-decision"),
+                textElement("div", alert.reasons.length ? alert.reasons[0].text
+                    : "No single measurement is unusual on its own.", "live-reason"));
+            if (alert.label_in_file !== undefined) {
+                item.appendChild(textElement("div", `Label in file: ${alert.label_in_file}`, "alert-label"));
+            }
+            feed.prepend(item);
+        });
+        if (step.alerts_in_step > step.alerts.length) {
+            feed.prepend(textElement("li", `...and ${(step.alerts_in_step - step.alerts.length).toLocaleString()} ` +
+                "more alert(s) in that second (counted above, not listed).", "muted-text"));
+        }
+        while (feed.children.length > LIVE_FEED_MAX) feed.lastElementChild.remove();
+    }
+
+    function endLiveReplay(message) {
+        if (liveReplay && liveReplay.timer) clearTimeout(liveReplay.timer);
+        liveReplay = null;
+        setLiveRunning(false);
+        document.getElementById("live-status").textContent = message;
+    }
+
+    // Stop button, and logout: tell the server, so the end of the replay is audited.
+    async function stopLiveReplay() {
+        if (!liveReplay) return;
+        const id = liveReplay.id;
+        endLiveReplay("Stopping...");
+        try {
+            const res = await api(`/api/v1/network/live/${encodeURIComponent(id)}/stop`, { method: "POST" });
+            if (res.ok) {
+                const s = await res.json();
+                document.getElementById("live-status").textContent =
+                    `Stopped: ${s.connections_checked.toLocaleString()} of ${s.connections_in_file.toLocaleString()} ` +
+                    `connections checked, ${s.alerts.toLocaleString()} alert(s).`;
+            } else {
+                document.getElementById("live-status").textContent = "Stopped.";
+            }
+        } catch (error) {
+            document.getElementById("live-status").textContent = "Stopped.";
+        }
+    }
+
+    liveStopBtn.addEventListener("click", stopLiveReplay);
+
+    function resetLivePanel() {
+        document.getElementById("live-feed").replaceChildren();
+        document.getElementById("live-stats").replaceChildren();
+        const progress = document.getElementById("live-progress");
+        progress.value = 0;
+        progress.hidden = true;
+        document.getElementById("live-status").textContent = "Not running.";
+    }
+
     function resetNetworkTab() {
+        if (liveReplay) endLiveReplay("Not running.");
+        resetLivePanel();
         lastScanAlerts = [];
         document.getElementById("scan-file-name").textContent = SCAN_HINT;
         showInBox("scan-summary", textElement("p", "No file scanned yet.", "placeholder-text"));
