@@ -89,6 +89,39 @@ writes them in the report's "Speed" section.
 - Replays are kept in the server's memory, so they assume one server process (the
   normal `uvicorn backend.api.main:app`).
 
+## Run it in Docker
+
+The backend image (`deployment/docker/Dockerfile.backend`) includes the sensor. It uses
+Python 3.13 because the sensor's pinned packages need Python 3.12 or newer.
+
+- **`docker-compose.yml`** in the project folder: the backend uses the project's `data/`
+  folder, so a sensor trained on the host (`python -m network_sensor.train`) is used as it is.
+- **`deployment/api`** and **`deployment/onprem`**: the sensor keeps its files on the
+  `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`), so they survive
+  rebuilds. Set it up once, from the project folder, after the first start
+  (for on-premise, use `deployment/onprem/docker-compose.yml`):
+
+```bash
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.download_data
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.evaluate
+```
+
+If the container cannot reach GitHub, copy the two dataset files in first, then run the
+`download_data` command above: it keeps files whose fingerprints match.
+
+```bash
+docker compose -f deployment/onprem/docker-compose.yml exec backend mkdir -p /data/network_sensor/nsl_kdd
+docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/nsl_kdd/KDDTrain+.txt backend:/data/network_sensor/nsl_kdd/
+docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/nsl_kdd/KDDTest+.txt backend:/data/network_sensor/nsl_kdd/
+```
+
+How this was checked: the image's contents were rebuilt without Docker (fresh Python 3.13,
+the two requirement files installed with `uv`, only the copied folders, the
+`deployment/api` settings): setup, all 69 tests, and the server over HTTP worked. The
+`docker` commands themselves have not been run yet - please confirm with
+`docker compose -f deployment/api/docker-compose.yml build` on a machine with Docker.
+
 ## Files
 
 | File | What it does |

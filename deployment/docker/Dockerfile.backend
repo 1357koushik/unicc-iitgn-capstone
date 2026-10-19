@@ -1,11 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 COPY requirements-backend.txt .
 RUN uv pip install --system --no-cache -r requirements-backend.txt
+# Network sensor (Task 5.0). Its pinned packages need Python 3.12 or newer, which is why
+# this image uses python:3.13 - the version the whole app is tested with.
+COPY requirements-network-sensor.txt .
+RUN uv pip install --system --no-cache -r requirements-network-sensor.txt
 COPY backend/ backend/
 COPY llm/ llm/
 COPY frontend/ frontend/
+COPY network_sensor/ network_sensor/
 COPY .env.example .env.example
 EXPOSE 8080
 CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
