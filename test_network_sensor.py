@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 
 from network_sensor import download_data
-from network_sensor.explain import GROUP_OF, NormalProfile
-from network_sensor.datasets import (FEATURE_COLUMNS, NUMERIC_COLUMNS, DatasetError,
+from network_sensor.explain import NormalProfile
+from network_sensor.datasets import (FEATURE_COLUMNS, GROUP_OF, NUMERIC_COLUMNS, DatasetError,
                                      attack_category, load_nsl_kdd)
 from network_sensor.evaluate import compute_metrics, evaluate_model, measure_speed, render_markdown, write_reports
 from network_sensor.features import InputError, prepare_features

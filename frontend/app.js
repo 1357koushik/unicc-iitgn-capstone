@@ -578,7 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // never innerHTML: a crafted file must not be able to put code in the page.
     // ------------------------------------------------------------------
     const MAX_SCAN_MB = 5;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
-    const SCAN_HINT = `.csv or .txt (NSL-KDD format), up to ${MAX_SCAN_MB} MB`;
+    const SCAN_HINT = `.csv or .txt (NSL-KDD or CIC-IDS2017 format), up to ${MAX_SCAN_MB} MB`;
     const scanInput = document.getElementById("scan-file-input");
     const scanBtn = document.getElementById("scan-file-btn");
     let lastScanAlerts = [];
@@ -598,26 +598,37 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
             const s = await res.json();
-            if (!s.ready) {
+            // One sensor per dataset format (NSL-KDD, CIC-IDS2017); older servers send only one.
+            const sensors = s.datasets || [{ ...s, dataset: "nsl_kdd", title: "NSL-KDD" }];
+            if (!sensors.some((d) => d.ready)) {
                 box.className = "sensor-status not-ready";
-                showInBox("sensor-status", textElement("strong", "Sensor not ready"), textElement("p", s.message || ""));
+                showInBox("sensor-status", textElement("strong", "Sensor not ready"),
+                    ...sensors.map((d) => textElement("p", d.message || "")));
                 scanBtn.disabled = true;
                 return;
             }
             scanBtn.disabled = false;
             box.className = "sensor-status ready";
-            const lines = [
-                textElement("strong", "Sensor ready"),
-                textElement("p", `Trained ${localTime(s.trained_at)} on ${Number(s.training_connections).toLocaleString()} connections.`),
-            ];
-            const ev = s.evaluation;
-            if (ev) {
-                lines.push(textElement("p",
-                    `Last evaluation (${ev.dataset}): precision ${pct(ev.precision)} ` +
-                    `(target ${pct(ev.target_precision)}, ${ev.passed ? "passed" : "NOT met"}), ` +
-                    `attacks caught ${pct(ev.recall)}, false alarms on ${pct(ev.false_alarm_rate)} of normal traffic.`));
-            } else {
-                lines.push(textElement("p", "No evaluation report yet. On the server, run: python -m network_sensor.evaluate", "muted-text"));
+            const lines = [textElement("strong", "Sensor ready")];
+            for (const d of sensors) {
+                if (!d.ready) {
+                    lines.push(textElement("p", d.message || `${d.title}: not trained yet.`, "muted-text"));
+                    continue;
+                }
+                let text = `${d.title} files: trained ${localTime(d.trained_at)} on ` +
+                    `${Number(d.training_connections).toLocaleString()} connections.`;
+                const ev = d.evaluation;
+                if (ev) {
+                    text += ` Last evaluation (${ev.dataset}): precision ${pct(ev.precision)} ` +
+                        `(target ${pct(ev.target_precision)}, ${ev.passed ? "passed" : "NOT met"}), ` +
+                        `attacks caught ${pct(ev.recall)}, false alarms on ${pct(ev.false_alarm_rate)} of normal traffic.`;
+                    lines.push(textElement("p", text));
+                } else {
+                    const option = d.dataset === "nsl_kdd" ? "" : ` --dataset ${d.dataset}`;
+                    lines.push(textElement("p", text));
+                    lines.push(textElement("p", "No evaluation report yet. On the server, run: " +
+                        `python -m network_sensor.evaluate${option}`, "muted-text"));
+                }
             }
             showInBox("sensor-status", ...lines);
         } catch (e) {
@@ -673,6 +684,9 @@ document.addEventListener("DOMContentLoaded", () => {
             statTile(data.alerts_total.toLocaleString(), "Alerts"),
             statTile(data.possible_new_attacks.toLocaleString(), "Possible new attacks"));
         const parts = [tiles];
+        if (data.dataset_title) {
+            parts.push(textElement("p", `Checked by the sensor trained on ${data.dataset_title}.`, "muted-text"));
+        }
         if (data.label_check) {
             const c = data.label_check;
             parts.push(textElement("p",
@@ -774,8 +788,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 setLiveRunning(true);
                 document.getElementById("live-progress").hidden = false;
                 document.getElementById("live-status").textContent =
-                    `Replaying ${data.filename}: ${data.total.toLocaleString()} connections at ` +
-                    `${Number(data.speed).toLocaleString()} per second...`;
+                    `Replaying ${data.filename}${data.dataset_title ? ` (${data.dataset_title} format)` : ""}: ` +
+                    `${data.total.toLocaleString()} connections at ${Number(data.speed).toLocaleString()} per second...`;
                 liveReplay.timer = setTimeout(pollLiveReplay, LIVE_POLL_MS);
             } else if (res.status !== 401) {
                 const err = await res.json().catch(() => ({}));

@@ -9,7 +9,9 @@ way, because checking connections together is hundreds of times faster than one 
 one (measured: 1 connection ~48 ms, 1,000 connections ~270 ms).
 
 This is a REPLAY of recorded traffic, not a capture of this computer's own network:
-working out the 41 NSL-KDD measurements from live packets needs extra tools.
+working out the measurements from live packets needs extra tools (for the CIC-IDS2017
+format, the CICFlowMeter tool). Files in either format can be replayed; each is checked
+by the sensor trained on that dataset.
 
 Replays are kept in this server's memory, so they assume one server process (the
 normal way this app is started). A replay nobody has asked about for 10 minutes is
@@ -26,6 +28,7 @@ import pandas as pd
 from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError, prepare_features
+from network_sensor.spec import dataset_of_columns, get_spec
 
 SPEEDS = (10, 100, 1000)          # connections per second a user can choose
 MAX_BATCH = 2000                  # most connections checked in one step
@@ -43,6 +46,7 @@ class LiveSession:
     started_at: float
     last_seen: float
     details: dict                                   # file name, size, fingerprint (for the audit log)
+    dataset: str = "nsl_kdd"                        # which format the file is in
     position: int = 0                               # connections checked so far
     alerts: int = 0
     possible_new_attacks: int = 0
@@ -55,6 +59,10 @@ class LiveSession:
     @property
     def has_labels(self) -> bool:
         return "label" in self.connections.columns
+
+    @property
+    def dataset_title(self) -> str:
+        return get_spec(self.dataset).title
 
 
 class LiveSessions:
@@ -72,8 +80,9 @@ class LiveSessions:
         if speed not in SPEEDS:
             raise ScanError(400, "Speed must be " + ", ".join(f"{s:,}" for s in SPEEDS)
                             + " connections per second.")
+        dataset = dataset_of_columns(connections.columns)
         try:
-            prepare_features(connections)          # refuse bad values now, not halfway through
+            prepare_features(connections, get_spec(dataset))   # refuse bad values now, not halfway through
         except InputError as e:
             raise ScanError(400, str(e))
         with self._lock:
@@ -87,14 +96,20 @@ class LiveSessions:
             now = self._clock()
             session = LiveSession(id=secrets.token_urlsafe(12), user_id=user_id,
                                   connections=connections.reset_index(drop=True), speed=speed,
-                                  started_at=now, last_seen=now, details=details)
+                                  started_at=now, last_seen=now, details=details, dataset=dataset)
             self._sessions[session.id] = session
         return session, replaced
 
     def step(self, session_id: str, user_id: str, model) -> dict:
         """Check every connection that has 'arrived' since the last step. When the file
-        is finished, the replay ends and the answer includes its 'summary'."""
+        is finished, the replay ends and the answer includes its 'summary'.
+
+        `model` is the trained sensor, or a function that returns the trained sensor
+        for a dataset name (e.g. SensorService.model), so each replay gets the sensor
+        that matches its file's format."""
         session = self._owned(session_id, user_id)
+        if callable(model):
+            model = model(session.dataset)
         with session.lock:                          # two steps of one replay never overlap
             now = self._clock()
             session.last_seen = now
@@ -174,7 +189,8 @@ class LiveSessions:
             "slowest_check_ms": round(session.slowest_check_ms, 1),
         }
         if session.has_labels and session.verdicts:
-            truth = (session.connections["label"].iloc[:len(session.verdicts)] != "normal").astype(int)
+            normal = get_spec(session.dataset).normal_label
+            truth = (session.connections["label"].iloc[:len(session.verdicts)] != normal).astype(int)
             m = compute_metrics(truth, session.verdicts)
             totals["label_check"] = {k: m[k] for k in ("precision", "recall", "false_positives", "true_positives")}
         return totals
@@ -187,6 +203,7 @@ class LiveSessions:
             "speed": session.speed,
             "connections_checked": session.position,
             "connections_in_file": len(session.connections),
+            "dataset": session.dataset,
             "alerts": totals["alerts"],
             "possible_new_attacks": totals["possible_new_attacks"],
             "batches": session.batches,

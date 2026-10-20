@@ -789,7 +789,7 @@ def start_network_live_replay(file: UploadFile = File(...), speed: int = 100,
                               user: dict = Depends(get_investigator_user), db: Session = Depends(get_db)):
     """Start replaying a file at `speed` connections per second (10, 100 or 1000)."""
     def begin(service, connections, details):
-        service.sensor.model()                     # refuse now if the sensor is not trained
+        service.sensor.model(service.dataset_of(connections))   # refuse now if that sensor is not trained
         return service.live.start(user["id"], connections, speed, details)
 
     (session, replaced), details = _network_file_request(
@@ -800,7 +800,8 @@ def start_network_live_replay(file: UploadFile = File(...), speed: int = 100,
     log_action(db, session.id, user["id"], user["role"], "network_live_start", "network_file", "none", "success",
                {**details, "connections": len(session.connections), "speed": session.speed})
     return {"session_id": session.id, "filename": details["filename"],
-            "total": len(session.connections), "speed": session.speed}
+            "total": len(session.connections), "speed": session.speed,
+            "dataset": session.dataset, "dataset_title": session.dataset_title}
 
 
 @app.post("/api/v1/network/live/{session_id}/next")
@@ -812,7 +813,7 @@ def next_network_live_step(session_id: str, user: dict = Depends(get_investigato
     if service is None:
         raise HTTPException(status_code=503, detail=NETWORK_SENSOR_NOT_INSTALLED)
     try:
-        result = service.live.step(session_id, user["id"], service.sensor.model())
+        result = service.live.step(session_id, user["id"], service.sensor.model)
     except service.ScanError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     if "summary" in result:

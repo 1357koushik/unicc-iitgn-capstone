@@ -9,13 +9,16 @@ the measurements that are rare among normal connections, e.g.
      Higher than any normal connection seen in training."
 
 and says which of the three models raised the alarm.
+
+What each measurement means, and how its values are shown, comes from the dataset's
+description (network_sensor/spec.py).
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from network_sensor.datasets import CATEGORICAL_COLUMNS, FEATURE_COLUMNS, NUMERIC_COLUMNS
+from network_sensor.spec import DEFAULT_DATASET, DatasetSpec, get_spec
 
 # A value counts as a reason when at most this share of normal connections has it.
 # Chosen on TRAINING data (not the test file) by comparing 1%, 2%, 5% and 10% with the
@@ -23,112 +26,20 @@ from network_sensor.datasets import CATEGORICAL_COLUMNS, FEATURE_COLUMNS, NUMERI
 # 2% gave nearly every alert a reason, and higher bars added little but weaker reasons.
 RARE_SHARE = 0.02
 
-# Plain-English meaning of each measurement (definitions from the KDD Cup 1999 /
-# NSL-KDD documentation). "Recent" = the 2 seconds before this connection;
-# "last 100" = the 100 connections before it that went to the same destination machine.
-FEATURE_DESCRIPTIONS: Dict[str, str] = {
-    "duration": "Length of the connection",
-    "protocol_type": "Protocol",
-    "service": "Network service on the destination",
-    "flag": "Connection status",
-    "src_bytes": "Data sent by the source",
-    "dst_bytes": "Data sent back by the destination",
-    "land": "Source and destination are the same machine and port",
-    "wrong_fragment": "Malformed packet fragments",
-    "urgent": "Urgent packets",
-    "hot": "'Hot' actions (e.g. entering system folders, running programs)",
-    "num_failed_logins": "Failed login attempts",
-    "logged_in": "Login succeeded",
-    "num_compromised": "'Compromised' conditions",
-    "root_shell": "Administrator (root) shell obtained",
-    "su_attempted": "'su root' command attempted",
-    "num_root": "Administrator (root) accesses",
-    "num_file_creations": "Files created",
-    "num_shells": "Shell prompts opened",
-    "num_access_files": "Operations on access-control files",
-    "num_outbound_cmds": "Outbound commands in an FTP session",
-    "is_host_login": "Login is on the 'hot' list",
-    "is_guest_login": "Guest login",
-    "count": "Connections to the same machine in the last 2 seconds",
-    "srv_count": "Connections to the same service in the last 2 seconds",
-    "serror_rate": "Recent connections to this machine left half-open (SYN errors)",
-    "srv_serror_rate": "Recent connections to this service left half-open (SYN errors)",
-    "rerror_rate": "Recent connections to this machine rejected",
-    "srv_rerror_rate": "Recent connections to this service rejected",
-    "same_srv_rate": "Recent connections to this machine using the same service",
-    "diff_srv_rate": "Recent connections to this machine using different services",
-    "srv_diff_host_rate": "Recent connections to this service going to different machines",
-    "dst_host_count": "Of the last 100 connections, number going to this machine",
-    "dst_host_srv_count": "Of the last 100 connections, number going to this machine and service",
-    "dst_host_same_srv_rate": "Of the last 100 connections to this machine, share using the same service",
-    "dst_host_diff_srv_rate": "Of the last 100 connections to this machine, share using different services",
-    "dst_host_same_src_port_rate": "Of the last 100 connections to this machine, share from the same source port",
-    "dst_host_srv_diff_host_rate": "Of the last 100 connections to this service, share going to different machines",
-    "dst_host_serror_rate": "Of the last 100 connections to this machine, share left half-open",
-    "dst_host_srv_serror_rate": "Of the last 100 connections to this service, share left half-open",
-    "dst_host_rerror_rate": "Of the last 100 connections to this machine, share rejected",
-    "dst_host_srv_rerror_rate": "Of the last 100 connections to this service, share rejected",
-}
-
-# What the connection-status codes mean (they come from the Bro/Zeek network monitor).
-FLAG_MEANINGS = {
-    "SF": "normal start and finish",
-    "S0": "request sent, never answered - half-open",
-    "S1": "connected, not closed",
-    "S2": "connected, only the source tried to close",
-    "S3": "connected, only the destination tried to close",
-    "REJ": "connection refused",
-    "RSTO": "source aborted the connection",
-    "RSTR": "destination aborted the connection",
-    "RSTOS0": "source sent a request and then aborted, no answer",
-    "SH": "source sent a request and a close, no answer - a stealth scan pattern",
-    "OTH": "no start of the connection was seen",
-}
-
-# Measurements that tell the same story; only the rarest one of each group is shown,
-# so an analyst does not read "half-open" four times.
-FEATURE_GROUPS = {
-    "half_open": ["serror_rate", "srv_serror_rate", "dst_host_serror_rate", "dst_host_srv_serror_rate"],
-    "rejected": ["rerror_rate", "srv_rerror_rate", "dst_host_rerror_rate", "dst_host_srv_rerror_rate"],
-    "service_mix": ["same_srv_rate", "diff_srv_rate", "dst_host_same_srv_rate", "dst_host_diff_srv_rate"],
-    "recent_volume": ["count", "srv_count"],
-    "volume_last_100": ["dst_host_count", "dst_host_srv_count"],
-    "spread": ["srv_diff_host_rate", "dst_host_srv_diff_host_rate"],
-    "root_activity": ["num_root", "num_compromised"],
-}
-GROUP_OF = {f: g for g, members in FEATURE_GROUPS.items() for f in members}
-
-YES_NO_COLUMNS = {"land", "logged_in", "root_shell", "is_host_login", "is_guest_login"}
-
 MODEL_TITLES = {"isolation_forest": "Isolation Forest", "one_class_svm": "One-Class SVM",
                 "random_forest": "Random Forest"}
-
-
-def format_value(column: str, value) -> str:
-    if column == "flag":
-        return f"{value} = {FLAG_MEANINGS.get(str(value), 'unknown status')}"
-    if column in CATEGORICAL_COLUMNS:
-        return str(value)
-    v = float(value)
-    if column.endswith("_rate"):
-        return f"{v:.0%}"
-    if column in YES_NO_COLUMNS:
-        return "yes" if v >= 1 else "no"
-    if column in ("src_bytes", "dst_bytes"):
-        return f"{v:,.0f} bytes"
-    if column == "duration":
-        return f"{v:,.0f} seconds"
-    return f"{v:,.0f}"
-
 
 
 class NormalProfile:
     """What normal traffic looks like, learned from the normal training connections."""
 
-    def __init__(self, normal: pd.DataFrame, importance: Dict[str, float]):
+    def __init__(self, normal: pd.DataFrame, importance: Dict[str, float],
+                 spec: Optional[DatasetSpec] = None):
+        spec = spec or get_spec()
+        self.dataset = spec.name
         self.rows = int(len(normal))
         self.numeric = {}
-        for column in NUMERIC_COLUMNS:
+        for column in spec.numeric_columns:
             v = normal[column].to_numpy(dtype=float)
             values, counts = np.unique(v, return_counts=True)
             self.numeric[column] = {
@@ -138,27 +49,33 @@ class NormalProfile:
                 "median": float(np.median(v)),
                 "p95": float(np.quantile(v, 0.95)),
             }
-        self.categorical = {c: normal[c].value_counts(normalize=True).to_dict() for c in CATEGORICAL_COLUMNS}
-        self.most_common = {c: str(normal[c].mode().iloc[0]) for c in CATEGORICAL_COLUMNS}
+        self.categorical = {c: normal[c].value_counts(normalize=True).to_dict() for c in spec.categorical_columns}
+        self.most_common = {c: str(normal[c].mode().iloc[0]) for c in spec.categorical_columns}
         # How much the Random Forest relies on each measurement (used to break ties).
         self.importance = importance
 
+    @property
+    def spec(self) -> DatasetSpec:
+        # Profiles saved before there was more than one dataset are NSL-KDD profiles.
+        return get_spec(getattr(self, "dataset", DEFAULT_DATASET))
+
     def typical_value(self, column: str):
         """The value to use as 'normal' for this measurement."""
-        if column in CATEGORICAL_COLUMNS:
+        if column in self.spec.categorical_columns:
             return self.most_common[column]
         return self.numeric[column]["median"]
 
     def typical_text(self, column: str) -> str:
-        if column in CATEGORICAL_COLUMNS:
-            return f"usually {format_value(column, self.most_common[column])}"
+        spec = self.spec
+        if column in spec.categorical_columns:
+            return f"usually {spec.format_value(column, self.most_common[column])}"
         s = self.numeric[column]
-        low, high = format_value(column, s["p5"]), format_value(column, s["p95"])
+        low, high = spec.format_value(column, s["p5"]), spec.format_value(column, s["p95"])
         return f"usually {low}" if low == high else f"usually {low} to {high}"
 
     def rarity(self, column: str, x: np.ndarray):
         """For each value: (share of normal connections at least as extreme, direction)."""
-        if column in CATEGORICAL_COLUMNS:
+        if column in self.spec.categorical_columns:
             freq = self.categorical[column]
             shares = np.array([freq.get(str(value), 0.0) for value in x], dtype=float)
             return shares, np.full(len(x), "unusual", dtype=object)
@@ -177,10 +94,11 @@ class NormalProfile:
 
 
 def _reason_text(column: str, value, share: float, direction: str, profile: NormalProfile) -> str:
-    description = FEATURE_DESCRIPTIONS[column]
-    start = f"{description}: {format_value(column, value)} (normal: {profile.typical_text(column)})."
+    spec = profile.spec
+    description = spec.descriptions[column]
+    start = f"{description}: {spec.format_value(column, value)} (normal: {profile.typical_text(column)})."
     how_many = "Fewer than 0.1%" if share < 0.001 else f"Only {share:.1%}"
-    if direction == "unusual" or column in YES_NO_COLUMNS:
+    if direction == "unusual" or column in spec.yes_no_columns:
         if share == 0:
             return f"{start} Never seen in normal traffic."
         return f"{start} {how_many} of normal connections have this."
@@ -213,17 +131,18 @@ def explain_rows(profile: NormalProfile, features: pd.DataFrame, votes: pd.DataF
     rf_scores: the Random Forest's score for "attack" (the share of its trees voting
     attack). It is a ranking signal, not a calibrated probability: even a 99% score can
     be a false alarm."""
+    spec = profile.spec
     shares, directions = {}, {}
-    for column in FEATURE_COLUMNS:
+    for column in spec.feature_columns:
         shares[column], directions[column] = profile.rarity(column, features[column].to_numpy())
 
     explanations = []
     for i in range(len(features)):
-        candidates = [c for c in FEATURE_COLUMNS if shares[c][i] <= RARE_SHARE]
+        candidates = [c for c in spec.feature_columns if shares[c][i] <= RARE_SHARE]
         candidates.sort(key=lambda c: (shares[c][i], -profile.importance.get(c, 0.0)))
         reasons, used_groups = [], set()
         for column in candidates:
-            group = GROUP_OF.get(column, column)
+            group = spec.group_of.get(column, column)
             if group in used_groups:
                 continue
             used_groups.add(group)
@@ -231,12 +150,12 @@ def explain_rows(profile: NormalProfile, features: pd.DataFrame, votes: pd.DataF
             share, direction = float(shares[column][i]), str(directions[column][i])
             reasons.append({
                 "feature": column,
-                "description": FEATURE_DESCRIPTIONS[column],
-                "value": value if column in CATEGORICAL_COLUMNS else float(value),
+                "description": spec.descriptions[column],
+                "value": value if column in spec.categorical_columns else float(value),
                 "normal": profile.typical_text(column),
                 "share_of_normal": share,
                 "direction": direction,
-                "related_features": FEATURE_GROUPS.get(group, [column]),
+                "related_features": spec.groups.get(group, [column]),
                 "text": _reason_text(column, value, share, direction, profile),
             })
             if len(reasons) == top_n:

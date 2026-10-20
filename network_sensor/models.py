@@ -25,13 +25,14 @@ import sklearn
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.svm import OneClassSVM
 
-from network_sensor.datasets import CATEGORICAL_COLUMNS
 from network_sensor.explain import NormalProfile, explain_rows
 from network_sensor.features import InputError, build_preprocessor, prepare_features
+from network_sensor.spec import DEFAULT_DATASET, DatasetSpec, get_spec
 
 MODEL_NAMES = ("isolation_forest", "one_class_svm", "random_forest")
 DECISION_RULE = "random_forest OR (isolation_forest AND one_class_svm)"
-FILE_FORMAT_VERSION = 2     # 2 = also stores the normal-traffic profile used for explanations
+FILE_FORMAT_VERSION = 3     # 2 = also stores the normal-traffic profile; 3 = also the dataset name
+READABLE_FILE_VERSIONS = (2, 3)   # version 2 files are NSL-KDD models and still work
 
 
 @dataclass
@@ -47,22 +48,30 @@ class SensorSettings:
 
 
 class NetworkSensorModel:
-    def __init__(self, settings: SensorSettings = None):
-        self.settings = settings or SensorSettings()
-        self.preprocessor = build_preprocessor()
+    def __init__(self, settings: SensorSettings = None, dataset: str = DEFAULT_DATASET):
+        self.dataset = get_spec(dataset).name      # refuses unknown dataset names
+        # Without settings, the dataset's own anomaly share is used (see spec.py).
+        self.settings = settings or SensorSettings(anomaly_share=self.spec.anomaly_share)
+        self.preprocessor = build_preprocessor(self.spec)
         self.isolation_forest = None
         self.one_class_svm = None
         self.random_forest = None
         self.normal_profile = None
         self.training_info: dict = {}
 
+    @property
+    def spec(self) -> DatasetSpec:
+        """What this model's dataset looks like (models saved before there was more
+        than one dataset are NSL-KDD models)."""
+        return get_spec(getattr(self, "dataset", DEFAULT_DATASET))
+
     # ---------------------------------------------------------------- training
     def fit(self, train_df: pd.DataFrame) -> "NetworkSensorModel":
-        """Train all three models. train_df needs the 41 measurement columns and
+        """Train all three models. train_df needs the dataset's measurement columns and
         is_attack (1 = attack, 0 = normal); 'label' (the attack name) is optional."""
         if "is_attack" not in train_df.columns:
             raise InputError("Training data needs an 'is_attack' column (1 = attack, 0 = normal).")
-        features = prepare_features(train_df)
+        features = prepare_features(train_df, self.spec)
         y = train_df["is_attack"].astype(int).to_numpy()
         if set(np.unique(y)) != {0, 1}:
             raise InputError("Training data must contain both normal (0) and attack (1) connections.")
@@ -85,11 +94,12 @@ class NetworkSensorModel:
         ).fit(X, y)
         _answer_with_one_thread(self)
 
-        self.normal_profile = NormalProfile(features[y == 0], self._importance_per_measurement())
+        self.normal_profile = NormalProfile(features[y == 0], self._importance_per_measurement(), self.spec)
 
         attack_labels =(sorted(train_df.loc[train_df["is_attack"] == 1, "label"].astype(str).unique())
                          if "label" in train_df.columns else [])
         self.training_info = {
+            "dataset": self.dataset,
             "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "training_rows": int(len(y)),
             "normal_rows": int((y == 0).sum()),
@@ -102,14 +112,14 @@ class NetworkSensorModel:
         return self
 
     def _importance_per_measurement(self) -> dict:
-        """How much the Random Forest relies on each of the 41 measurements (the yes/no
-        columns made from one text column are added back together)."""
+        """How much the Random Forest relies on each measurement (the yes/no columns
+        made from one text column are added back together)."""
         importance = {}
         names = self.preprocessor.get_feature_names_out()
         for name, value in zip(names, self.random_forest.feature_importances_):
             part, column = name.split("__", 1)
             if part == "categories":
-                column = next(c for c in CATEGORICAL_COLUMNS if column.startswith(c + "_"))
+                column = next(c for c in self.spec.categorical_columns if column.startswith(c + "_"))
             importance[column] = importance.get(column, 0.0) + float(value)
         return importance
 
@@ -117,7 +127,7 @@ class NetworkSensorModel:
     def _checked_matrix(self, df: pd.DataFrame):
         if self.random_forest is None:
             raise RuntimeError("The sensor has not been trained yet.")
-        features = prepare_features(df)
+        features = prepare_features(df, self.spec)
         return features, self.preprocessor.transform(features)
 
     def _votes_from_matrix(self, X, index) -> pd.DataFrame:
@@ -166,25 +176,31 @@ class NetworkSensorModel:
         return path
 
     @classmethod
-    def load(cls, path: Union[str, Path]) -> "NetworkSensorModel":
-        """Load a saved sensor.
+    def load(cls, path: Union[str, Path], dataset: str = None) -> "NetworkSensorModel":
+        """Load a saved sensor. If `dataset` is given, the file must be a model of that
+        dataset.
 
         SECURITY: model files are Python "pickles" - opening one can run code hidden
         inside it. Only load files you trained yourself (python -m network_sensor.train),
         never ones downloaded or received from someone else."""
         path = Path(path)
+        train_command = "python -m network_sensor.train" + (
+            f" --dataset {dataset}" if dataset and dataset != DEFAULT_DATASET else "")
         if not path.exists():
             raise FileNotFoundError(f"{path} was not found. Train the sensor first:\n"
-                                    "    python -m network_sensor.train")
+                                    f"    {train_command}")
         bundle = joblib.load(path)
-        if not isinstance(bundle, dict) or bundle.get("file_format_version") != FILE_FORMAT_VERSION \
+        if not isinstance(bundle, dict) or bundle.get("file_format_version") not in READABLE_FILE_VERSIONS \
                 or not isinstance(bundle.get("model"), cls):
             raise ValueError(f"{path} is not a network sensor model file from this version. Train again.")
+        model = bundle["model"]
+        if dataset and model.spec.name != dataset:
+            raise ValueError(f"{path} is a {model.spec.title} model, not a {get_spec(dataset).title} model. "
+                             f"Train again: {train_command}")
         saved_with = bundle.get("library_versions", {}).get("scikit-learn")
         if saved_with != sklearn.__version__:
             warnings.warn(f"This model was trained with scikit-learn {saved_with}, but {sklearn.__version__} "
-                          "is installed. Retrain it to be safe: python -m network_sensor.train")
-        model = bundle["model"]
+                          f"is installed. Retrain it to be safe: {train_command}")
         _answer_with_one_thread(model)       # also for files saved before this setting existed
         return model
 

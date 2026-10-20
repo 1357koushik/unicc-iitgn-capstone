@@ -1,14 +1,17 @@
 """
-Tests the trained sensor on the official NSL-KDD test file and writes a report.
+Tests the trained sensor on a dataset's test part and writes a report.
 
 This is the evidence for UNICC evaluation Task 5.0, which is scored on PRECISION
 with an acceptable result of 90 (out of 100).
 
 Usage (in the project folder, with the .venv switched on):
-    python -m network_sensor.evaluate
+    python -m network_sensor.evaluate                         # NSL-KDD
+    python -m network_sensor.evaluate --dataset cicids2017    # CIC-IDS2017
 
 Writes  data/network_sensor/reports/evaluation_report.json  and  .md
+(for CIC-IDS2017: data/network_sensor/reports/cicids2017/)
 """
+import argparse
 import json
 import os
 import statistics
@@ -16,18 +19,18 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from network_sensor.datasets import FEATURE_COLUMNS, DatasetError, load_nsl_kdd
-from network_sensor.explain import FEATURE_DESCRIPTIONS, RARE_SHARE
+from network_sensor.datasets import DatasetError
+from network_sensor.explain import RARE_SHARE
 from network_sensor.models import MODEL_NAMES, NetworkSensorModel, _library_versions
 from network_sensor.paths import model_path, reports_dir
+from network_sensor.spec import DATASETS, DEFAULT_DATASET, get_spec, load_split
 
 TARGET_PRECISION = 0.90     # UNICC evaluation sheet, Task 5.0: acceptable outcome 90, scored on precision
-CATEGORY_ORDER = ["DoS", "Probe", "R2L", "U2R"]
 MODEL_TITLES = {"isolation_forest": "Isolation Forest", "one_class_svm": "One-Class SVM",
                 "random_forest": "Random Forest", "combined": "Combined sensor"}
 
@@ -73,14 +76,15 @@ def explanation_check(model: NetworkSensorModel, test_df: pd.DataFrame, explanat
         return {"alerts": len(alerts), "alerts_with_reasons": 0}
 
     profile = model.normal_profile
-    position = {c: k for k, c in enumerate(FEATURE_COLUMNS)}
-    original = test_df.iloc[checked][FEATURE_COLUMNS].to_numpy(dtype=object)
+    columns = list(model.spec.feature_columns)
+    position = {c: k for k, c in enumerate(columns)}
+    original = test_df.iloc[checked][columns].to_numpy(dtype=object)
     reset_reasons, reset_random = original.copy(), original.copy()
     rng = np.random.default_rng(seed)
     n_reset = []
     for row, i in enumerate(checked):
         named = sorted({f for r in explanations[i]["reasons"] for f in r["related_features"]})
-        others = [c for c in FEATURE_COLUMNS if c not in named]
+        others = [c for c in columns if c not in named]
         for column in named:
             reset_reasons[row, position[column]] = profile.typical_value(column)
         for column in rng.choice(others, size=len(named), replace=False):
@@ -88,7 +92,7 @@ def explanation_check(model: NetworkSensorModel, test_df: pd.DataFrame, explanat
         n_reset.append(len(named))
 
     def still_flagged(values):
-        return model.predict(pd.DataFrame(values, columns=FEATURE_COLUMNS))
+        return model.predict(pd.DataFrame(values, columns=columns))
 
     return {
         "alerts": len(alerts),
@@ -122,18 +126,41 @@ def measure_speed(model: NetworkSensorModel, test_df: pd.DataFrame, batch_sizes=
     return {"processor_cores": os.cpu_count(), "measurements": rows}
 
 
-def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame) -> dict:
+def sample_per_label(df: pd.DataFrame, per_label: int, seed: int = 0) -> pd.DataFrame:
+    """Up to `per_label` randomly chosen rows of each label (all rows of rarer labels),
+    in their original order. Used where checking every row would take too long or too
+    much memory; keeping every label means rare attack types are still represented."""
+    parts = [group.sample(n=min(per_label, len(group)), random_state=seed)
+             for _, group in df.groupby("label", sort=True)]
+    return pd.concat(parts).sort_index()
+
+
+def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame,
+                   explain_per_label: Optional[int] = None) -> dict:
+    """Score the sensor on test_df (which needs label, is_attack and attack_category).
+
+    The precision and recall numbers always use every connection. Explanations are kept
+    in memory, so for very large test sets explain_per_label limits them to that many
+    connections of each label (see sample_per_label); None = explain every connection."""
+    spec = model.spec
     y = test_df["is_attack"].to_numpy()
-    explanations = model.explain(test_df)
-    votes = pd.DataFrame([e["votes"] for e in explanations], index=test_df.index)
+    if explain_per_label is None:
+        explained = test_df
+        explanations = model.explain(test_df)
+        votes = pd.DataFrame([e["votes"] for e in explanations], index=test_df.index)
+    else:
+        votes = model.votes(test_df)
+        explained = sample_per_label(test_df, explain_per_label)
+        explanations = model.explain(explained)
     combined = model.combine(votes)
+    explained_flags = np.array([1 if e["verdict"] == "attack" else 0 for e in explanations])
 
     results = {name: compute_metrics(y, votes[name]) for name in MODEL_NAMES}
     results["combined"] = compute_metrics(y, combined)
 
     attacks = test_df["is_attack"].to_numpy() == 1
     by_category = {}
-    for category in CATEGORY_ORDER:
+    for category in spec.families:
         mask = (test_df["attack_category"] == category).to_numpy()
         by_category[category] = _detection(combined[mask])
 
@@ -157,23 +184,31 @@ def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame) -> dict:
     # Which measurement is most often the main reason, per attack family (caught attacks only).
     main_reasons = {}
     examples = {}
-    for category in CATEGORY_ORDER:
-        rows = [k for k in range(len(test_df))
-                if test_df["attack_category"].iat[k] == category and combined[k] == 1]
+    for category in spec.families:
+        rows = [k for k in range(len(explained))
+                if explained["attack_category"].iat[k] == category and explained_flags[k] == 1]
         firsts = pd.Series([explanations[k]["reasons"][0]["feature"] if explanations[k]["reasons"]
                             else "(no single unusual measurement)" for k in rows], dtype=object)
-        main_reasons[category] = [{"feature": f, "share_of_caught": float(n / len(rows))}
+        main_reasons[category] = [{"feature": f, "description": spec.descriptions.get(f, f),
+                                   "share_of_caught": float(n / len(rows))}
                                   for f, n in firsts.value_counts().head(3).items()] if rows else []
         if rows:
-            examples[category] = {"attack_type": test_df["label"].iat[rows[0]], **explanations[rows[0]]}
-    false_alarms = [k for k in range(len(test_df)) if y[k] == 0 and combined[k] == 1]
+            examples[category] = {"attack_type": explained["label"].iat[rows[0]], **explanations[rows[0]]}
+    explained_y = explained["is_attack"].to_numpy()
+    false_alarms = [k for k in range(len(explained)) if explained_y[k] == 0 and explained_flags[k] == 1]
     if false_alarms:
-        examples["False alarm"] = {"attack_type": "normal", **explanations[false_alarms[0]]}
+        examples["False alarm"] = {"attack_type": spec.normal_label, **explanations[false_alarms[0]]}
+
+    check = explanation_check(model, explained, explanations)
+    if explain_per_label is not None:
+        check["sample"] = (f"Checked on up to {explain_per_label:,} connections of each label "
+                           f"({len(explained):,} connections in total).")
 
     achieved = results["combined"]["precision"]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "dataset": "NSL-KDD, official test file KDDTest+.txt",
+        "dataset": f"{spec.title}, {spec.test_description}",
+        "dataset_name": spec.name,
         "test_rows": int(len(y)),
         "test_attacks": int(attacks.sum()),
         "test_normal": int((~attacks).sum()),
@@ -182,17 +217,55 @@ def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame) -> dict:
                       "achieved": achieved, "passed": achieved >= TARGET_PRECISION},
         "decision_rule": model.training_info.get("decision_rule"),
         "models": results,
+        "family_meanings": {family: spec.family_meanings[family] for family in spec.families},
         "by_attack_category": by_category,
         "seen_vs_unseen": seen_vs_unseen,
         "most_missed_attack_types": most_missed,
         "explanations": {
-            "check": explanation_check(model, test_df, explanations),
+            "check": check,
             "main_reasons_by_family": main_reasons,
             "examples": examples,
         },
+        "limitations": list(spec.limitations),
         "training_info": model.training_info,
         "library_versions": _library_versions(),
     }
+
+
+def new_attack_check(dataset: str, train_df: pd.DataFrame, test_df: pd.DataFrame,
+                     normal_sample: int = 50_000, settings=None, seed: int = 0, progress=None) -> dict:
+    """Can the sensor catch an attack family it has NEVER seen? For each family: train a
+    fresh sensor on the training data WITHOUT that family, then count how many of the
+    family's test connections it flags (and which models flagged them), and how many
+    normal test connections it wrongly flags (on a random sample of normal traffic)."""
+    spec = get_spec(dataset)
+    normal = test_df[test_df["is_attack"] == 0]
+    if len(normal) > normal_sample:
+        normal = normal.sample(n=normal_sample, random_state=seed)
+    rows = []
+    for family in spec.families:
+        family_test = test_df[test_df["attack_category"] == family]
+        in_training = train_df["attack_category"] == family
+        if len(family_test) == 0 or not in_training.any():
+            continue
+        if progress:
+            progress(family)
+        model = NetworkSensorModel(settings, dataset=dataset).fit(train_df[~in_training])
+        votes = model.votes(family_test)
+        flagged = model.combine(votes).astype(bool)
+        rf = votes["random_forest"].to_numpy().astype(bool)
+        false_alarms = model.predict(normal)
+        rows.append({
+            "family": family,
+            "attack_types": sorted(family_test["label"].unique()),
+            "test_attacks": int(len(family_test)),
+            "caught": int(flagged.sum()),
+            "detection_rate": float(flagged.mean()),
+            "caught_by_random_forest": int((flagged & rf).sum()),
+            "caught_only_by_anomaly_models": int((flagged & ~rf).sum()),
+            "false_alarm_rate": float(false_alarms.mean()),
+        })
+    return {"normal_connections_checked": int(len(normal)), "families": rows}
 
 
 def _pct(x: float) -> str:
@@ -226,34 +299,51 @@ def render_markdown(r: dict) -> str:
                      f"{m['false_negatives']:,} |")
     lines += ["", "## Attacks caught by family (combined sensor)", "",
               "| Family | What it is | Attacks | Caught | Rate |", "|---|---|---|---|---|"]
-    meaning = {"DoS": "flooding a service so real users cannot reach it",
-               "Probe": "scanning for machines and open ports",
-               "R2L": "an outsider trying to get in, e.g. guessing passwords",
-               "U2R": "a logged-in user trying to become administrator"}
-    for cat in CATEGORY_ORDER:
-        d = r["by_attack_category"][cat]
+    meaning = r["family_meanings"]
+    for cat, d in r["by_attack_category"].items():
         lines.append(f"| {cat} | {meaning[cat]} | {d['attacks']:,} | {d['detected']:,} | {_pct(d['detection_rate'])} |")
 
     s = r["seen_vs_unseen"]
-    lines += ["", "## Known vs brand-new attack types (combined sensor)", "",
-              "| Attack types | Attacks | Caught | Rate |", "|---|---|---|---|",
-              f"| Seen during training | {s['seen_in_training']['attacks']:,} | "
-              f"{s['seen_in_training']['detected']:,} | {_pct(s['seen_in_training']['detection_rate'])} |",
-              f"| Never seen during training | {s['never_seen_in_training']['attacks']:,} | "
-              f"{s['never_seen_in_training']['detected']:,} | {_pct(s['never_seen_in_training']['detection_rate'])} |",
-              "", f"Attack types that appear only in the test file: {', '.join(s['never_seen_attack_types'])}."]
+    lines += ["", "## Known vs brand-new attack types (combined sensor)", ""]
+    if s["never_seen_attack_types"]:
+        lines += ["| Attack types | Attacks | Caught | Rate |", "|---|---|---|---|",
+                  f"| Seen during training | {s['seen_in_training']['attacks']:,} | "
+                  f"{s['seen_in_training']['detected']:,} | {_pct(s['seen_in_training']['detection_rate'])} |",
+                  f"| Never seen during training | {s['never_seen_in_training']['attacks']:,} | "
+                  f"{s['never_seen_in_training']['detected']:,} | {_pct(s['never_seen_in_training']['detection_rate'])} |",
+                  "", f"Attack types that appear only in the test file: {', '.join(s['never_seen_attack_types'])}."]
+    else:
+        lines.append("Every attack type in the test part also appears in the training part. How the sensor "
+                     "does on attack types it has never seen is checked separately (see 'New attack types').")
     if r["most_missed_attack_types"]:
         lines += ["", "## Most-missed attack types", "", "| Attack type | Missed | Of | Seen in training? |",
                   "|---|---|---|---|"]
         for m in r["most_missed_attack_types"]:
             lines.append(f"| {m['attack_type']} | {m['missed']:,} | {m['total']:,} | "
                          f"{'yes' if m['seen_in_training'] else 'no'} |")
+    new = r.get("new_attack_check")
+    if new and new["families"]:
+        lines += ["", "## New attack types (trained without them)", "",
+                  "For each family, a fresh sensor was trained on the training part WITHOUT that family, "
+                  "so the family is as new to it as a never-seen attack would be. Then it checked the "
+                  "family's test connections, and a random sample of "
+                  f"{new['normal_connections_checked']:,} normal test connections for false alarms.", "",
+                  "| Family (never seen) | Attacks | Caught | Rate | By Random Forest | Only by anomaly models | "
+                  "False alarm rate |", "|---|---|---|---|---|---|---|"]
+        for f in new["families"]:
+            lines.append(f"| {f['family']} | {f['test_attacks']:,} | {f['caught']:,} | {_pct(f['detection_rate'])} | "
+                         f"{f['caught_by_random_forest']:,} | {f['caught_only_by_anomaly_models']:,} | "
+                         f"{_pct(f['false_alarm_rate'])} |")
+        lines += ["", "'By Random Forest' means the new attack still resembled other attack families it "
+                      "knew; 'only by anomaly models' are catches that come purely from it looking abnormal."]
     ex = r["explanations"]
     check = ex["check"]
     lines += ["", "## Explanations", "",
               f"Every alert lists up to 3 measurements that are rare in normal traffic (seen in at most "
               f"{RARE_SHARE:.0%} of normal connections) and which models raised it. The {RARE_SHARE:.0%} "
               "bar was chosen on training data, not on this test file."]
+    if check.get("sample"):
+        lines += ["", check["sample"]]
     if check.get("alerts_with_reasons"):
         lines += [
             "", "**Are the explanations true?** For each alert, the measurements named as reasons "
@@ -267,13 +357,13 @@ def render_markdown(r: dict) -> str:
             f"| Alerts that disappear when **random other** measurements are reset | "
             f"{_pct(check['cleared_when_random_reset'])} |",
             "", f"On average {check['measurements_reset_on_average']:.1f} measurements were reset per alert. "
-            "Measurements that tell the same story (e.g. the four 'half-open' rates) are reset together.",
+            "Measurements that tell the same story (e.g. several rates of the same event) are reset together.",
         ]
     lines += ["", "**Most common main reason, per attack family:**", "",
               "| Family | Main reason (share of caught attacks) |", "|---|---|"]
-    for cat in CATEGORY_ORDER:
+    for cat in r["by_attack_category"]:
         items = ex["main_reasons_by_family"].get(cat, [])
-        text = "; ".join(f"{FEATURE_DESCRIPTIONS.get(i['feature'], i['feature'])} ({_pct(i['share_of_caught'])})"
+        text = "; ".join(f"{i.get('description', i['feature'])} ({_pct(i['share_of_caught'])})"
                          for i in items) or "-"
         lines.append(f"| {cat} | {text} |")
     lines += ["", "**Examples** (the first caught attack of each family, and the first false alarm):"]
@@ -307,19 +397,13 @@ def render_markdown(r: dict) -> str:
         "- **Random Forest score** - the share of its decision trees that voted 'attack'. Use it to "
         "rank alerts; it is not a guaranteed probability (false alarms can score 99%).",
         "", "## Limitations (state these when presenting)", "",
-        "- NSL-KDD is built from 1998 network traffic. It is the standard public benchmark, but "
-        "modern traffic looks different; a newer dataset (CIC-IDS2017) is planned.",
-        "- The 41 measurements come with the dataset. The sensor does not yet compute them from "
-        "live network traffic itself.",
-        "- The test file deliberately contains attack types that are not in the training file, "
-        "which is why recall is lower than precision.",
-        "- Settings (anomaly share, tree counts) were fixed in advance and not tuned on the test file. "
-        "The decision rule was chosen after an initial comparison of a few combinations on this same "
-        "test file, so a fully independent check would use a second dataset.",
-        "", f"Trained {r['training_info'].get('trained_at')} on {r['training_info'].get('training_rows', 0):,} "
-        f"connections. Library versions: " + ", ".join(f"{k} {v}" for k, v in r["library_versions"].items()) + ".",
-        "",
     ]
+    lines += [f"- {limitation}" for limitation in r["limitations"]]
+    info = r["training_info"]
+    lines += ["", f"Trained {info.get('trained_at')} on {info.get('training_rows', 0):,} connections"
+                  + (f" ({info['sample']['note']})" if info.get("sample") else "") + ". "
+              "Library versions: " + ", ".join(f"{k} {v}" for k, v in r["library_versions"].items()) + ".",
+              ""]
     return "\n".join(lines)
 
 
@@ -333,17 +417,30 @@ def write_reports(results: dict, folder: Path) -> Tuple[Path, Path]:
     return json_path, md_path
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Score the trained network sensor on a dataset's test part.")
+    parser.add_argument("--dataset", choices=DATASETS, default=DEFAULT_DATASET,
+                        help="which dataset to test on (default: nsl_kdd)")
+    parser.add_argument("--skip-new-attack-check", action="store_true",
+                        help="CIC-IDS2017 only: skip retraining without each attack family (saves time)")
+    args = parser.parse_args(argv)
+    dataset, spec = args.dataset, get_spec(args.dataset)
     try:
-        model = NetworkSensorModel.load(model_path())
-        test = load_nsl_kdd("test")
+        model = NetworkSensorModel.load(model_path(dataset), dataset=dataset)
+        test = load_split(dataset, "test")
     except (FileNotFoundError, DatasetError, ValueError) as e:
         print(f"ERROR: {e}")
         return 1
-    print(f"Checking {len(test):,} test connections ...")
-    results = evaluate_model(model, test)
+    print(f"Checking {len(test):,} {spec.title} test connections ...")
+    results = evaluate_model(model, test, explain_per_label=spec.explain_per_label)
     print("Measuring speed ...")
     results["speed"] = measure_speed(model, test)
+    if spec.new_attack_check and not args.skip_new_attack_check:
+        train = load_split(dataset, "train")
+        print(f"New-attack check: training {len(spec.families)} more sensors, each without one attack family "
+              "(this takes a while) ...")
+        results["new_attack_check"] = new_attack_check(
+            dataset, train, test, progress=lambda family: print(f"  without {family} ..."))
 
     print(f"\n{'Model':<18}{'Precision':>11}{'Recall':>9}{'False alarms':>14}")
     for name in list(MODEL_NAMES) + ["combined"]:
@@ -351,8 +448,12 @@ def main() -> int:
         print(f"{MODEL_TITLES[name]:<18}{_pct(m['precision']):>11}{_pct(m['recall']):>9}"
               f"{m['false_positives']:>14,}")
     s = results["seen_vs_unseen"]
-    print(f"\nAttacks caught - known types: {_pct(s['seen_in_training']['detection_rate'])}, "
-          f"brand-new types: {_pct(s['never_seen_in_training']['detection_rate'])}")
+    if s["never_seen_in_training"]["attacks"]:
+        print(f"\nAttacks caught - known types: {_pct(s['seen_in_training']['detection_rate'])}, "
+              f"brand-new types: {_pct(s['never_seen_in_training']['detection_rate'])}")
+    for f in results.get("new_attack_check", {}).get("families", []):
+        print(f"Never-seen {f['family']:<14} caught {_pct(f['detection_rate']):>6}   "
+              f"(false alarms {_pct(f['false_alarm_rate'])})")
     check = results["explanations"]["check"]
     if check.get("alerts_with_reasons"):
         print(f"Explanation check - alerts that disappear when the named reasons are reset: "
@@ -365,7 +466,7 @@ def main() -> int:
     print(f"\nTask 5.0 target: precision >= {_pct(c['target'])}   "
           f"result: {_pct(c['achieved'])}   {'PASSED' if c['passed'] else 'NOT MET'}")
 
-    json_path, md_path = write_reports(results, reports_dir())
+    json_path, md_path = write_reports(results, reports_dir(dataset))
     print(f"\nFull report: {md_path}\n             {json_path}")
     return 0
 

@@ -7,6 +7,9 @@ that file only needs two short endpoints).
   sensor.status()              - is the sensor trained, and how well did it score?
   live                         - live replays (see live.py)
 
+Files can be in the NSL-KDD format or the CIC-IDS2017 format (the CSV files that the
+CICFlowMeter tool writes); each format is checked by the sensor trained on that dataset.
+
 The file size limit and accepted file types are checked by main.py, next to the
 app's other input limits, before anything here runs.
 """
@@ -19,13 +22,15 @@ from typing import Optional
 
 import pandas as pd
 
-from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS, attack_category
+from network_sensor.cicids2017 import clean_label
+from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS
 from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError
 from network_sensor.live import LiveSessions
 from network_sensor.models import NetworkSensorModel
 from network_sensor.paths import model_path, reports_dir
+from network_sensor.spec import DATASETS, DEFAULT_DATASET, dataset_of_columns, get_spec
 
 MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few seconds
 # Alerts sent back per scan: the most serious of EACH kind (known attack patterns, and
@@ -33,30 +38,52 @@ MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few 
 # filled entirely by known patterns - all three models agree on those - and the
 # possible new attacks would never be shown. The totals are always reported.
 MAX_ALERTS_PER_KIND = 300
-MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag names are short
+MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag / port names are short
+TEXT_COLUMNS = ("protocol_type", "service", "flag", "Destination Port", "label")
+
+
+def _decode(content: bytes) -> str:
+    try:
+        return content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    # Copies of the CIC-IDS2017 files saved by Windows tools can be in the Windows-1252
+    # encoding (a dash in the web attack labels). Accept that too, but never binary files.
+    if not any(b < 32 and b not in (9, 10, 13) for b in content):
+        try:
+            return content.decode("cp1252")
+        except UnicodeDecodeError:
+            pass
+    raise ScanError(400, "The file must be a text (CSV) file in UTF-8.")
 
 
 def read_connections(content: bytes) -> pd.DataFrame:
     """Read an uploaded file of connection records.
 
-    Two layouts are accepted:
-      * a CSV file whose first row names the columns (it must include the 41 NSL-KDD
-        measurement columns; extra columns such as 'label' are allowed), or
+    Three layouts are accepted:
+      * a CSV file whose first row names the columns and includes the 41 NSL-KDD
+        measurement columns (extra columns such as 'label' are allowed),
+      * a CIC-IDS2017 / CICFlowMeter CSV file (first row: 'Destination Port', 'Flow Duration',
+        ...; a 'Label' column is allowed), or
       * a raw NSL-KDD file with no header row: 41 values per row, optionally followed
         by the label and the difficulty score (like KDDTest+.txt).
-    If a 'label' column is present it is used only to report how the sensor did on
+    If a label column is present it is used only to report how the sensor did on
     this file - never to make the decision."""
-    try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise ScanError(400, "The file must be a text (CSV) file in UTF-8.")
+    text = _decode(content)
     lines = text.splitlines()
     first = next((line for line in lines if line.strip()), None)
     if first is None:
         raise ScanError(400, "The file is empty.")
 
     first_values = [value.strip() for value in next(csv.reader([first]))]
-    if "duration" in first_values or "protocol_type" in first_values:
+    cic_columns = get_spec("cicids2017").feature_columns
+    if "Flow Duration" in first_values or "Destination Port" in first_values:
+        header, names = 0, None
+        missing = [c for c in cic_columns if c not in first_values]
+        if missing:
+            raise ScanError(400, "The header row looks like CIC-IDS2017 but is missing these columns: "
+                                 f"{', '.join(missing[:10])}" + (" ..." if len(missing) > 10 else "") + ".")
+    elif "duration" in first_values or "protocol_type" in first_values:
         header, names = 0, None
         missing = [c for c in FEATURE_COLUMNS if c not in first_values]
         if missing:
@@ -65,8 +92,8 @@ def read_connections(content: bytes) -> pd.DataFrame:
         header, names = None, FILE_COLUMNS[:len(first_values)]
     else:
         raise ScanError(400, f"Each row has {len(first_values)} values. Expected a header row with the "
-                             "41 NSL-KDD column names, or rows of 41 values (optionally followed by "
-                             "the label and the difficulty score), like the NSL-KDD files.")
+                             "NSL-KDD or CIC-IDS2017 column names, or rows of 41 values (optionally "
+                             "followed by the label and the difficulty score), like the NSL-KDD files.")
     try:
         df = pd.read_csv(io.StringIO(text), header=header, names=names, dtype=str,
                          nrows=MAX_CONNECTIONS + 1, skip_blank_lines=True)
@@ -74,67 +101,91 @@ def read_connections(content: bytes) -> pd.DataFrame:
         raise ScanError(400, f"The file could not be read as CSV: {str(e)[:200]}")
 
     df.columns = [str(c).strip() for c in df.columns]
+    cic = dataset_of_columns(df.columns) == "cicids2017"
+    if cic and "Label" in df.columns and "label" not in df.columns:
+        df = df.rename(columns={"Label": "label"})
     if len(df) == 0:
         raise ScanError(400, "The file has no connection records.")
     if len(df) > MAX_CONNECTIONS:
         raise ScanError(413, f"Too many connections (limit {MAX_CONNECTIONS:,} per file). Split the file.")
-    for column in ("protocol_type", "service", "flag", "label"):
+    for column in TEXT_COLUMNS:
         if column in df.columns and (df[column].fillna("").str.len() > MAX_TEXT_VALUE_CHARS).any():
             raise ScanError(400, f"Column '{column}' has values longer than {MAX_TEXT_VALUE_CHARS} characters.")
     if "label" in df.columns:
         if df["label"].isna().any():
             raise ScanError(400, "The 'label' column has empty cells. Remove the column or fill it in.")
-        df["label"] = df["label"].str.strip().str.rstrip(".")
+        df["label"] = df["label"].map(clean_label) if cic else df["label"].str.strip().str.rstrip(".")
     return df.reset_index(drop=True)
 
 
+def dataset_of(connections: pd.DataFrame) -> str:
+    """Which trained sensor checks this table: 'cicids2017' or 'nsl_kdd'."""
+    return dataset_of_columns(connections.columns)
+
+
 class SensorService:
-    """Keeps the trained sensor in memory and runs scans, one at a time."""
+    """Keeps the trained sensors (one per dataset) in memory and runs scans, one at a time."""
 
     def __init__(self):
-        self._model: Optional[NetworkSensorModel] = None
-        self._loaded_from = None             # (file path, file modification time)
+        self._models = {}                    # dataset -> (model, (file path, file modification time))
         self._load_lock = threading.Lock()
         self._scan_lock = threading.Lock()
 
-    def model(self) -> NetworkSensorModel:
-        """The trained sensor (raises ScanError 503 if there is none)."""
-        return self._get_model()
+    def model(self, dataset: str = DEFAULT_DATASET) -> NetworkSensorModel:
+        """The trained sensor for this dataset's format (raises ScanError 503 if there is none)."""
+        return self._get_model(dataset)
 
-    def _get_model(self) -> NetworkSensorModel:
+    def _get_model(self, dataset: str = DEFAULT_DATASET) -> NetworkSensorModel:
         """The trained sensor. Loaded on first use, and loaded again automatically if
         it has been retrained since (the file on disk changed)."""
-        path = model_path()
+        spec = get_spec(dataset)
+        path = model_path(dataset)
         if not path.exists():
-            raise ScanError(503, "The network sensor has not been trained yet. On the server, run: "
-                                 "python -m network_sensor.train")
+            option = "" if dataset == DEFAULT_DATASET else f" --dataset {dataset}"
+            what = "The network sensor" if dataset == DEFAULT_DATASET else f"The {spec.title} network sensor"
+            raise ScanError(503, f"{what} has not been trained yet. On the server, run: "
+                                 f"python -m network_sensor.train{option}")
         key = (str(path), path.stat().st_mtime_ns)
         with self._load_lock:
-            if self._loaded_from != key:
+            model, loaded_from = self._models.get(dataset, (None, None))
+            if loaded_from != key:
                 try:
-                    self._model = NetworkSensorModel.load(path)
+                    model = NetworkSensorModel.load(path, dataset=dataset)
                 except ValueError as e:
                     raise ScanError(503, str(e))
-                self._loaded_from = key
-            return self._model
+                self._models[dataset] = (model, key)
+            return model
 
-    def status(self) -> dict:
+    def _dataset_status(self, dataset: str) -> dict:
+        spec = get_spec(dataset)
         try:
-            model = self._get_model()
+            model = self._get_model(dataset)
         except ScanError as e:
-            return {"ready": False, "message": e.message}
+            return {"dataset": dataset, "title": spec.title, "ready": False, "message": e.message}
         info = model.training_info
         return {
+            "dataset": dataset,
+            "title": spec.title,
             "ready": True,
             "trained_at": info.get("trained_at"),
             "training_connections": info.get("training_rows"),
             "decision_rule": info.get("decision_rule"),
-            "evaluation": _latest_evaluation(reports_dir() / "evaluation_report.json"),
-            "max_connections": MAX_CONNECTIONS,
+            "evaluation": _latest_evaluation(reports_dir(dataset) / "evaluation_report.json"),
         }
 
+    def status(self) -> dict:
+        """The NSL-KDD sensor's status at the top level (as before), and every dataset's
+        sensor under 'datasets'."""
+        datasets = [self._dataset_status(d) for d in DATASETS]
+        main = {k: v for k, v in datasets[0].items() if k not in ("dataset", "title")}
+        if main["ready"]:
+            main["max_connections"] = MAX_CONNECTIONS
+        return {**main, "datasets": datasets}
+
     def scan(self, connections: pd.DataFrame) -> dict:
-        model = self._get_model()
+        dataset = dataset_of(connections)
+        spec = get_spec(dataset)
+        model = self._get_model(dataset)
         if not self._scan_lock.acquire(blocking=False):
             raise ScanError(429, "Another network scan is running. Please try again in a moment.")
         try:
@@ -163,6 +214,8 @@ class SensorService:
         shown = sorted(known[:MAX_ALERTS_PER_KIND] + new[:MAX_ALERTS_PER_KIND], key=seriousness)
 
         result = {
+            "dataset": dataset,
+            "dataset_title": spec.title,
             "connections": len(connections),
             "alerts_total": len(alerts),
             "known_pattern_alerts": len(known),
@@ -174,12 +227,12 @@ class SensorService:
                       "decision_rule": model.training_info.get("decision_rule")},
         }
         if has_labels:
-            truth = (connections["label"] != "normal").astype(int)
+            truth = (connections["label"] != spec.normal_label).astype(int)
             verdicts = [1 if e["verdict"] == "attack" else 0 for e in explanations]
             result["label_check"] = {
-                "note": "Compared with the 'label' column in your file (the labels were not used to decide).",
+                "note": "Compared with the label column in your file (the labels were not used to decide).",
                 **compute_metrics(truth, verdicts),
-                "unknown_labels": sorted({lab for lab in connections["label"] if attack_category(lab) == "unknown"})[:20],
+                "unknown_labels": sorted({lab for lab in connections["label"] if spec.family_of(lab) == "unknown"})[:20],
             }
         return result
 

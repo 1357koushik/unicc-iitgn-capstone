@@ -1,10 +1,19 @@
 """Where the network sensor keeps its files.
 
 Everything lives under  <project>/data/network_sensor/  which git ignores, so the
-downloaded dataset, trained models and reports are never committed by accident.
+downloaded datasets, trained models and reports are never committed by accident:
+
+    nsl_kdd/                          NSL-KDD files
+    cicids2017/                       CIC-IDS2017, prepared from MachineLearningCSV.zip
+    models/sensor_model.joblib        the NSL-KDD model (the web app's default)
+    models/sensor_model_cicids2017.joblib
+    reports/                          NSL-KDD evaluation report
+    reports/cicids2017/               CIC-IDS2017 evaluation report
 """
 import os
 from pathlib import Path
+
+from network_sensor.spec import DEFAULT_DATASET
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -16,13 +25,15 @@ def data_dir() -> Path:
     return Path(override) if override else PROJECT_ROOT / "data" / "network_sensor"
 
 
-def dataset_dir() -> Path:
-    return data_dir() / "nsl_kdd"
+def dataset_dir(dataset: str = DEFAULT_DATASET) -> Path:
+    return data_dir() / dataset
 
 
-def model_path() -> Path:
-    return data_dir() / "models" / "sensor_model.joblib"
+def model_path(dataset: str = DEFAULT_DATASET) -> Path:
+    name = "sensor_model.joblib" if dataset == DEFAULT_DATASET else f"sensor_model_{dataset}.joblib"
+    return data_dir() / "models" / name
 
 
-def reports_dir() -> Path:
-    return data_dir() / "reports"
+def reports_dir(dataset: str = DEFAULT_DATASET) -> Path:
+    folder = data_dir() / "reports"
+    return folder if dataset == DEFAULT_DATASET else folder / dataset
