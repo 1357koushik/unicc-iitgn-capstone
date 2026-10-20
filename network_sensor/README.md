@@ -132,25 +132,25 @@ Python 3.13 because the sensor's pinned packages need Python 3.12 or newer.
   folder, so a sensor trained on the host (`python -m network_sensor.train`) is used as it is.
 - **`deployment/api`** and **`deployment/onprem`**: the sensor keeps its files on the
   `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`), so they survive
-  rebuilds. Set it up once, from the project folder, after the first start
-  (for on-premise, use `deployment/onprem/docker-compose.yml`):
+  rebuilds. Set it up once, from the project folder (for on-premise, use
+  `deployment/onprem/docker-compose.yml`):
 
 ```bash
+docker compose -f deployment/api/docker-compose.yml build backend
+docker compose -f deployment/api/docker-compose.yml up -d backend
+docker compose -f deployment/api/docker-compose.yml logs backend    # first start: the login passwords, shown once
 docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.download_data
 docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train
 docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.evaluate
 ```
 
+Then open **http://localhost:8080** (the `0.0.0.0` address in the log is not a browser address).
+The app shows the login passwords only on its very first start; if they were missed, set a
+new one with
+`docker compose -f deployment/api/docker-compose.yml exec backend python -m backend.manage_users reset-password investigator_1`.
+
 If the container cannot reach GitHub, copy the two dataset files in first, then run the
 `download_data` command above: it keeps files whose fingerprints match.
-
-For CIC-IDS2017, copy the zip in and prepare it inside the container (then train and
-evaluate with `--dataset cicids2017`):
-
-```bash
-docker compose -f deployment/api/docker-compose.yml cp MachineLearningCSV.zip backend:/tmp/MachineLearningCSV.zip
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.cicids2017 /tmp/MachineLearningCSV.zip
-```
 
 ```bash
 docker compose -f deployment/onprem/docker-compose.yml exec backend mkdir -p /data/network_sensor/nsl_kdd
@@ -158,11 +158,22 @@ docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/ns
 docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/nsl_kdd/KDDTest+.txt backend:/data/network_sensor/nsl_kdd/
 ```
 
-How this was checked: the image's contents were rebuilt without Docker (fresh Python 3.13,
-the two requirement files installed with `uv`, only the copied folders, the
-`deployment/api` settings): setup, all the automatic checks, and the server over HTTP worked. The
-`docker` commands themselves have not been run yet - please confirm with
-`docker compose -f deployment/api/docker-compose.yml build` on a machine with Docker.
+For CIC-IDS2017, copy the downloaded zip in (give its path), prepare it inside the
+container, then train and evaluate:
+
+```bash
+docker compose -f deployment/api/docker-compose.yml cp MachineLearningCSV.zip backend:/tmp/MachineLearningCSV.zip
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.cicids2017 /tmp/MachineLearningCSV.zip
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train --dataset cicids2017
+docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.evaluate --dataset cicids2017
+```
+
+How this was checked: with Docker Desktop 4.96 on Windows (October 2026), the `build`
+command built the image in about 4 minutes, and inside the container the commands above set
+up both sensors with the same results as outside Docker (NSL-KDD 96.7%, CIC-IDS2017 96.1%);
+the dashboard at http://localhost:8080 showed both sensors ready. `JWT_SECRET` and
+`GEMINI_API_KEY` were left unset for this check (the app then uses a temporary login key and
+AI summaries are off); set them for real use.
 
 ## Files
 
