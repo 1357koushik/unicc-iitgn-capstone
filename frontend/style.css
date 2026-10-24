@@ -394,3 +394,123 @@ tr:hover {
     border: 1px solid #dcdcdc;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
+
+/* PoC Intelligence Subsystem (Task 4) */
+.poc-card {
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: box-shadow 0.2s ease;
+}
+.poc-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+.poc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.poc-title a {
+    color: var(--primary-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.poc-title a:hover {
+    text-decoration: underline;
+}
+.poc-badges {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.badge-high {
+    background: #055d20;
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-possible {
+    background: #0349b4;
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-discussion {
+    background: #66707b;
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-advisory {
+    background: #622cbc;
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-suspicious {
+    background: #a0111f;
+    color: #ffffff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.warning-pill {
+    display: inline-block;
+    background: rgba(160, 17, 31, 0.1);
+    color: #a0111f;
+    border: 1px solid #a0111f;
+    border-radius: 4px;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-right: 0.4rem;
+}
+.source-status-card {
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+}
+.source-status-card strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+}
+.status-pill-success {
+    background: #e6f4ea;
+    color: #137333;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+.status-pill-warn {
+    background: #fef7e0;
+    color: #b06000;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+.status-pill-err {
+    background: #fce8e6;
+    color: #c5221f;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 600;
+}

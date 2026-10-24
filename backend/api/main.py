@@ -685,5 +685,41 @@ def final_decision(req: DecisionRequest, user: dict = Depends(get_investigator_u
     log_action(db, req.correlation_id, user["id"], user["role"], "final_decision", "doc_current", "none", "success", {"decision": req.decision, "notes": req.notes})
     return {"message": "Decision recorded"}
 
+@app.post("/api/v1/pocs/find")
+async def find_pocs_endpoint(
+    req: Request,
+    user: dict = Depends(get_investigator_user),
+    db: Session = Depends(get_db),
+):
+    body = await req.json()
+    cve_id = body.get("cve_id", "").strip().upper()
+    team2_url = os.getenv("TEAM2_API_URL", "http://localhost:8000")
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{team2_url}/api/v1/pocs/find", json=body)
+            if resp.status_code == 200:
+                log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "retrieval", "success")
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except Exception:
+        pass
+
+    try:
+        from threat_retrieval_engine.poc_intelligence import get_poc_finder
+        finder = get_poc_finder()
+        res = await finder.find_pocs(
+            cve_id=cve_id,
+            max_results=body.get("max_results", 20),
+            sources=body.get("sources"),
+            min_confidence=float(body.get("min_confidence", 0.0)),
+        )
+        log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "local_engine", "success")
+        return JSONResponse(status_code=200, content=res.model_dump())
+    except ValueError as val_err:
+        raise HTTPException(status_code=422, detail=str(val_err))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to query PoC service: {str(exc)}")
+
+
 # Serve frontend static files
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

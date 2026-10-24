@@ -56,17 +56,43 @@ class CitationSchema(BaseModel):
 
 
 class PoCResultSchema(BaseModel):
-    url: str = Field(..., description="Direct URL to PoC repository, script, or exploit post")
-    title: str = Field(..., description="Title, repo name, or text summary of the PoC")
+    cve_id: str | None = Field(None, description="Normalized CVE searched; not inferred from an unrelated source.")
+    url: str = Field(..., description="Original source record URL for independent review")
+    title: str = Field(..., description="Repository name or neutral source summary")
     source: str = Field(..., description="Source platform: github, x, mastodon, bluesky")
-    author: str = Field(..., description="Author, developer, or handle")
-    published_at: str = Field(..., description="Publication timestamp (ISO 8601)")
-    confidence_score: float = Field(0.0, ge=0.0, le=1.0, description="Verification confidence score")
-    confidence_label: str = Field("LIKELY_POC", description="VERIFIED_CODE | LIKELY_POC | DISCUSSION | SUSPICIOUS")
+    author: str = Field("unknown", description="Author, owner, or handle when supplied by the source")
+    published_at: str | None = Field(None, description="Source publication timestamp when supplied")
+    created_at: str | None = None
+    updated_at: str | None = None
+    retrieved_at: str | None = None
+    description: str = ""
+    linked_urls: list[str] = Field(default_factory=list, description="Artifacts linked by this source record")
+    repository_metadata: dict[str, object] = Field(default_factory=dict)
+    match_type: str = Field("LOW_CONFIDENCE", description="HIGH_RELEVANCE_POC_CANDIDATE | POSSIBLE_POC | RELATED_DISCUSSION | ADVISORY_OR_PATCH | LOW_CONFIDENCE | NOT_RELEVANT")
+    confidence_score: float = Field(0.0, ge=0.0, le=1.0, description="Deterministic relevance heuristic, not exploit success probability")
+    confidence_label: str = Field("LOW_CONFIDENCE", description="Human-readable relevance category; no code execution validation claim")
     stars: int | None = Field(None, description="GitHub stars if applicable")
     language: str | None = Field(None, description="Programming language if applicable")
     is_fork: bool | None = Field(None, description="Whether the repository is a fork")
     warning_flags: list[str] = Field(default_factory=list, description="Safety or deception warning flags")
+    evidence: list[str] = Field(default_factory=list, description="Observable facts used for classification")
+    score_reasons: list[str] = Field(default_factory=list, description="Deterministic scoring contributions")
+    duplicate_group: str | None = Field(None, description="Canonical artifact grouping key, when reliable")
+    source_references: list[dict[str, object]] = Field(default_factory=list, description="Original records retained within this grouped finding")
+    source_verification_status: str = Field("metadata_only", description="What this application actually retrieved, never proof that code executes")
+
+
+class SourceStatusSchema(BaseModel):
+    source: str
+    status: str = Field(description="success | partial | not_configured | unauthorized | rate_limited | timeout | access_restricted | error | disabled")
+    retrieved_at: str
+    query: str = ""
+    result_count: int = Field(0, ge=0)
+    pages_fetched: int = Field(0, ge=0)
+    next_cursor: str | None = None
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    coverage_limitations: list[str] = Field(default_factory=list)
 
 
 class TopMatchSchema(BaseModel):
@@ -115,9 +141,12 @@ class PoCFindRequest(BaseModel):
 class PoCFindResponse(BaseModel):
     cve_id: str
     total_found: int
-    precision_score: float = Field(..., description="Precision of findings: (VERIFIED_CODE + LIKELY_POC) / total")
+    precision_score: float = Field(..., description="Share of returned records meeting the configured relevance threshold; not a measured production precision claim")
     sources_queried: list[str]
     results: list[PoCResultSchema]
     latency_ms: float
     cached: bool = False
+    source_statuses: list[SourceStatusSchema] = Field(default_factory=list)
+    retrieved_at: str | None = None
+    coverage_limitations: list[str] = Field(default_factory=list)
 

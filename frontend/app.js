@@ -217,7 +217,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (entitiesData.iocs.length === 0) {
                     displayElements.push(textElement("p", "No indicators (CVEs, IPs, domains, hashes) found in this report.", "placeholder-text"));
                 } else {
-                    displayElements.push(textList(entitiesData.iocs));
+                    const ul = document.createElement("ul");
+                    entitiesData.iocs.forEach(ioc => {
+                        const li = document.createElement("li");
+                        li.textContent = ioc;
+                        if (/^CVE-\d{4}-\d{4,7}$/i.test(ioc.trim())) {
+                            const btn = document.createElement("button");
+                            btn.className = "btn outline-btn small-btn";
+                            btn.style.marginLeft = "0.75rem";
+                            btn.style.padding = "0.15rem 0.45rem";
+                            btn.style.fontSize = "0.75rem";
+                            btn.textContent = "Search PoCs ↗";
+                            btn.onclick = () => window.triggerPoCSearch(ioc.trim());
+                            li.appendChild(btn);
+                        }
+                        ul.appendChild(li);
+                    });
+                    displayElements.push(ul);
                 }
 
                 if (entitiesData.threat_actors && entitiesData.threat_actors.length > 0) {
@@ -400,6 +416,276 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Audit Logs
+    
+    // ------------------------------------------------------------------
+    // Task 4: PoC & Exploit Discovery Logic
+    // ------------------------------------------------------------------
+    const pocSearchBtn = document.getElementById("poc-search-btn");
+    if (pocSearchBtn) {
+        pocSearchBtn.addEventListener("click", runPoCSearch);
+    }
+    const pocSearchForm = document.getElementById("poc-search-form");
+    if (pocSearchForm) {
+        pocSearchForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            runPoCSearch();
+        });
+    }
+
+    async function runPoCSearch() {
+        const cveInput = document.getElementById("poc-cve-input");
+        const cveId = (cveInput.value || "").trim().toUpperCase();
+        if (!cveId) {
+            showToast("Please enter a CVE identifier.", "error");
+            return;
+        }
+        if (!/^CVE-\d{4}-\d{4,7}$/i.test(cveId)) {
+            showToast("Invalid CVE format. Expected CVE-YYYY-NNNN.", "error");
+            return;
+        }
+
+        const sources = [];
+        if (document.getElementById("poc-src-github").checked) sources.push("github");
+        if (document.getElementById("poc-src-mastodon").checked) sources.push("mastodon");
+        if (document.getElementById("poc-src-bluesky").checked) sources.push("bluesky");
+        if (document.getElementById("poc-src-x").checked) sources.push("x");
+
+        if (sources.length === 0) {
+            showToast("Please select at least one OSINT source.", "error");
+            return;
+        }
+
+        const minConfidence = parseFloat(document.getElementById("poc-min-confidence").value || "0.0");
+        const btn = document.getElementById("poc-search-btn");
+        btn.textContent = "Harvesting OSINT PoCs...";
+        btn.disabled = true;
+
+        try {
+            const res = await api("/api/v1/pocs/find", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    cve_id: cveId,
+                    max_results: 20,
+                    sources: sources,
+                    min_confidence: minConfidence
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                renderPoCResults(data);
+                showToast(`Found ${data.total_found} PoC reference(s)`, "success");
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || "PoC harvest failed", "error");
+            }
+        } catch (e) {
+            showToast("Network error during PoC search", "error");
+        } finally {
+            btn.textContent = "Search OSINT PoCs";
+            btn.disabled = false;
+        }
+    }
+
+    function renderPoCResults(data) {
+        // 1. Stats banner
+        const stats = document.getElementById("poc-stats-banner");
+        stats.style.display = "block";
+        stats.textContent = `Target: ${data.cve_id} | Total Candidates: ${data.total_found} | Relevance Yield: ${(data.precision_score * 100).toFixed(1)}% | Latency: ${data.latency_ms} ms | Cache: ${data.cached ? "Hit" : "Miss"}`;
+
+        // 2. Source statuses
+        const statusesBox = document.getElementById("poc-source-statuses");
+        statusesBox.innerHTML = "";
+        (data.source_statuses || []).forEach(st => {
+            const card = document.createElement("div");
+            card.className = "source-status-card";
+
+            const title = document.createElement("strong");
+            title.textContent = st.source.toUpperCase();
+
+            let pillClass = "status-pill-success";
+            if (st.status === "partial" || st.status === "rate_limited") pillClass = "status-pill-warn";
+            else if (st.status === "error" || st.status === "timeout" || st.status === "access_restricted" || st.status === "not_configured") pillClass = "status-pill-err";
+
+            const badge = document.createElement("span");
+            badge.className = pillClass;
+            badge.textContent = st.status.replace(/_/g, " ");
+
+            const countP = document.createElement("p");
+            countP.style.marginTop = "0.4rem";
+            countP.textContent = `Results: ${st.result_count} (Pages: ${st.pages_fetched || 1})`;
+
+            card.append(title, badge, countP);
+
+            if (st.errors && st.errors.length > 0) {
+                const errP = document.createElement("p");
+                errP.style.color = "var(--error-color)";
+                errP.style.fontSize = "0.75rem";
+                errP.textContent = st.errors[0];
+                card.appendChild(errP);
+            } else if (st.warnings && st.warnings.length > 0) {
+                const warnP = document.createElement("p");
+                warnP.style.color = "#b06000";
+                warnP.style.fontSize = "0.75rem";
+                warnP.textContent = st.warnings[0];
+                card.appendChild(warnP);
+            }
+            statusesBox.appendChild(card);
+        });
+
+        // 3. Results cards
+        const resultsBox = document.getElementById("poc-results-container");
+        resultsBox.innerHTML = "";
+
+        if (!data.results || data.results.length === 0) {
+            resultsBox.innerHTML = '<p class="placeholder-text">No matching PoCs or discussions met the relevance criteria for this query.</p>';
+            return;
+        }
+
+        data.results.forEach((r, idx) => {
+            const card = document.createElement("div");
+            card.className = "poc-card";
+
+            const header = document.createElement("div");
+            header.className = "poc-header";
+
+            const titleBox = document.createElement("div");
+            titleBox.className = "poc-title";
+            const link = document.createElement("a");
+            link.href = r.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = `${idx + 1}. ${r.title || r.url}`;
+            titleBox.appendChild(link);
+
+            const badgesBox = document.createElement("div");
+            badgesBox.className = "poc-badges";
+
+            const labelBadge = document.createElement("span");
+            const lbl = r.confidence_label || r.match_type || "LOW_CONFIDENCE";
+            if (lbl === "HIGH_RELEVANCE_POC_CANDIDATE" || lbl === "VERIFIED_CODE") labelBadge.className = "badge-high";
+            else if (lbl === "POSSIBLE_POC" || lbl === "LIKELY_POC") labelBadge.className = "badge-possible";
+            else if (lbl === "ADVISORY_OR_PATCH") labelBadge.className = "badge-advisory";
+            else if (lbl === "SUSPICIOUS") labelBadge.className = "badge-suspicious";
+            else labelBadge.className = "badge-discussion";
+            labelBadge.textContent = lbl.replace(/_/g, " ");
+
+            const scoreBadge = document.createElement("span");
+            scoreBadge.className = "badge";
+            scoreBadge.textContent = `Score: ${(r.confidence_score).toFixed(2)}`;
+
+            const srcBadge = document.createElement("span");
+            srcBadge.className = "badge";
+            srcBadge.textContent = r.source.toUpperCase();
+
+            badgesBox.append(labelBadge, scoreBadge, srcBadge);
+            header.append(titleBox, badgesBox);
+            card.appendChild(header);
+
+            // Metadata row
+            const metaP = document.createElement("p");
+            metaP.style.fontSize = "0.85rem";
+            metaP.style.color = "var(--text-secondary)";
+            metaP.style.marginBottom = "0.5rem";
+            const metaParts = [`Author: ${r.author || "unknown"}`];
+            if (r.stars !== null && r.stars !== undefined) metaParts.push(`Stars: ${r.stars}`);
+            if (r.language) metaParts.push(`Language: ${r.language}`);
+            if (r.published_at) metaParts.push(`Published: ${r.published_at.slice(0, 10)}`);
+            if (r.is_fork) metaParts.push("Fork: Yes");
+            metaP.textContent = metaParts.join(" | ");
+            card.appendChild(metaP);
+
+            // Warning flags
+            if (r.warning_flags && r.warning_flags.length > 0) {
+                const warnDiv = document.createElement("div");
+                warnDiv.style.marginBottom = "0.5rem";
+                r.warning_flags.forEach(flag => {
+                    const pill = document.createElement("span");
+                    pill.className = "warning-pill";
+                    pill.textContent = `⚠ ${flag.replace(/_/g, " ")}`;
+                    warnDiv.appendChild(pill);
+                });
+                card.appendChild(warnDiv);
+            }
+
+            // Evidence and Reasons Accordion/List
+            const details = document.createElement("details");
+            details.style.fontSize = "0.82rem";
+            details.style.marginTop = "0.5rem";
+            const summary = document.createElement("summary");
+            summary.style.cursor = "pointer";
+            summary.style.color = "var(--primary-color)";
+            summary.textContent = `View Observable Evidence (${(r.evidence || []).length}) & Score Reasons (${(r.score_reasons || []).length})`;
+            details.appendChild(summary);
+
+            const detailsBody = document.createElement("div");
+            detailsBody.style.marginTop = "0.5rem";
+            detailsBody.style.paddingLeft = "1rem";
+
+            if (r.evidence && r.evidence.length > 0) {
+                const evTitle = document.createElement("strong");
+                evTitle.textContent = "Observed Evidence:";
+                detailsBody.appendChild(evTitle);
+                const evList = document.createElement("ul");
+                evList.style.marginBottom = "0.5rem";
+                r.evidence.forEach(ev => {
+                    const li = document.createElement("li");
+                    li.textContent = ev;
+                    evList.appendChild(li);
+                });
+                detailsBody.appendChild(evList);
+            }
+
+            if (r.score_reasons && r.score_reasons.length > 0) {
+                const rTitle = document.createElement("strong");
+                rTitle.textContent = "Deterministic Scoring Contributions:";
+                detailsBody.appendChild(rTitle);
+                const rList = document.createElement("ul");
+                rList.style.marginBottom = "0.5rem";
+                r.score_reasons.forEach(rs => {
+                    const li = document.createElement("li");
+                    li.textContent = rs;
+                    rList.appendChild(li);
+                });
+                detailsBody.appendChild(rList);
+            }
+
+            if (r.source_references && r.source_references.length > 1) {
+                const provTitle = document.createElement("strong");
+                provTitle.textContent = "Corroborated by Multiple Sources:";
+                detailsBody.appendChild(provTitle);
+                const provList = document.createElement("ul");
+                r.source_references.forEach(sref => {
+                    const li = document.createElement("li");
+                    li.textContent = `[${sref.source.toUpperCase()}] ${sref.url} (${sref.author || "unknown"})`;
+                    provList.appendChild(li);
+                });
+                detailsBody.appendChild(provList);
+            }
+
+            const disclaimP = document.createElement("p");
+            disclaimP.style.fontStyle = "italic";
+            disclaimP.style.color = "var(--text-secondary)";
+            disclaimP.style.marginTop = "0.4rem";
+            disclaimP.textContent = "Classification based on public OSINT metadata and search heuristics. Does not validate execution safety or exploit payload viability.";
+            detailsBody.appendChild(disclaimP);
+
+            details.appendChild(detailsBody);
+            card.appendChild(details);
+
+            resultsBox.appendChild(card);
+        });
+    }
+
+    // Export triggerPoCSearch globally so entity clicks can invoke it
+    window.triggerPoCSearch = function(cve) {
+        showTab("poc-tab");
+        const inp = document.getElementById("poc-cve-input");
+        if (inp) inp.value = cve;
+        runPoCSearch();
+    };
+
     document.getElementById("refresh-audit-btn").addEventListener("click", loadAuditLogs);
     async function loadAuditLogs() {
         try {
