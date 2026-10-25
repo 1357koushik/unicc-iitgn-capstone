@@ -74,9 +74,7 @@ def _qdrant_lookup(
     variants = sorted({v for val in values for v in (val, val.upper(), val.lower())})
     flt_must = [FieldCondition(key=field_name, match=MatchAny(any=variants))]
     if allowed_sources is not None:
-        # MatchText matches substrings/tokens
-        or_conditions = [FieldCondition(key="source_org", match=MatchText(text=str(s))) for s in allowed_sources]
-        flt_must.append(Filter(should=or_conditions))
+        flt_must.append(FieldCondition(key="source_org", match=MatchAny(any=[str(s) for s in allowed_sources])))
     flt = Filter(must=flt_must)
     points, _ = qdrant.scroll(
         collection_name=COLLECTION_NAME,
@@ -169,12 +167,12 @@ def exact_lookup(
     def _record(chunk_id: str, field_name: str, value: str) -> None:
         if chunk_id in seen:
             return
-        seen.add(chunk_id)
         meta = fetch_chunk_metadata(chunk_id, sqlite) if hydrate else {}
         if allowed_sources is not None:
             source_org = meta.get("source_org", "") if meta else ""
-            if not any(a in source_org for a in allowed_sources):
+            if not any(a.lower() == source_org.lower() or a.lower() in source_org.lower() for a in allowed_sources):
                 return
+        seen.add(chunk_id)
         matches.append(
             ExactMatch(
                 chunk_id=chunk_id,

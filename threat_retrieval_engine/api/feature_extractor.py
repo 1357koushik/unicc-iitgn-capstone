@@ -2,7 +2,7 @@
 threat_retrieval_engine/api/feature_extractor.py
 ================================================
 Single source of truth for feature extraction shared by training and serving
-(guarantees train-serve parity across Phase 2-4).
+(guarantees train-serve parity across Phase 2-4, R1).
 
 CRITICAL ANTI-LEAKAGE CONSTRAINT:
 Layer 2 features MUST NOT inspect or use `doc_id` or check exact string
@@ -18,6 +18,29 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from threat_retrieval_engine.api.confidence import QueryProfile
+
+try:
+    from threat_retrieval_engine.indicators import (
+        COMMON_ACTORS as _COMMON_ACTORS,
+        COMMON_MALWARE as _COMMON_MALWARE,
+        CVE_PATTERN as _CVE_PATTERN,
+        IPV4_PATTERN as _IPV4_PATTERN,
+        MD5_PATTERN as _MD5_PATTERN,
+        MITRE_PATTERN as _MITRE_PATTERN,
+        SHA256_PATTERN as _SHA256_PATTERN,
+        TOOL_TO_TECH as _TOOL_TO_TECH,
+    )
+except ImportError:
+    from indicators import (
+        COMMON_ACTORS as _COMMON_ACTORS,
+        COMMON_MALWARE as _COMMON_MALWARE,
+        CVE_PATTERN as _CVE_PATTERN,
+        IPV4_PATTERN as _IPV4_PATTERN,
+        MD5_PATTERN as _MD5_PATTERN,
+        MITRE_PATTERN as _MITRE_PATTERN,
+        SHA256_PATTERN as _SHA256_PATTERN,
+        TOOL_TO_TECH as _TOOL_TO_TECH,
+    )
 
 FEATURE_SCHEMA_VERSION = "v1.0.0"
 
@@ -35,34 +58,6 @@ FEATURE_NAMES: list[str] = [
     "inter_ttp_cov",
     "inter_reranker",
 ]
-
-# ---------------------------------------------------------------------------
-# Extraction Patterns & Vocabularies
-# ---------------------------------------------------------------------------
-_CVE_PATTERN = re.compile(r"\bCVE-\d{4}-\d{4,7}\b", re.IGNORECASE)
-_IPV4_PATTERN = re.compile(
-    r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
-)
-_MD5_PATTERN = re.compile(r"\b[a-fA-F0-9]{32}\b")
-_SHA256_PATTERN = re.compile(r"\b[a-fA-F0-9]{64}\b")
-_MITRE_PATTERN = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
-
-_COMMON_ACTORS = [
-    "apt29", "apt28", "cozy bear", "fancy bear", "lazarus", "fin7", "sandworm",
-    "volt typhoon", "wannacry", "carbanak", "lockbit", "blackcat"
-]
-
-_COMMON_MALWARE = [
-    "psexec", "mimikatz", "cobalt strike", "eternalblue", "trickbot", "emotet",
-    "qakbot", "bloodhound", "empire", "covenant"
-]
-
-_TOOL_TO_TECH: dict[str, list[str]] = {
-    "psexec": ["T1021.002", "T1569.002"],
-    "mimikatz": ["T1003.001"],
-    "cobalt strike": ["T1071.001", "T1059"],
-    "eternalblue": ["T1210"],
-}
 
 
 def _extract_chunk_entities(candidate_chunk: dict[str, Any]) -> dict[str, Any]:
@@ -143,7 +138,10 @@ def _extract_chunk_ttps(ent: dict[str, Any], text: str) -> set[str]:
 
 
 def _extract_reranker_score(candidate_chunk: dict[str, Any]) -> float:
-    """Extract continuous semantic score, converting raw logits via sigmoid if needed."""
+    """
+    Extract continuous cross-encoder semantic score (R1, N1).
+    Explicitly decoupled from dense_score to prevent train-serve divergence.
+    """
     # 1. Explicit logit key
     for logit_key in ("reranker_logit", "rerank_logit", "cross_encoder_logit"):
         if logit_key in candidate_chunk and candidate_chunk[logit_key] is not None:
@@ -154,8 +152,8 @@ def _extract_reranker_score(candidate_chunk: dict[str, Any]) -> float:
             except (ValueError, TypeError):
                 pass
 
-    # 2. Score field: might be logit or probability
-    for score_key in ("reranker_score", "rerank_score", "cross_encoder_score", "dense_score"):
+    # 2. Continuous reranker score or probability (dense_score is NOT a fallback here)
+    for score_key in ("reranker_score", "rerank_score", "cross_encoder_score", "rerank_prob"):
         if score_key in candidate_chunk and candidate_chunk[score_key] is not None:
             try:
                 val = float(candidate_chunk[score_key])
@@ -170,8 +168,11 @@ def _extract_reranker_score(candidate_chunk: dict[str, Any]) -> float:
 
 
 def _extract_bm25_norm_score(candidate_chunk: dict[str, Any]) -> float:
-    """Extract normalized BM25 lexical alignment score in [0.0, 1.0]."""
-    for key in ("bm25_norm_score", "bm25_norm", "bm25_score", "lexical_score", "rrf_score"):
+    """
+    Extract normalized BM25 lexical alignment score in [0.0, 1.0].
+    CRITICAL (R1): Does NOT fall back to rrf_score to prevent Layer 2 probability collapse.
+    """
+    for key in ("bm25_norm_score", "bm25_norm", "lexical_norm_score"):
         if key in candidate_chunk and candidate_chunk[key] is not None:
             try:
                 val = float(candidate_chunk[key])
@@ -235,6 +236,25 @@ def extract_features(query_profile: Any, candidate_chunk: dict[str, Any]) -> dic
     # 4. Continuous Similarity Scores
     reranker_score = _extract_reranker_score(candidate_chunk)
     bm25_norm_score = _extract_bm25_norm_score(candidate_chunk)
+
+    # Parity fallback matching training dataset token containment formula: |Q ∩ D| / |Q| (R1)
+    if bm25_norm_score == 0.0 and text:
+        raw_q = getattr(query_profile, "raw_query", "")
+        if not raw_q:
+            tokens_list = (
+                list(getattr(query_profile, "cves", ()))
+                + list(getattr(query_profile, "ips", ()))
+                + list(getattr(query_profile, "hashes", ()))
+                + list(getattr(query_profile, "mitre_techniques", ()))
+                + list(getattr(query_profile, "threat_actors", ()))
+                + list(getattr(query_profile, "malware", ()))
+            )
+            raw_q = " ".join(tokens_list)
+        if raw_q:
+            q_toks = {t.lower() for t in re.findall(r"\b\w{2,}\b", raw_q)}
+            d_toks = {t.lower() for t in re.findall(r"\b\w{2,}\b", text)}
+            if q_toks:
+                bm25_norm_score = len(q_toks & d_toks) / len(q_toks)
 
     # 5. Interaction Terms
     inter_cve_cov = has_cve * cve_coverage

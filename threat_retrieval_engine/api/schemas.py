@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 try:
     from pydantic import BaseModel, Field
 except ImportError:
@@ -25,17 +27,18 @@ except ImportError:
 
 
 class MatchRequest(BaseModel):
-    query: str = Field(..., description="Threat query string or incident report text")
+    query: str = Field(..., max_length=4096, description="Threat query string or incident report text (bounded, R35)")
     top_k: int = Field(5, ge=1, le=50, description="Number of top threat matches to return")
-    alpha: float = Field(0.5, ge=0.0, le=1.0, description="Weighting parameter between dense vector and sparse lexical search")
+    alpha: float = Field(0.5, ge=0.0, le=1.0, description="Weighting parameter between dense vector and sparse lexical search (R13)")
     allowed_sources: list[str] | None = Field(None, description="List of allowed source_orgs. If None, all are allowed.")
+    include_pocs: bool = Field(False, description="Whether to perform live OSINT PoC enrichment. Defaults to False for fast decoupled matching (R34)")
 
 
 class EvidenceBreakdownSchema(BaseModel):
-    ioc_similarity: float = 0.0
-    cve_similarity: float = 0.0
-    ttp_similarity: float = 0.0
-    semantic_similarity: float = 0.0
+    ioc_similarity: float | None = 0.0
+    cve_similarity: float | None = 0.0
+    ttp_similarity: float | None = 0.0
+    semantic_similarity: float | None = 0.0
     features: dict[str, float] = Field(default_factory=dict)
 
 
@@ -50,9 +53,10 @@ class CitationSchema(BaseModel):
     doc_id: str
     doc_title: str
     source_org: str
-    published_date: str
+    published_date: str | None = None
     page_number: int | None = None
     text_snippet: str
+    provenance_status: str = Field("VERIFIED", description="VERIFIED | MISSING (R9)")
 
 
 class PoCResultSchema(BaseModel):
@@ -84,7 +88,7 @@ class PoCResultSchema(BaseModel):
 
 class SourceStatusSchema(BaseModel):
     source: str
-    status: str = Field(description="success | partial | not_configured | unauthorized | rate_limited | timeout | access_restricted | error | disabled")
+    status: str = Field(description="success | partial | not_configured | unauthorized | rate_limited | timeout | access_restricted | error | disabled | cost_protection | invalid_input | malformed_response | unavailable")
     retrieved_at: str
     query: str = ""
     result_count: int = Field(0, ge=0)
@@ -110,6 +114,11 @@ class TopMatchSchema(BaseModel):
     calibrated: bool = Field(False, description="Whether the score represents a calibrated probability")
     degraded: bool = Field(False, description="Whether confidence was resolved in safe degraded mode")
     model_version: str | None = Field(None, description="Model or heuristic version identifier")
+    evidence_record_class: str | None = Field("DESCRIPTION", description="DESCRIPTION | METADATA_STUB (R6a)")
+    sources_found: dict[str, str] = Field(default_factory=dict, description="Multi-source provenance corroboration (R10)")
+    corroboration_count: int = Field(1, description="Number of independent sources corroborating this identity (R10)")
+    cisa_kev: bool = Field(False, description="Whether listed in CISA KEV (R6b, R11)")
+    epss_score: float | None = Field(None, description="EPSS exploitation probability score (R6b, R11)")
 
 
 class PipelineProfileSchema(BaseModel):
@@ -126,6 +135,8 @@ class MatchResponse(BaseModel):
     query_threat_id: str
     top_matches: list[TopMatchSchema]
     pipeline_profile: PipelineProfileSchema
+    degraded_components: list[str] = Field(default_factory=list, description="List of components operating in degraded state (R14)")
+    deadline_exceeded: bool = Field(False, description="Whether request processing reached D_match deadline (V2)")
 
 
 class PoCFindRequest(BaseModel):
@@ -141,7 +152,7 @@ class PoCFindRequest(BaseModel):
 class PoCFindResponse(BaseModel):
     cve_id: str
     total_found: int
-    precision_score: float = Field(..., description="Share of returned records meeting the configured relevance threshold; not a measured production precision claim")
+    precision_score: float = Field(..., description="Relevance yield: share of returned records meeting threshold; not a measured production precision claim (R26)")
     sources_queried: list[str]
     results: list[PoCResultSchema]
     latency_ms: float
@@ -149,4 +160,3 @@ class PoCFindResponse(BaseModel):
     source_statuses: list[SourceStatusSchema] = Field(default_factory=list)
     retrieved_at: str | None = None
     coverage_limitations: list[str] = Field(default_factory=list)
-

@@ -9,29 +9,49 @@ from typing import Any
 
 try:
     from threat_retrieval_engine.api.schemas import PoCFindResponse
+    from threat_retrieval_engine.config import get_config
 except ImportError:
     from api.schemas import PoCFindResponse
+    from config import get_config
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = Path("./data/sqlite/corpus_store.db")
-DEFAULT_NORMALIZED_CVES_DIR = Path("./knowledge_foundation/normalized_cves")
+
+def _build_cache_key(
+    cve_id: str,
+    sources: list[str] | None = None,
+) -> str:
+    """Build a deterministic composite cache key incorporating queried sources (R5)."""
+    cve_clean = cve_id.strip().upper()
+    if not sources:
+        return cve_clean
+    src_part = ",".join(sorted(s.lower() for s in sources))
+    return f"{cve_clean}::{src_part}"
 
 
 class PoCCache:
-    """SQLite-backed cache for PoC search results with KEV-aware TTL management."""
+    """SQLite-backed cache for PoC search results with KEV-aware TTL management and composite keying (R5, R31)."""
 
     def __init__(
         self,
         db_path: str | Path | None = None,
         normalized_cves_dir: str | Path | None = None,
-        default_ttl_seconds: int = 21600,  # 6 hours
-        kev_ttl_seconds: int = 3600,        # 1 hour
+        default_ttl_seconds: int | None = None,
+        kev_ttl_seconds: int | None = None,
     ) -> None:
-        self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
-        self.normalized_cves_dir = Path(normalized_cves_dir) if normalized_cves_dir else DEFAULT_NORMALIZED_CVES_DIR
-        self.default_ttl_seconds = default_ttl_seconds
-        self.kev_ttl_seconds = kev_ttl_seconds
+        cfg = get_config()
+        self.db_path = Path(db_path) if db_path else cfg.sqlite_db_path
+        self.normalized_cves_dir = (
+            Path(normalized_cves_dir)
+            if normalized_cves_dir
+            else (cfg.REPO_ROOT / "knowledge_foundation" / "normalized_cves")
+        )
+        self.default_ttl_seconds = (
+            default_ttl_seconds if default_ttl_seconds is not None else cfg.poc_cache_ttl_seconds
+        )
+        self.kev_ttl_seconds = (
+            kev_ttl_seconds if kev_ttl_seconds is not None else cfg.poc_kev_cache_ttl_seconds
+        )
         self._ensure_table()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -83,17 +103,50 @@ class PoCCache:
             return self.kev_ttl_seconds
         return self.default_ttl_seconds
 
-    def get(self, cve_id: str) -> PoCFindResponse | None:
-        """Retrieve cached PoC response if present and unexpired."""
-        cve_clean = cve_id.strip().upper()
+    def purge_expired(self) -> int:
+        """Delete expired rows from poc_cache table (R31). Returns count deleted."""
         now = int(time.time())
         conn = None
         try:
             conn = self._get_connection()
+            with conn:
+                cursor = conn.execute(
+                    "DELETE FROM poc_cache WHERE (? - cached_at) > ttl_seconds",
+                    (now,),
+                )
+                return cursor.rowcount
+        except Exception as exc:
+            logger.warning("Error purging expired poc_cache rows: %s", exc)
+            return 0
+        finally:
+            if conn:
+                conn.close()
+
+    def get(
+        self,
+        cve_id: str,
+        sources: list[str] | None = None,
+        max_results: int | None = None,
+        min_confidence: float | None = None,
+    ) -> PoCFindResponse | None:
+        """Retrieve cached PoC response if present and unexpired."""
+        cve_clean = cve_id.strip().upper()
+        cache_key = _build_cache_key(cve_clean, sources)
+        now = int(time.time())
+        conn = None
+        try:
+            conn = self._get_connection()
+            # Try composite key first, fall back to cve_clean
             row = conn.execute(
                 "SELECT response_json, cached_at, ttl_seconds FROM poc_cache WHERE cve_id = ?",
-                (cve_clean,),
+                (cache_key,),
             ).fetchone()
+
+            if row is None and cache_key != cve_clean:
+                row = conn.execute(
+                    "SELECT response_json, cached_at, ttl_seconds FROM poc_cache WHERE cve_id = ?",
+                    (cve_clean,),
+                ).fetchone()
 
             if row is None:
                 return None
@@ -119,10 +172,20 @@ class PoCCache:
         self,
         cve_id: str,
         response: PoCFindResponse,
+        sources: list[str] | None = None,
+        max_results: int | None = None,
+        min_confidence: float | None = None,
         ttl_seconds: int | None = None,
     ) -> None:
-        """Store PoC response into SQLite cache."""
+        """Store PoC response into SQLite cache; skips caching if all sources failed (R5)."""
+        # Guard: Never cache responses where all queried sources resulted in error or timeout
+        statuses = [s.status for s in response.source_statuses]
+        if statuses and all(s in ("error", "timeout", "unavailable", "access_restricted") for s in statuses):
+            logger.info("Skipping poc_cache caching for %s: all queried sources errored/timed out (R5)", cve_id)
+            return
+
         cve_clean = cve_id.strip().upper()
+        cache_key = _build_cache_key(cve_clean, sources)
         ttl = ttl_seconds if ttl_seconds is not None else self.determine_ttl(cve_clean)
         now = int(time.time())
         payload = response.model_dump()
@@ -141,11 +204,10 @@ class PoCCache:
                         cached_at = excluded.cached_at,
                         ttl_seconds = excluded.ttl_seconds
                     """,
-                    (cve_clean, json.dumps(payload), now, ttl),
+                    (cache_key, json.dumps(payload), now, ttl),
                 )
         except Exception as exc:
-            logger.warning("Error writing to poc_cache for %s: %s", cve_clean, exc)
+            logger.warning("Error writing to poc_cache for %s: %s", cache_key, exc)
         finally:
             if conn:
                 conn.close()
-

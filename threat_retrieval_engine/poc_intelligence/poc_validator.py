@@ -94,7 +94,7 @@ class PoCValidator:
         warnings: list[str] = []
         score = 0.0
 
-        exact_cve = cve.lower() in lower_text
+        exact_cve = bool(re.search(rf"\b{re.escape(cve)}\b", text, re.IGNORECASE))
         if exact_cve:
             score += self.weights["exact_cve"]
             reasons.append(f"+{self.weights['exact_cve']:.2f} exact requested CVE appears in retrieved source data")

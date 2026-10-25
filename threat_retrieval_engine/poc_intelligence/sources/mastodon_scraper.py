@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any
 from urllib.parse import urlparse
-import httpx
-from bs4 import BeautifulSoup
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None  # type: ignore
 
 try:
     from threat_retrieval_engine.poc_intelligence.sources.base import (
@@ -27,11 +35,13 @@ def _strip_html(html_str: str) -> str:
     """Strip HTML markup and return clean text."""
     if not html_str:
         return ""
-    try:
-        soup = BeautifulSoup(html_str, "html.parser")
-        return soup.get_text(separator=" ").strip()
-    except Exception:
-        return re.sub(r"<[^>]+>", "", html_str).strip()
+    if BeautifulSoup is not None:
+        try:
+            soup = BeautifulSoup(html_str, "html.parser")
+            return soup.get_text(separator=" ").strip()
+        except Exception:
+            pass
+    return re.sub(r"<[^>]+>", "", html_str).strip()
 
 
 class MastodonPoCSource(BasePoCSource):
@@ -43,9 +53,11 @@ class MastodonPoCSource(BasePoCSource):
         self,
         instances: list[str] | None = None,
         timeout_seconds: float = 10.0,
+        access_token: str | None = None,
     ) -> None:
         self.instances = instances or ["infosec.exchange", "defcon.social"]
         self.timeout_seconds = timeout_seconds
+        self.access_token = access_token or os.environ.get("MASTODON_ACCESS_TOKEN", "").strip()
 
     async def search(self, cve_id: str, limit: int = 10) -> list[RawCandidate]:
         """Compatibility wrapper returning candidates directly."""
@@ -62,6 +74,14 @@ class MastodonPoCSource(BasePoCSource):
                 status="error",
                 query=cve_id,
                 errors=[f"Invalid CVE identifier format: '{cve_id}'"],
+            )
+
+        if httpx is None:
+            return SourceSearchResponse(
+                source=self.source_name,
+                status="not_configured",
+                query=cve_clean,
+                errors=["httpx library is not installed"],
             )
 
         cfg = config or SearchConfig(timeout_seconds=self.timeout_seconds)
@@ -83,6 +103,8 @@ class MastodonPoCSource(BasePoCSource):
             "Accept": "application/json",
             "User-Agent": "UNICC-Team2-PoC-Harvester/1.0",
         }
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
 
         async with httpx.AsyncClient(timeout=timeout) as client:
             for instance in self.instances:

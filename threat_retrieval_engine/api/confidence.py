@@ -7,7 +7,7 @@ Implements the Two-Layer Confidence Architecture:
   - Layer 1: Deterministic Identifier Match (Exact Primary CVE ID / Hash Match) -> EXACT
   - Layer 2: Learned Calibrated Logistic Regression Model (with Platt/Isotonic scaling)
              or Option B Presence-Renormalized Behavioral Heuristic (M1).
-  - Safe Degraded Mode: Capped at STRONG, uncalibrated M1 fallback.
+  - Safe Degraded Mode: Capped at STRONG, uncalibrated M1 fallback (R20).
 """
 
 from __future__ import annotations
@@ -27,27 +27,28 @@ from threat_retrieval_engine.api.feature_extractor import (
     extract_features,
 )
 
+try:
+    from threat_retrieval_engine.indicators import (
+        COMMON_ACTORS as _COMMON_ACTORS,
+        COMMON_MALWARE as _COMMON_MALWARE,
+        CVE_PATTERN as _CVE_PATTERN,
+        IPV4_PATTERN as _IPV4_PATTERN,
+        MD5_PATTERN as _MD5_PATTERN,
+        MITRE_PATTERN as _MITRE_PATTERN,
+        SHA256_PATTERN as _SHA256_PATTERN,
+    )
+except ImportError:
+    from indicators import (
+        COMMON_ACTORS as _COMMON_ACTORS,
+        COMMON_MALWARE as _COMMON_MALWARE,
+        CVE_PATTERN as _CVE_PATTERN,
+        IPV4_PATTERN as _IPV4_PATTERN,
+        MD5_PATTERN as _MD5_PATTERN,
+        MITRE_PATTERN as _MITRE_PATTERN,
+        SHA256_PATTERN as _SHA256_PATTERN,
+    )
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Regex patterns for query parsing
-# ---------------------------------------------------------------------------
-_CVE_PATTERN = re.compile(r"\bCVE-\d{4}-\d{4,7}\b", re.IGNORECASE)
-_IPV4_PATTERN = re.compile(
-    r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
-)
-_MD5_PATTERN = re.compile(r"\b[a-fA-F0-9]{32}\b")
-_SHA256_PATTERN = re.compile(r"\b[a-fA-F0-9]{64}\b")
-_MITRE_PATTERN = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
-
-_COMMON_ACTORS = [
-    "apt29", "apt28", "cozy bear", "fancy bear", "lazarus", "fin7", "sandworm",
-    "volt typhoon", "wannacry", "carbanak", "lockbit", "blackcat"
-]
-_COMMON_MALWARE = [
-    "psexec", "mimikatz", "cobalt strike", "eternalblue", "trickbot", "emotet",
-    "qakbot", "bloodhound", "empire", "covenant"
-]
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class QueryProfile:
     mitre_techniques: tuple[str, ...] = ()
     threat_actors: tuple[str, ...] = ()
     malware: tuple[str, ...] = ()
+    raw_query: str = ""
 
     @property
     def has_cve(self) -> bool:
@@ -102,12 +104,23 @@ def parse_query_profile(query: str) -> QueryProfile:
         mitre_techniques=mitre,
         threat_actors=actors,
         malware=malware,
+        raw_query=query,
     )
 
 
 # ---------------------------------------------------------------------------
-# Layer 1: Deterministic Identifier Matcher
+# Layer 1: Deterministic Identifier Matcher & Record Class (R6a)
 # ---------------------------------------------------------------------------
+
+def classify_evidence_record_class(candidate_chunk: dict[str, Any]) -> str:
+    """Classify chunk as DESCRIPTION vs METADATA_STUB (R6a)."""
+    meta = candidate_chunk.get("metadata") or {}
+    doc_id = str(candidate_chunk.get("doc_id") or meta.get("doc_id") or candidate_chunk.get("chunk_id", ""))
+    source_org = str(candidate_chunk.get("source_org") or meta.get("source_org", "")).upper()
+    if doc_id.endswith("_EPSS") or source_org == "EPSS" or doc_id.endswith("_KEV"):
+        return "METADATA_STUB"
+    return "DESCRIPTION"
+
 
 def match_layer1(
     query_profile: QueryProfile,
@@ -185,7 +198,7 @@ def classify_confidence_tier(probability: float) -> str:
 # ---------------------------------------------------------------------------
 
 class ConfidenceModel:
-    """Lightweight, vectorized CPU inference for L2 Logistic Regression & Calibrator."""
+    """Lightweight, vectorized CPU inference for L2 Logistic Regression & Calibrator with support guards."""
 
     def __init__(
         self,
@@ -195,12 +208,16 @@ class ConfidenceModel:
         model_version: str = "v1.0.0",
         scaler: dict[str, Any] | None = None,
         calibrator: dict[str, Any] | None = None,
+        feature_support: dict[str, list[float]] | None = None,
     ) -> None:
         self.feature_names = feature_names or FEATURE_NAMES
         self.bias = float(bias)
         self.model_version = model_version
         self.scaler = scaler
         self.calibrator = calibrator
+        self.feature_support = feature_support or {
+            name: [0.0, 1.0] for name in self.feature_names
+        }
 
         if isinstance(weights, dict):
             self.weights = {k: float(v) for k, v in weights.items()}
@@ -210,6 +227,16 @@ class ConfidenceModel:
             }
         else:
             self.weights = {}
+
+    def is_in_support(self, features: dict[str, float]) -> bool:
+        """Check if feature vector is within valid training support bounds (R1)."""
+        for name, bounds in self.feature_support.items():
+            if name in features and len(bounds) == 2:
+                val = float(features[name])
+                # allow 0.5 epsilon margin
+                if val < bounds[0] - 0.5 or val > bounds[1] + 0.5:
+                    return False
+        return True
 
     def get_contributions(self, features: dict[str, float]) -> dict[str, float]:
         """Compute individual feature contributions to the logit."""
@@ -320,6 +347,7 @@ def load_confidence_model(model_path: str | Path | None = None) -> ConfidenceMod
             model_version=str(data.get("model_version", data.get("version", "v1.0.0"))),
             scaler=data.get("scaler"),
             calibrator=data.get("calibrator"),
+            feature_support=data.get("feature_support"),
         )
     except Exception as exc:
         logger.warning("Failed to load confidence model from %s: %s. Operating in safe degraded mode.", path, exc)
@@ -353,6 +381,7 @@ class ConfidenceResolution:
     model_version: str = "v1.0.0"
     calibrated: bool = True
     degraded: bool = False
+    evidence_record_class: str = "DESCRIPTION"  # DESCRIPTION vs METADATA_STUB (R6a)
 
 
 # ---------------------------------------------------------------------------
@@ -364,16 +393,19 @@ def resolve_confidence(
     candidate_chunk: dict[str, Any],
     candidate_score: float,
     model: Any = None,
+    force_degraded: bool = False,
 ) -> ConfidenceResolution:
     """
     Resolves confidence score and tier for a query and candidate chunk.
 
     1. Checks Layer 1 deterministic match (EXACT_ID / EXACT_HASH) -> EXACT tier, prob 1.0.
     2. If not Layer 1:
-       - If behavioral query (no CVE, only IOC/TTP): Option B M1 presence-renormalized heuristic.
+       - If behavioral query (no CVE, only IOC/TTP): Option B presence-renormalized heuristic.
        - If CVE / general query: Learned Logistic Regression model.
-       - If model missing / invalid: Safe degraded mode (capped at STRONG, never EXACT, M1 fallback).
+       - If model missing / invalid or reranker failed: Safe degraded mode (capped at STRONG, never EXACT, M1 fallback).
     """
+    record_class = classify_evidence_record_class(candidate_chunk)
+
     # 1. Deterministic Layer 1 Matcher
     is_l1, match_type = match_layer1(query_profile, candidate_chunk)
     if is_l1 and match_type is not None:
@@ -388,6 +420,7 @@ def resolve_confidence(
             model_version=getattr(model, "model_version", "v1.0.0") if model else "v1.0.0",
             calibrated=True,
             degraded=False,
+            evidence_record_class=record_class,
         )
 
     # 2. Extract Layer 2 features (train-serve parity, anti-leakage)
@@ -400,8 +433,8 @@ def resolve_confidence(
         query_profile.mitre_techniques or query_profile.threat_actors or query_profile.malware
     )
 
-    # Option B: Behavioral query (no CVE, only IOC/TTP)
-    if not has_cve and has_behavioral:
+    # Option B: Behavioral query (no CVE, only IOC/TTP) - Renormalized (R17)
+    if not has_cve and has_behavioral and not force_degraded:
         ioc_sim = features["ioc_coverage"]
         ttp_sim = features["ttp_coverage"]
         semantic_sim = (
@@ -410,22 +443,32 @@ def resolve_confidence(
             else (candidate_score if candidate_score > 0 else features["bm25_norm_score"])
         )
 
-        active_weight = (0.40 * features["has_ioc"]) + (0.20 * features["has_ttp"]) + 0.20
-        w_ioc = (0.40 * features["has_ioc"]) / active_weight
-        w_ttp = (0.20 * features["has_ttp"]) / active_weight
-        w_sem = 0.20 / active_weight
+        weights = []
+        sims = []
+        weights.append(0.20)
+        sims.append(semantic_sim)
+        if features["has_ioc"] > 0:
+            weights.append(0.40)
+            sims.append(ioc_sim)
+        if features["has_ttp"] > 0:
+            weights.append(0.20)
+            sims.append(ttp_sim)
 
-        composite = (w_ioc * ioc_sim) + (w_ttp * ttp_sim) + (w_sem * semantic_sim)
-        prob = max(0.0, min(1.0, composite))
+        total_w = sum(weights)
+        prob = sum(w * s for w, s in zip(weights, sims)) / total_w if total_w > 0 else 0.0
+        prob = max(0.0, min(1.0, prob))
         tier = classify_confidence_tier(prob)
         if tier == "EXACT":
             tier = "STRONG"  # Layer 2 cannot assign EXACT
 
         contributions = {
-            "ioc": round(w_ioc * ioc_sim, 4),
-            "ttp": round(w_ttp * ttp_sim, 4),
-            "semantic": round(w_sem * semantic_sim, 4),
+            "semantic": round((0.20 / total_w) * semantic_sim, 4),
         }
+        if features["has_ioc"] > 0:
+            contributions["ioc"] = round((0.40 / total_w) * ioc_sim, 4)
+        if features["has_ttp"] > 0:
+            contributions["ttp"] = round((0.20 / total_w) * ttp_sim, 4)
+
         return ConfidenceResolution(
             match_type="HEURISTIC_PRESENCE",
             probability=round(prob, 4),
@@ -436,11 +479,12 @@ def resolve_confidence(
             model_version="m1.0.0-heuristic",
             calibrated=False,
             degraded=False,
+            evidence_record_class=record_class,
         )
 
     # 3. Learned Model or Safe Degraded Mode
     active_model = model if model is not None else get_confidence_model()
-    if active_model is not None and not getattr(active_model, "is_degraded", False):
+    if active_model is not None and not getattr(active_model, "is_degraded", False) and not force_degraded:
         prob = active_model.predict_proba(features)
         prob = max(0.0, min(1.0, prob))
         tier = classify_confidence_tier(prob)
@@ -457,10 +501,11 @@ def resolve_confidence(
             model_version=active_model.model_version,
             calibrated=True,
             degraded=False,
+            evidence_record_class=record_class,
         )
 
-    # 4. Safe Degraded Mode (model artifact missing, unreadable, or invalid)
-    logger.warning("Confidence resolution operating in safe degraded mode (model missing or uncalibrated).")
+    # 4. Safe Degraded Mode (model artifact missing, unreadable, or reranker failed, R20)
+    logger.warning("Confidence resolution operating in safe degraded mode (model missing or degraded).")
     semantic_sim = (
         features["reranker_score"]
         if features["reranker_score"] > 0
@@ -504,4 +549,5 @@ def resolve_confidence(
         model_version="degraded-m1",
         calibrated=False,
         degraded=True,
+        evidence_record_class=record_class,
     )

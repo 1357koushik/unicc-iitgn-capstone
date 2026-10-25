@@ -45,6 +45,13 @@ def fetch_team2_evidence(
     ]
 
     last_err = None
+    timeout_sec = 20.0
+    try:
+        from threat_retrieval_engine.config import get_config
+        timeout_sec = get_config().t_client_match_seconds
+    except Exception:
+        pass
+
     for ep in endpoints:
         req = urllib.request.Request(
             ep,
@@ -53,7 +60,7 @@ def fetch_team2_evidence(
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             last_err = e
@@ -87,7 +94,11 @@ def normalize_team2_evidence(evidence_input: Any) -> List[Dict[str, Any]]:
         if isinstance(item, dict):
             citations = item.get("citations", [])
             chunk_id = item.get("chunk_id") or item.get("document_id") or "EVIDENCE"
-            score = item.get("composite_score") or item.get("relevance_score") or 0.0
+            score = (
+                item.get("composite_score")
+                if item.get("composite_score") is not None
+                else (item.get("relevance_score") if item.get("relevance_score") is not None else 0.0)
+            )
             stix = item.get("stix_relationships", [])
             tier = item.get("confidence_tier")
             attr = item.get("attribution", {})
@@ -110,7 +121,11 @@ def normalize_team2_evidence(evidence_input: Any) -> List[Dict[str, Any]]:
 
         else:
             chunk_id = getattr(item, "chunk_id", "EVIDENCE")
-            score = getattr(item, "composite_score", getattr(item, "relevance_score", 0.0))
+            score = (
+                getattr(item, "composite_score")
+                if getattr(item, "composite_score", None) is not None
+                else (getattr(item, "relevance_score", 0.0) if getattr(item, "relevance_score", None) is not None else 0.0)
+            )
             citations = getattr(item, "citations", [])
             stix = getattr(item, "stix_relationships", [])
             tier = getattr(item, "confidence_tier", None)

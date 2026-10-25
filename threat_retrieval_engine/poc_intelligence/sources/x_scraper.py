@@ -111,8 +111,8 @@ class XPoCSource(BasePoCSource):
     ) -> None:
         self.bearer_token = bearer_token or os.environ.get("X_BEARER_TOKEN") or os.environ.get("TWITTER_BEARER_TOKEN")
         self.timeout_seconds = timeout_seconds if timeout_seconds is not None else _env_float("X_TIMEOUT_SECONDS", 10.0, 1.0, 60.0)
-        self.enabled = _env_bool("X_ENABLED", True) if enabled is None else enabled
-        self.allow_paid_requests = _env_bool("X_ALLOW_PAID_REQUESTS", True) if allow_paid_requests is None else allow_paid_requests
+        self.enabled = _env_bool("X_ENABLED", False) if enabled is None else enabled
+        self.allow_paid_requests = _env_bool("X_ALLOW_PAID_REQUESTS", False) if allow_paid_requests is None else allow_paid_requests
         self.max_results = max_results if max_results is not None else _env_int("X_MAX_RESULTS", 10, 1, 100)
         self.max_requests = max_requests if max_requests is not None else _env_int("X_MAX_REQUESTS", 2, 1, 10)
         self.max_retries = max_retries if max_retries is not None else _env_int("X_MAX_RETRIES", 1, 0, 3)

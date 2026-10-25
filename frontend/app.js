@@ -299,7 +299,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     data.matches.forEach(m => {
                         const item = document.createElement("li");
                         const tactics = (m.mitre_tactics || []).join(", ");
-                        item.textContent = `${m.threat} (Confidence: ${m.confidence})` + (tactics ? ` - ${tactics}` : "");
+                        const malware = (m.associated_malware || []).join(", ");
+                        let extra = "";
+                        if (tactics) extra += ` - Tactics: ${tactics}`;
+                        if (malware) extra += ` - Malware: ${malware}`;
+                        item.textContent = `${m.threat} (Confidence: ${m.confidence})${extra}`;
                         
                         if (m.citations && m.citations.length > 0) {
                             const citList = document.createElement("ul");

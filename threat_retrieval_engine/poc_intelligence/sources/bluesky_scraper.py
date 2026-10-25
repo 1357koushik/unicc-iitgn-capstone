@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
 
 try:
     from threat_retrieval_engine.poc_intelligence.sources.base import (
@@ -26,9 +30,18 @@ class BlueSkyPoCSource(BasePoCSource):
 
     source_name: str = "bluesky"
 
-    def __init__(self, timeout_seconds: float = 10.0) -> None:
+    def __init__(
+        self,
+        timeout_seconds: float = 10.0,
+        handle: str | None = None,
+        app_password: str | None = None,
+    ) -> None:
         self.timeout_seconds = timeout_seconds
-        self.api_endpoint = "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+        self.handle = handle or os.environ.get("BLUESKY_HANDLE", "").strip()
+        self.app_password = app_password or os.environ.get("BLUESKY_APP_PASSWORD", "").strip()
+        self.api_endpoint = "https://bsky.social/xrpc/app.bsky.feed.searchPosts" if (self.handle and self.app_password) else "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
+        self.session_endpoint = "https://bsky.social/xrpc/com.atproto.server.createSession"
+        self._access_jwt: str | None = None
 
     async def search(self, cve_id: str, limit: int = 10) -> list[RawCandidate]:
         """Compatibility wrapper returning candidates directly."""
@@ -62,9 +75,17 @@ class BlueSkyPoCSource(BasePoCSource):
             "Returns recent indexed posts matching the CVE query; Subject to public API rate limits.",
         ]
 
+        if httpx is None:
+            return SourceSearchResponse(
+                source=self.source_name,
+                status="not_configured",
+                query=f"{cve_clean} poc",
+                errors=["httpx library is not installed"],
+            )
+
         headers = {
             "Accept": "application/json",
-            "User-Agent": "UNICC-Team2-PoC-Harvester/1.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
 
         cursor: str | None = None
@@ -73,6 +94,21 @@ class BlueSkyPoCSource(BasePoCSource):
         terminal_status = "success"
 
         async with httpx.AsyncClient(timeout=timeout) as client:
+            # If app password is provided, authenticate session to avoid Cloudflare challenge
+            if self.handle and self.app_password and not self._access_jwt:
+                try:
+                    auth_resp = await client.post(
+                        self.session_endpoint,
+                        json={"identifier": self.handle, "password": self.app_password},
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if auth_resp.status_code == 200:
+                        self._access_jwt = auth_resp.json().get("accessJwt")
+                except Exception as auth_err:
+                    warnings.append(f"BlueSky auth session failed: {auth_err}")
+
+            if self._access_jwt:
+                headers["Authorization"] = f"Bearer {self._access_jwt}"
             while len(candidates) < limit and pages_fetched < page_limit and requests_made < request_limit:
                 params: dict[str, Any] = {
                     "q": f"{cve_clean} poc",
@@ -96,26 +132,41 @@ class BlueSkyPoCSource(BasePoCSource):
                 pages_fetched += 1
 
                 if response.status_code == 200:
-                    data = response.json()
+                    try:
+                        data = response.json()
+                    except Exception as exc:
+                        terminal_status = "error"
+                        errors.append(f"BlueSky API returned malformed JSON: {exc}")
+                        break
+
+                    if not isinstance(data, dict):
+                        terminal_status = "error"
+                        errors.append("BlueSky API returned non-object JSON payload.")
+                        break
+
                     posts = data.get("posts", [])
                     cursor = data.get("cursor")
                     for post in posts:
+                        if not isinstance(post, dict):
+                            continue
                         at_uri = post.get("uri", "")
                         if at_uri in seen_uris:
                             continue
                         seen_uris.add(at_uri)
 
-                        author_info = post.get("author", {})
+                        author_info = post.get("author") if isinstance(post.get("author"), dict) else {}
                         handle = author_info.get("handle", "anonymous")
-                        record = post.get("record", {})
+                        record = post.get("record") if isinstance(post.get("record"), dict) else {}
                         text = record.get("text", "")
                         created_at = record.get("createdAt")
 
                         rkey = at_uri.split("/")[-1] if "/" in at_uri else ""
                         post_web_url = f"https://bsky.app/profile/{handle}/post/{rkey}" if rkey else at_uri
 
-                        external_embed = record.get("embed", {}).get("external", {})
-                        external_url = external_embed.get("uri")
+                        embed_val = record.get("embed")
+                        external_embed = embed_val.get("external") if isinstance(embed_val, dict) else {}
+                        external_url = external_embed.get("uri") if isinstance(external_embed, dict) else None
+
                         text_urls = _URL_REGEX.findall(text)
                         if external_url and external_url not in text_urls:
                             text_urls.insert(0, external_url)
@@ -142,6 +193,10 @@ class BlueSkyPoCSource(BasePoCSource):
 
                     if not cursor or not posts:
                         break
+                elif response.status_code == 401:
+                    terminal_status = "unauthorized"
+                    errors.append("BlueSky AT Protocol search returned HTTP 401 (unauthorized).")
+                    break
                 elif response.status_code == 403:
                     terminal_status = "access_restricted"
                     errors.append("BlueSky AT Protocol search returned HTTP 403 (access restricted).")

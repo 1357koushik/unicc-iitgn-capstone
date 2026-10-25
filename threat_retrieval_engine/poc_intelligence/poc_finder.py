@@ -103,7 +103,12 @@ class PoCFinderEngine:
 
         # 1. Check cache (without mutating the cached payload)
         if not bypass_cache and self.cache:
-            cached_resp = self.cache.get(cve_clean)
+            cached_resp = self.cache.get(
+                cve_clean,
+                sources=sources,
+                max_results=max_results,
+                min_confidence=min_confidence,
+            )
             if cached_resp is not None:
                 # Deep copy to prevent mutating the cached instance
                 cached_copy = cached_resp.model_copy(deep=True)
@@ -188,9 +193,15 @@ class PoCFinderEngine:
             coverage_limitations=coverage_limitations,
         )
 
-        # 6. Save in cache
+        # 6. Save in cache (composite keying, R5)
         if self.cache:
-            self.cache.set(cve_clean, response)
+            self.cache.set(
+                cve_clean,
+                response,
+                sources=sources,
+                max_results=max_results,
+                min_confidence=min_confidence,
+            )
 
         return response
 
@@ -218,7 +229,7 @@ class PoCFinderEngine:
                             bypass_cache=bypass_cache,
                         ),
                     )
-                    return future.result()
+                    return future.result(timeout=self.timeout_seconds * 2)
             else:
                 return loop.run_until_complete(
                     self.find_pocs(
