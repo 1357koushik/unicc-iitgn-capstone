@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import math
+import mimetypes
 import os
 import secrets
 import uuid
@@ -728,4 +729,14 @@ async def find_pocs_endpoint(
 # Serve frontend static files
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _FRONTEND_DIR = _REPO_ROOT / "frontend"
+
+
+def set_file_types():
+    """Label the dashboard files correctly whatever the computer says (Windows often says .js = text/plain)."""
+    mimetypes.add_type("text/html", ".html")
+    mimetypes.add_type("text/css", ".css")
+    mimetypes.add_type("text/javascript", ".js")
+
+
+set_file_types()
 app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")

@@ -514,3 +514,22 @@ tr:hover {
     border-radius: 4px;
     font-weight: 600;
 }
+
+/* Threat matching: the AI's explanation and the patch details shown under a match */
+.match-explanation {
+    margin: 0.5rem 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.patch-details {
+    margin: 0.5rem 0 0.75rem;
+    padding: 0.6rem 0.8rem;
+    border-left: 3px solid var(--secondary-color);
+    background: #f6f8fa;
+    border-radius: 4px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
