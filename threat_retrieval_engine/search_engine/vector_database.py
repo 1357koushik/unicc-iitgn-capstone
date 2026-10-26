@@ -129,16 +129,18 @@ def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH, reset: bool = False) ->
 def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) -> sqlite3.Connection:
     """
     Open the SQLite corpus store in WAL mode for fast concurrent reads.
-    Creates the table if it does not exist.
+    Creates the table and indexes if they do not exist (R15, R35).
     """
     Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(sqlite_path, check_same_thread=False)
+    conn = sqlite3.connect(sqlite_path, check_same_thread=False, timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA case_sensitive_like=ON;")
+    conn.execute("PRAGMA busy_timeout=30000;")
     if reset:
-        logger.info("Resetting SQLite table 'corpus' …")
+        logger.info("Resetting SQLite tables …")
         conn.execute("DROP TABLE IF EXISTS corpus;")
+        conn.execute("DROP TABLE IF EXISTS entity_index;")
         conn.commit()
 
     conn.execute(
@@ -158,6 +160,17 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) ->
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS entity_index (
+            entity_value TEXT NOT NULL,
+            chunk_id     TEXT NOT NULL,
+            entity_kind  TEXT
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_entity_value ON entity_index(entity_value);")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_corpus_doc_id ON corpus(doc_id);")
     conn.commit()
     logger.info("SQLite corpus store ready at: %s", sqlite_path)
     return conn
@@ -250,19 +263,56 @@ def store_chunks(
         qdrant.upsert(collection_name=COLLECTION_NAME, points=qdrant_points)
         logger.info("Upserted %d vectors into Qdrant.", len(qdrant_points))
 
-    # SQLite insert (ignore duplicates)
+    # SQLite upsert (R15: maintain exact parity with Qdrant on re-ingestion)
     if sqlite_rows:
         sqlite.executemany(
             """
-            INSERT OR IGNORE INTO corpus
+            INSERT INTO corpus
                 (chunk_id, doc_id, doc_title, source_org, published_date,
                  char_start, char_end, text, enriched_text, entities_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chunk_id) DO UPDATE SET
+                doc_id = excluded.doc_id,
+                doc_title = excluded.doc_title,
+                source_org = excluded.source_org,
+                published_date = excluded.published_date,
+                char_start = excluded.char_start,
+                char_end = excluded.char_end,
+                text = excluded.text,
+                enriched_text = excluded.enriched_text,
+                entities_json = excluded.entities_json
             """,
             sqlite_rows,
         )
+
+        # Backfill / update entity_index (R15)
+        entity_rows: list[tuple[str, str, str]] = []
+        for vr in vector_results:
+            chunk = chunk_map.get(vr.chunk_id)
+            if not chunk:
+                continue
+            cid = chunk.chunk_id
+            for cve in chunk.entities.cves or []:
+                entity_rows.append((str(cve).upper(), cid, "cve"))
+            for ttp in chunk.entities.mitre_ttps or []:
+                entity_rows.append((str(ttp).upper(), cid, "mitre"))
+            for actor in chunk.entities.threat_actors or []:
+                entity_rows.append((str(actor).lower(), cid, "actor"))
+            for mal in chunk.entities.malware_families or []:
+                entity_rows.append((str(mal).lower(), cid, "malware"))
+            if hasattr(chunk.entities, "iocs") and isinstance(chunk.entities.iocs, dict):
+                for ikind, ivals in chunk.entities.iocs.items():
+                    for iv in ivals or []:
+                        entity_rows.append((str(iv).lower(), cid, ikind))
+
+        if entity_rows:
+            sqlite.executemany(
+                "INSERT INTO entity_index (entity_value, chunk_id, entity_kind) VALUES (?, ?, ?)",
+                entity_rows,
+            )
+
         sqlite.commit()
-        logger.info("Inserted %d rows into SQLite.", len(sqlite_rows))
+        logger.info("Upserted %d rows into SQLite.", len(sqlite_rows))
 
 
 # ---------------------------------------------------------------------------

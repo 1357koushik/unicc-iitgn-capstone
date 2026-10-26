@@ -1,0 +1,25 @@
+{
+  "sealed_test_pairs": 640,
+  "sealed_cve_groups": 160,
+  "model_comparison": {
+    "M0_log_loss": 8.6347,
+    "M0_brier": 0.25,
+    "M0_ece": 0.25,
+    "M1_log_loss": 8.6347,
+    "M1_brier": 0.25,
+    "M1_ece": 0.25,
+    "M2_log_loss": 0.1747,
+    "M2_brier": 0.0544,
+    "M2_ece": 0.03142
+  },
+  "task1_precision": {
+    "top1_correct": 160,
+    "top1_total": 160,
+    "precision_pct": 100.0,
+    "bootstrap_ci_95": [
+      100.0,
+      100.0
+    ],
+    "gate_passed": true
+  }
+}

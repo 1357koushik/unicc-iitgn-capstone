@@ -7,6 +7,7 @@ import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import timezone
+from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException, Response, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -405,6 +406,12 @@ class ConfigUpdate(BaseModel):
 class UserUpdate(BaseModel):
     allowed_datasets: str
 
+class PoCFindRequest(BaseModel):
+    cve_id: str = Field(pattern=r"^CVE-\d{4}-\d{4,7}$")
+    max_results: int = Field(default=20, ge=1, le=100)
+    sources: Optional[List[str]] = None
+    min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
 # --- Endpoints ---
 @app.get("/api/v1/admin/users")
 def get_users(user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
@@ -617,11 +624,6 @@ def extract_entities(req: EntitiesRequest, user: dict = Depends(get_investigator
     log_action(db, req.correlation_id, user["id"], user["role"], "extract_entities", "doc_current", backend_name, "success")
     return res
 
-THREAT_MATCHING_UNAVAILABLE = (
-    "Threat matching is not connected yet. It needs the historical-threat search "
-    "(retrieval) service from Team 2. No matches are shown rather than invented ones."
-)
-
 @app.post("/api/v1/investigation/threats")
 def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigator_user), db: Session = Depends(get_db), gw_dep = Depends(get_llm_gateway)):
     _, backend_name = gw_dep
@@ -648,7 +650,8 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
             frontend_matches.append({
                 "threat": threat,
                 "confidence": result.get("confidence_level", "Medium"),
-                "mitre_tactics": result.get("associated_malware", []),
+                "mitre_tactics": result.get("associated_mitre_tactics") or result.get("mitre_tactics") or [],
+                "associated_malware": result.get("associated_malware", []),
                 "citations": result.get("supporting_citations", []),
                 "patch_details": patch
             })
@@ -693,6 +696,42 @@ def final_decision(req: DecisionRequest, user: dict = Depends(get_investigator_u
     # Final step in the workflow where investigator makes a decision
     log_action(db, req.correlation_id, user["id"], user["role"], "final_decision", "doc_current", "none", "success", {"decision": req.decision, "notes": req.notes})
     return {"message": "Decision recorded"}
+
+@app.post("/api/v1/pocs/find")
+async def find_pocs_endpoint(
+    req: PoCFindRequest,
+    user: dict = Depends(get_investigator_user),
+    db: Session = Depends(get_db),
+):
+    cve_id = req.cve_id.strip().upper()
+    team2_url = os.getenv("TEAM2_API_URL", "http://localhost:8000")
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{team2_url}/api/v1/pocs/find", json=req.model_dump())
+            if resp.status_code == 200:
+                log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "retrieval", "success")
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except Exception:
+        pass
+
+    try:
+        from threat_retrieval_engine.poc_intelligence import get_poc_finder
+        finder = get_poc_finder()
+        res = await finder.find_pocs(
+            cve_id=cve_id,
+            max_results=req.max_results,
+            sources=req.sources,
+            min_confidence=req.min_confidence,
+        )
+        log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "local_engine", "success")
+        return JSONResponse(status_code=200, content=res.model_dump())
+    except ValueError as val_err:
+        raise HTTPException(status_code=422, detail=str(val_err))
+    except Exception as exc:
+        ref = _new_error_reference()
+        _server_log.error(f"[error ref {ref}] Failed to query PoC service: {exc}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Failed to query PoC service. Reference: {ref}")
 
 
 # --- Network sensor (Task 5.0) ---
@@ -835,7 +874,11 @@ def stop_network_live_replay(session_id: str, user: dict = Depends(get_investiga
                "success", summary)
     return summary
 
+
 # Serve frontend static files
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_FRONTEND_DIR = _REPO_ROOT / "frontend"
+
 
 def set_file_types():
     """Label the dashboard files correctly whatever the computer says (Windows often says .js = text/plain)."""
@@ -845,4 +888,4 @@ def set_file_types():
 
 
 set_file_types()
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")

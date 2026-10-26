@@ -1,0 +1,13 @@
+{
+  "host": "Actually-Koushik",
+  "commit": "ab50c43ab43fcf9e0ce8ef40089f26c67eada738",
+  "os": "win32",
+  "total_ram_gb": 15.63,
+  "available_ram_gb": 3.7,
+  "sqlite_corpus_rows": 362301,
+  "sqlite_open_time_s": 0.0294,
+  "process_start_rss_mb": 18.55,
+  "sqlite_open_rss_mb": 21.36,
+  "hardware_spec": "measured peak ~3.2 GB RAM with 25% headroom (min 4.0 GB recommended; 8.0 GB for full parallel cross-encoder)",
+  "notes": "362,301 records in SQLite; embedded Qdrant size ~4.48 GB."
+}
