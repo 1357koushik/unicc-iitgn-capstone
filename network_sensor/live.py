@@ -25,6 +25,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from network_sensor.actions import PRIORITIES, where_of
 from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError, prepare_features
@@ -50,6 +51,7 @@ class LiveSession:
     position: int = 0                               # connections checked so far
     alerts: int = 0
     possible_new_attacks: int = 0
+    by_priority: Dict[str, int] = field(default_factory=lambda: {p: 0 for p in PRIORITIES})
     batches: int = 0
     total_check_ms: float = 0.0
     slowest_check_ms: float = 0.0
@@ -132,6 +134,11 @@ class LiveSessions:
                     if e["verdict"] != "attack":
                         continue
                     alert = {"row": first_row + i + 1, **e}
+                    where = where_of(batch, i)
+                    if where:
+                        alert["where"] = where
+                    if e.get("priority") in session.by_priority:
+                        session.by_priority[e["priority"]] += 1
                     if session.has_labels:
                         alert["label_in_file"] = batch["label"].iat[i]
                     new_alerts.append(alert)
@@ -185,6 +192,7 @@ class LiveSessions:
         totals = {
             "alerts": session.alerts,
             "possible_new_attacks": session.possible_new_attacks,
+            "by_priority": [{"name": p, "alerts": n} for p, n in session.by_priority.items()],
             "average_check_ms": round(session.total_check_ms / session.batches, 1) if session.batches else 0.0,
             "slowest_check_ms": round(session.slowest_check_ms, 1),
         }
@@ -206,6 +214,7 @@ class LiveSessions:
             "dataset": session.dataset,
             "alerts": totals["alerts"],
             "possible_new_attacks": totals["possible_new_attacks"],
+            "alerts_by_priority": dict(session.by_priority),
             "batches": session.batches,
             "average_check_ms": totals["average_check_ms"],
             "slowest_check_ms": totals["slowest_check_ms"],

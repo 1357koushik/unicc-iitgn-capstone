@@ -24,6 +24,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from network_sensor.actions import IMPACT_MEANINGS, PRIORITIES, priority_of
 from network_sensor.datasets import DatasetError
 from network_sensor.explain import RARE_SHARE
 from network_sensor.models import MODEL_NAMES, NetworkSensorModel, _library_versions
@@ -135,6 +136,57 @@ def sample_per_label(df: pd.DataFrame, per_label: int, seed: int = 0) -> pd.Data
     return pd.concat(parts).sort_index()
 
 
+def actionable_check(model: NetworkSensorModel, test_df: pd.DataFrame, votes: pd.DataFrame,
+                     combined: np.ndarray) -> Optional[dict]:
+    """How useful are the actionable parts of the alerts (see actions.py)?
+      * likely attack type: for every alert on a real attack, is the named family right?
+      * priority: for each priority level, how many alerts were real attacks?
+    Uses every flagged connection of the test part. None for sensors trained before
+    the attack-type classifier existed."""
+    if not model.has_attack_types:
+        return None
+    spec = model.spec
+    flagged = combined == 1
+    _, X = model._checked_matrix(test_df[flagged])
+    types, _ = model.attack_types_of_matrix(X)
+    del X
+    known = votes["random_forest"].to_numpy()[flagged] == 1
+    truth = test_df["attack_category"].to_numpy()[flagged]
+    real = test_df["is_attack"].to_numpy()[flagged] == 1
+    labels = test_df["label"].to_numpy()[flagged]
+    seen_types = set(model.training_info.get("attack_types_seen_in_training", []))
+    has_family = real & (truth != "unknown")
+    correct = types == truth
+
+    def accuracy(mask) -> dict:
+        n = int(mask.sum())
+        return {"alerts": n, "type_correct": int((correct & mask).sum()),
+                "rate": float((correct & mask).sum() / n) if n else 0.0}
+
+    by_family = []
+    for family in spec.families:
+        mask = has_family & known & (truth == family)
+        wrong = pd.Series(types[mask & ~correct], dtype=object).value_counts()
+        by_family.append({"family": family, **accuracy(mask),
+                          "most_common_wrong_answer": (str(wrong.index[0]) if len(wrong) else None),
+                          "wrong_answers": int(wrong.sum())})
+    never_seen = has_family & ~np.isin(labels, list(seen_types))
+    priorities = np.array([priority_of(k, t, spec)[0] for k, t in zip(known, types)])
+    by_priority = []
+    for level in PRIORITIES:
+        mask = priorities == level
+        n, attacks = int(mask.sum()), int((mask & real).sum())
+        by_priority.append({"priority": level, "alerts": n, "real_attacks": attacks, "false_alarms": n - attacks,
+                            "precision": attacks / n if n else 0.0})
+    return {
+        "type_of_known_pattern_alerts": {**accuracy(has_family & known), "by_family": by_family},
+        "closest_type_of_possible_new_attacks": accuracy(has_family & ~known),
+        "type_of_never_seen_attack_types": accuracy(never_seen) if never_seen.any() else None,
+        "by_priority": by_priority,
+        "rule": {"impact": {f: spec.family_impact.get(f) for f in spec.families}},
+    }
+
+
 def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame,
                    explain_per_label: Optional[int] = None) -> dict:
     """Score the sensor on test_df (which needs label, is_attack and attack_category).
@@ -200,6 +252,7 @@ def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame,
         examples["False alarm"] = {"attack_type": spec.normal_label, **explanations[false_alarms[0]]}
 
     check = explanation_check(model, explained, explanations)
+    actionable = actionable_check(model, test_df, votes, combined)
     if explain_per_label is not None:
         check["sample"] = (f"Checked on up to {explain_per_label:,} connections of each label "
                            f"({len(explained):,} connections in total).")
@@ -226,6 +279,7 @@ def evaluate_model(model: NetworkSensorModel, test_df: pd.DataFrame,
             "main_reasons_by_family": main_reasons,
             "examples": examples,
         },
+        "actionable": actionable,
         "limitations": list(spec.limitations),
         "training_info": model.training_info,
         "library_versions": _library_versions(),
@@ -371,6 +425,45 @@ def render_markdown(r: dict) -> str:
         lines += ["", f"*{name} - {e['attack_type']}* (raised by: {', '.join(e['flagged_by'])})", "",
                   f"> {e['decision']}"]
         lines += [f"> - {reason['text']}" for reason in e["reasons"]]
+        if e.get("priority"):
+            lines += [">", f"> **Priority {e['priority']}** ({e['priority_reason']}). "
+                           f"**Certainty:** {e['certainty']}. **Next step:** {e['next_step']}"]
+
+    act = r.get("actionable")
+    if act:
+        t = act["type_of_known_pattern_alerts"]
+        lines += ["", "## Actionable alerts: likely attack type and priority", "",
+                  "Every alert also names its **likely attack type** (from a separate classifier trained on the "
+                  "labelled attacks only - it does not change which connections are flagged), a **priority** "
+                  "and a **suggested next step** for that type.", "",
+                  f"**Is the likely attack type right?** For known-pattern alerts on real attacks: "
+                  f"{_pct(t['rate'])} ({t['type_correct']:,} of {t['alerts']:,}).", "",
+                  "| Family | Alerts on this family | Type named correctly | Wrong | Most common wrong answer |",
+                  "|---|---|---|---|---|"]
+        for f in t["by_family"]:
+            if f["alerts"]:
+                lines.append(f"| {f['family']} | {f['alerts']:,} | {_pct(f['rate'])} | {f['wrong_answers']:,} | "
+                             f"{f['most_common_wrong_answer'] or '-'} |")
+        new_t = act["closest_type_of_possible_new_attacks"]
+        if new_t["alerts"]:
+            lines += ["", f"For possible new attacks (raised only by the anomaly models) the type is shown as the "
+                          f"*closest* known type, with low certainty: it was right for {_pct(new_t['rate'])} "
+                          f"of those that were real attacks ({new_t['type_correct']:,} of {new_t['alerts']:,})."]
+        unseen = act.get("type_of_never_seen_attack_types")
+        if unseen and unseen["alerts"]:
+            lines += ["", f"For caught attacks of types never seen in training, the family was still named "
+                          f"correctly for {_pct(unseen['rate'])} ({unseen['type_correct']:,} of {unseen['alerts']:,})."]
+        impact = act["rule"]["impact"]
+        lines += ["", "**Priority rule** (fixed in advance, not learned): start from what the likely attack type "
+                      "could do - " + "; ".join(f"{level}: {', '.join(f for f in impact if impact[f] == level)} "
+                                               f"({IMPACT_MEANINGS[level]})"
+                                               for level in PRIORITIES if any(v == level for v in impact.values()))
+                  + "; possible new attacks are Medium. The sensor's certainty is shown separately on each "
+                    "alert, not mixed into the priority.", "",
+                  "| Priority | Alerts | Real attacks | False alarms | Precision |", "|---|---|---|---|---|"]
+        for p in act["by_priority"]:
+            lines.append(f"| {p['priority']} | {p['alerts']:,} | {p['real_attacks']:,} | {p['false_alarms']:,} | "
+                         f"{_pct(p['precision']) if p['alerts'] else '-'} |")
 
     speed = r.get("speed")
     if speed:
@@ -459,6 +552,12 @@ def main(argv=None) -> int:
         print(f"Explanation check - alerts that disappear when the named reasons are reset: "
               f"{_pct(check['cleared_when_reasons_reset'])} (random other measurements: "
               f"{_pct(check['cleared_when_random_reset'])})")
+    act = results.get("actionable")
+    if act:
+        t = act["type_of_known_pattern_alerts"]
+        print(f"Likely attack type right for {_pct(t['rate'])} of known-pattern alerts on real attacks; "
+              "precision by priority: " + ", ".join(f"{p['priority']} {_pct(p['precision'])} ({p['alerts']:,})"
+                                                    for p in act["by_priority"] if p["alerts"]))
     fastest = results["speed"]["measurements"][-1]
     print(f"Speed - {fastest['batch_size']:,} connections checked together in {fastest['batch_ms']:,} ms "
           f"(about {fastest['connections_per_second']:,} per second on this computer)")

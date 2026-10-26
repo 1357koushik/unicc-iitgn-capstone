@@ -3,8 +3,9 @@ Everything the sensor needs to know about one dataset, in one place.
 
 The models, the explanations and the evaluation report work the same way for every
 dataset. What differs is described here: which measurement columns there are, which
-of them hold text, what each one means in plain English, which attack families exist,
-and how to show a value ("1,234 bytes", "2.5 seconds").
+of them hold text, what each one means in plain English, which attack families exist
+(what each can do, and what an analyst should do first), and how to show a value
+("1,234 bytes", "2.5 seconds").
 
 Two datasets are supported:
     nsl_kdd     - NSL-KDD (network_sensor/datasets.py), the first benchmark
@@ -50,6 +51,12 @@ class DatasetSpec:
     # Text measurements with many possible values (e.g. port numbers): only the most
     # common ones get their own model input; the rest share one "other" input.
     max_categories: Optional[int] = None
+    # What each attack family could do if it succeeds: "High" (control of a machine, an
+    # account or data), "Medium" (a service made unavailable) or "Low" (information
+    # gathering only). Used for an alert's priority (see actions.py).
+    family_impact: Dict[str, str] = field(default_factory=dict)
+    # One suggested first step for an analyst, per attack family (see actions.py).
+    family_actions: Dict[str, str] = field(default_factory=dict)
     numeric_columns: Tuple[str, ...] = field(init=False)
     group_of: Dict[str, str] = field(init=False)
 

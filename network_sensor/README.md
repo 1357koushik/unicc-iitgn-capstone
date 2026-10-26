@@ -26,10 +26,11 @@ to normal values must clear far more alerts than resetting random other measurem
 The Random Forest score is the share of its trees voting "attack" - good for ranking
 alerts, but not a guaranteed probability (false alarms can score 99%).
 
-The idea (several anomaly models working together) follows
-[SentinelAI](https://github.com/ayaan-cs/SentinelAI), named in the UNICC task sheet.
-SentinelAI trains on made-up traffic; this sensor is trained and scored on public
-labelled data, as the evaluation sheet asks for public ground truth:
+**Every alert also says what to do** (see "Actionable alerts" below): its likely attack type,
+a priority (High / Medium / Low), how sure the sensor is, and a suggested first step.
+
+The sensor is trained and scored on public labelled data, as the evaluation sheet asks for
+public ground truth (see "How this compares with SentinelAI" for the tool the sheet names):
 
 | Dataset | Traffic | Measurements per connection | Test |
 |---|---|---|---|
@@ -48,6 +49,55 @@ was used. One setting, the anomaly models' false-alarm budget, was re-chosen for
 (5% to 2%) on its training data after the first test run gave 89.1% precision; its report
 says so. `python -m network_sensor.calibrate --dataset cicids2017` repeats that choice.
 
+## Actionable alerts
+
+Task 5.0 asks for "clear, actionable insights into why activities were flagged". Besides the
+reasons above, every alert says:
+
+| | What it is | Where it comes from |
+|---|---|---|
+| **Likely attack type** | the known attack family the connection most resembles, e.g. "Likely: Web Attack" | a fourth model (another Random Forest) trained on the labelled **attacks** only. It never decides whether a connection is flagged, so the detection results above are unchanged |
+| **Priority** | High, Medium or Low: how much is at stake | a fixed rule (below), not learned |
+| **Certainty** | how sure the sensor is: all three models, the Random Forest alone, or only the two anomaly models | the models' votes |
+| **Next step** | one suggested first action for that type of attack | written per attack family in `datasets.py` and `cicids2017.py` |
+| **Where** | addresses and ports, if the file has those columns (CICFlowMeter's full output does) | the uploaded file; never used by the models |
+
+**Priority rule.** A known-pattern alert gets what its likely attack type could do if it succeeds:
+
+- **High** - could give an attacker control of a machine, an account or data
+  (NSL-KDD: R2L, U2R; CIC-IDS2017: Brute Force, Web Attack, Botnet, Infiltration, Heartbleed)
+- **Medium** - could make a service unavailable (DoS, DDoS)
+- **Low** - information gathering only (Probe, PortScan)
+
+A possible new attack (raised only by the two anomaly models) is **Medium**: its type is
+unknown, so it shows the *closest* known type with low certainty. Certainty is shown next to
+the priority, not mixed into it: the Random Forest is rarely sure about rare attack types (on a
+validation slice of the NSL-KDD training data, 1 of 11 U2R attacks scored 90% or more, against
+99.8% of DoS attacks), so lowering the priority of unsure alerts would push the rarest, most
+damaging types down the list. Alerts are listed High first.
+
+Measured on the test parts (the reports' "Actionable alerts" section has the details per family):
+
+| | NSL-KDD | CIC-IDS2017 |
+|---|---|---|
+| Likely attack type right (known-pattern alerts on real attacks) | 97.1% (7,658 of 7,885) | 100.0% (156,033 of 156,061) |
+| High-priority alerts that were real attacks | 99.5% of 182 | 94.2% of 6,212 |
+| Medium-priority alerts that were real attacks | 98.4% of 7,525 | 94.7% of 108,718 |
+| Low-priority alerts that were real attacks | 89.8% of 1,888 | 99.4% of 47,498 |
+
+On NSL-KDD, even for caught attacks of the 17 types never seen in training, the family was named correctly for 71.2% (1,568 of 2,202). On CIC-IDS2017 the type is almost always right, but as with detection that number is optimistic: its test flows come from the same recording, and the same attacks, as its training flows.
+
+Example (CIC-IDS2017):
+
+> **High** - Known pattern - Likely: Heartbleed. Matches known attack patterns (Random Forest score 100%), and both anomaly models found it abnormal.
+> - Average data per packet from the destination: 3,808 bytes (normal: usually 0 bytes to 718 bytes). Higher than any normal connection seen in training.
+> - Certainty: High: all three models flagged it (Random Forest score 100%). Where: Destination Port 444
+> - **Next step:** Someone may be exploiting the Heartbleed bug. Update OpenSSL on the target server now, then replace its certificates and keys and make users log in again, because secrets may have leaked.
+
+The dashboard shows the priority, type and next step on every alert, can show only one
+priority level, and draws two charts: alerts by priority and alerts by likely type (and, in
+live mode, alerts per second).
+
 ## Run it (Windows PowerShell, in the project folder)
 
 ```powershell
@@ -55,10 +105,10 @@ says so. `python -m network_sensor.calibrate --dataset cicids2017` repeats that 
 pip install -r requirements-network-sensor.txt   # once (already installed in most setups)
 
 python -m network_sensor.download_data   # downloads NSL-KDD (~22 MB), checks fingerprints
-python -m network_sensor.train           # trains the three models (under a minute)
+python -m network_sensor.train           # trains the three models and the attack-type classifier (under a minute)
 python -m network_sensor.evaluate        # precision / recall report on the official test file
 
-python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live test_network_sensor_cicids2017 -v   # automatic checks
+python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live test_network_sensor_cicids2017 test_network_sensor_actions -v   # automatic checks
 ```
 
 **CIC-IDS2017** (optional, larger): download `MachineLearningCSV.zip` from the
@@ -72,6 +122,10 @@ python -m network_sensor.evaluate --dataset cicids2017   # longer: also retrains
 python -m network_sensor.calibrate --dataset cicids2017  # optional: how the anomaly share was chosen
 ```
 
+**Updating from an earlier version?** Train both sensors again once (`train`, then
+`evaluate`). Sensors trained before attack types existed still work, but their alerts have no
+likely type, priority or next step, and the dashboard says so.
+
 Everything the commands create goes into `data/network_sensor/` (ignored by git):
 the datasets, the trained models, and the reports (`reports/evaluation_report.md` / `.json`,
 and `reports/cicids2017/` for CIC-IDS2017).
@@ -83,7 +137,7 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 | Endpoint | What it does |
 |---|---|
 | `GET /api/v1/network/status` | Is the sensor trained? When? Latest evaluation score. |
-| `POST /api/v1/network/scan` | Upload a file of connections (form field `file`); get back the alerts, most serious first, each with its explanation. |
+| `POST /api/v1/network/scan` | Upload a file of connections (form field `file`); get back the alerts, highest priority first, each with its explanation, likely attack type, priority, certainty and next step, plus counts of all alerts by priority and by type. |
 | `POST /api/v1/network/live/start?speed=100` | Start a live replay of an uploaded file at 10, 100 or 1,000 connections per second. |
 | `POST /api/v1/network/live/{id}/next` | Check what has "arrived" since the last call (the dashboard calls this once a second). |
 | `POST /api/v1/network/live/{id}/stop` | Stop a live replay early. |
@@ -113,15 +167,29 @@ at the top of a live feed, with counters and the time each second of traffic too
 check. `python -m network_sensor.evaluate` measures these times on your computer and
 writes them in the report's "Speed" section.
 
-- It is a **replay of recorded traffic**, not a capture of this computer's own network:
-  working out the measurements from live packets needs extra tools (for the CIC-IDS2017
-  format, CICFlowMeter does exactly this).
+- It is a **replay of recorded traffic**, not a capture of this computer's own network
+  (see "Not done: capturing live traffic" below).
+- Each alert in the feed shows its priority, likely type and next step; the counters
+  include the number of High-priority alerts, and a chart shows the alerts found each second.
 - Only the user who started a replay can see or stop it. One replay per user; at most
   3 on the whole server. A replay nobody has checked on for 10 minutes is dropped.
 - The start and the end of every replay (completed, stopped, or logged out) go in the
   audit log, with the file's fingerprint, the speed and the number of alerts.
 - Replays are kept in the server's memory, so they assume one server process (the
   normal `uvicorn backend.api.main:app`).
+
+### Not done: capturing live traffic
+
+To watch a real network, a flow meter would sit where it can see the traffic (for example a
+copy of a switch's traffic), turn packets into connection records, and pass them to the sensor
+in batches, the way live mode does with a file. For the CIC-IDS2017 format that tool is
+CICFlowMeter, which wrote that dataset's measurements. This is not done here because:
+
+- capturing packets needs administrator rights and permission to watch the network (privacy);
+- the measurements must be computed exactly as in the training data, or the models see
+  something different (the 2017 CICFlowMeter output already has quirks, such as the
+  mislabelled TCP flag columns described in the CIC-IDS2017 report);
+- it is a deployment step on UNICC's own network rather than part of the sensor.
 
 ## Run it in Docker
 
@@ -184,7 +252,8 @@ AI summaries are off); set them for real use.
 | `datasets.py` | NSL-KDD: reads the files, adds `is_attack` and the attack family (DoS, Probe, R2L, U2R), plain-English wording |
 | `cicids2017.py` | CIC-IDS2017: checks the zip's fingerprints, reads and splits it, plain-English wording |
 | `features.py` | checks input (no missing columns, text in number columns, impossible values) and converts it to model inputs |
-| `models.py` | the three models, the decision rule, saving and loading |
+| `models.py` | the three models, the decision rule, the attack-type classifier, saving and loading |
+| `actions.py` | makes alerts actionable: priority rule, certainty, next step, where, counts for the charts |
 | `explain.py` | the normal-traffic profile and the plain-English reason for each alert |
 | `train.py` | trains on a dataset's training part and saves the model |
 | `evaluate.py` | scores the model on the test part, checks the explanations, writes the report |
@@ -200,6 +269,24 @@ AI summaries are off); set them for real use.
   Only load model files you trained yourself; never commit them or accept them from others.
 - Downloaded data is checked against fixed SHA-256 fingerprints before it is used.
 
+## How this compares with SentinelAI
+
+The UNICC task sheet names [SentinelAI](https://github.com/ayaan-cs/SentinelAI) as an example
+tool. This sensor follows its idea (several anomaly models working together, with explanations)
+but not its code:
+
+| | SentinelAI (from its README) | This sensor | Why the difference |
+|---|---|---|---|
+| Models | Isolation Forest, One-Class SVM, DBSCAN | Isolation Forest, One-Class SVM, Random Forest, plus a Random Forest for the attack type | a model trained on labelled attacks recognises known attacks directly |
+| Training and test data | synthetic traffic it generates itself (with the Faker library) | public labelled datasets: NSL-KDD and CIC-IDS2017 | the evaluation sheet asks for public ground truth, not synthetic benchmarks |
+| Measured precision | none published | 96.7% (NSL-KDD), 96.1% (CIC-IDS2017) | Task 5.0 is scored on precision |
+| Explanations | "feature importance" and human-readable insights | up to 3 plain-English reasons per alert, checked to be true | an analyst must be able to trust the reasons |
+| Attack type and severity | lists 4 attack types it detects; High / Medium / Low from anomaly-score thresholds | likely type with measured accuracy; High / Medium / Low from what the type can do; certainty shown separately; a next step | priority means "what is at stake" |
+| Real time | analyses the flows it generates "as they happen" | replays recorded files at up to 1,000 connections per second | neither captures live traffic (SentinelAI lists it as a future extension) |
+| Where it runs | a separate Streamlit dashboard | inside this app, with login, roles and an audit log | |
+
+Both use only free, open-source libraries, so neither has a licence cost.
+
 ## Known limitations
 
 - NSL-KDD comes from 1998 traffic; CIC-IDS2017 from a 2017 test network. Real UNICC traffic
@@ -211,3 +298,7 @@ AI summaries are off); set them for real use.
   its training file has very few examples of them. The evaluation reports show results per family.
 - CIC-IDS2017 has no official training/test split, and researchers have found some wrong
   labels in it; its report explains how the split was made and what that means.
+- The likely attack type can only be one of the families in the training data. For a
+  possible new attack it is just the closest known family, shown with low certainty.
+- The priority rule and the next steps are general first steps written for each attack
+  family, not a replacement for UNICC's own incident-response procedures.

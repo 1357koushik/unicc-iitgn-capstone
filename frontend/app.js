@@ -919,6 +919,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     lines.push(textElement("p", "No evaluation report yet. On the server, run: " +
                         `python -m network_sensor.evaluate${option}`, "muted-text"));
                 }
+                if (d.attack_types === false) {
+                    const option = d.dataset === "nsl_kdd" ? "" : ` --dataset ${d.dataset}`;
+                    lines.push(textElement("p", `${d.title}: this sensor was trained before attack types were ` +
+                        "added, so its alerts have no likely type, priority or next step. On the server, run: " +
+                        `python -m network_sensor.train${option}`, "muted-text"));
+                }
             }
             showInBox("sensor-status", ...lines);
         } catch (e) {
@@ -966,6 +972,33 @@ document.addEventListener("DOMContentLoaded", () => {
         return tile;
     }
 
+    // A small horizontal bar chart, made of plain page elements. The bar widths are set
+    // from JavaScript (element.style), which the page's security policy allows; it
+    // blocks only style="..." written into the page itself.
+    function barChart(title, items, fillClass) {
+        const box = document.createElement("div");
+        box.className = "chart-box";
+        box.appendChild(textElement("h3", title, "chart-title"));
+        const max = Math.max(1, ...items.map(i => i.alerts));
+        items.forEach(i => {
+            const row = document.createElement("div");
+            row.className = "bar-row";
+            const track = document.createElement("div");
+            track.className = "bar-track";
+            const fill = document.createElement("div");
+            fill.className = fillClass(i.name);
+            fill.style.width = `${(100 * i.alerts / max).toFixed(1)}%`;
+            track.appendChild(fill);
+            row.append(textElement("span", i.name, "bar-label"), track,
+                textElement("span", i.alerts.toLocaleString(), "bar-value"));
+            box.appendChild(row);
+        });
+        return box;
+    }
+
+    const priorityClass = (name) => `bar-fill priority-${String(name).toLowerCase()}`;
+    const typeClass = (name) => name === "Possible new attack" ? "bar-fill new" : "bar-fill";
+
     function renderScan(data) {
         const tiles = document.createElement("div");
         tiles.className = "stat-row";
@@ -982,6 +1015,15 @@ document.addEventListener("DOMContentLoaded", () => {
             parts.push(textElement("p",
                 `Compared with the labels in this file: precision ${pct(c.precision)}, attacks caught ${pct(c.recall)}, ` +
                 `${c.false_positives.toLocaleString()} false alarm(s). The labels were not used to decide.`, "label-check"));
+        }
+        if (data.alerts_total > 0 && data.by_type) {
+            const charts = document.createElement("div");
+            charts.className = "chart-row";
+            if (data.attack_types !== false) {
+                charts.appendChild(barChart("Alerts by priority", data.by_priority, priorityClass));
+            }
+            charts.appendChild(barChart("Alerts by likely attack type", data.by_type, typeClass));
+            parts.push(charts);
         }
         if (data.alerts_shown < data.alerts_total) {
             parts.push(textElement("p", `Showing ${data.alerts_shown.toLocaleString()} of ` +
@@ -1003,16 +1045,49 @@ document.addEventListener("DOMContentLoaded", () => {
     // match any attack the Random Forest learned, but looks clearly abnormal.
     const isPossibleNewAttack = (alert) => alert.votes.random_forest === 0;
 
+    // Priority badge; sensors trained before attack types existed have none.
+    function priorityBadge(alert) {
+        if (!alert.priority) {
+            const none = textElement("span", "-", "muted-text");
+            none.title = alert.priority_reason || "";
+            return none;
+        }
+        const badge = textElement("span", alert.priority, `priority-badge ${alert.priority.toLowerCase()}`);
+        badge.title = `Priority ${alert.priority}: ${alert.priority_reason}`;
+        return badge;
+    }
+
+    function typeText(alert) {
+        const t = alert.attack_type;
+        if (!t) return null;
+        return t.matches_known_pattern
+            ? `Likely: ${t.likely} (${pct(t.confidence)} of the type model's votes)`
+            : `Closest known type: ${t.likely} (low certainty - not a known pattern)`;
+    }
+
+    // Where the connection came from and went to, if the file has those columns.
+    const whereText = (where) => Object.entries(where).map(([k, v]) => `${k} ${v}`).join(", ");
+
+    function alertMatchesFilter(alert, filter) {
+        if (filter === "all") return true;
+        if (filter === "known") return !isPossibleNewAttack(alert);
+        if (filter === "new") return isPossibleNewAttack(alert);
+        return alert.priority === filter;            // "High", "Medium" or "Low"
+    }
+
     function renderAlerts() {
         const filter = document.getElementById("alert-filter").value;
-        const shown = lastScanAlerts.filter(a =>
-            filter === "all" || (filter === "new") === isPossibleNewAttack(a));
+        const shown = lastScanAlerts.filter(a => alertMatchesFilter(a, filter));
         const rows = shown.map(alert => {
             const isNew = isPossibleNewAttack(alert);
             const tr = document.createElement("tr");
+            const priorityCell = document.createElement("td");
+            priorityCell.appendChild(priorityBadge(alert));
             const kindCell = document.createElement("td");
             kindCell.appendChild(textElement("span", isNew ? "Possible new attack" : "Known pattern",
                 isNew ? "kind-badge new" : "kind-badge known"));
+            const type = typeText(alert);
+            if (type) kindCell.appendChild(textElement("div", type, "alert-type"));
 
             const why = document.createElement("td");
             why.appendChild(textElement("div", alert.decision, "alert-decision"));
@@ -1023,10 +1098,13 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 why.appendChild(textElement("div", "No single measurement is unusual on its own.", "muted-text"));
             }
+            if (alert.certainty) why.appendChild(textElement("div", `Certainty: ${alert.certainty}`, "alert-meta"));
+            if (alert.where) why.appendChild(textElement("div", `Where: ${whereText(alert.where)}`, "alert-meta"));
+            if (alert.next_step) why.appendChild(textElement("div", `Next step: ${alert.next_step}`, "next-step"));
             if (alert.label_in_file !== undefined) {
                 why.appendChild(textElement("div", `Label in file: ${alert.label_in_file}`, "alert-label"));
             }
-            tr.append(textElement("td", String(alert.row)), kindCell,
+            tr.append(textElement("td", String(alert.row)), priorityCell, kindCell,
                 textElement("td", alert.flagged_by.join(", ")),
                 textElement("td", pct(alert.random_forest_score)), why);
             return tr;
@@ -1048,6 +1126,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const liveStartBtn = document.getElementById("live-start-btn");
     const liveStopBtn = document.getElementById("live-stop-btn");
     let liveReplay = null;               // { id, timer } while a replay runs
+    const LIVE_CHART_SECONDS = 60;
+    let liveHistory = [];                // alerts found in each check, newest last
 
     function setLiveRunning(running) {
         liveStartBtn.hidden = running;
@@ -1135,8 +1215,16 @@ document.addEventListener("DOMContentLoaded", () => {
             statTile(t.alerts.toLocaleString(), "Alerts"),
             statTile(t.possible_new_attacks.toLocaleString(), "Possible new attacks"),
             statTile(`${t.average_check_ms} ms`, "Check time per second of traffic"));
+        const high = (t.by_priority || []).find(p => p.name === "High");
+        if (high) tiles.append(statTile(high.alerts.toLocaleString(), "High priority"));
         if (t.label_check) tiles.append(statTile(pct(t.label_check.precision), "Precision so far (labels)"));
         showInBox("live-stats", tiles);
+
+        if (step.batch_size > 0) {
+            liveHistory.push(step.alerts_in_step);
+            if (liveHistory.length > LIVE_CHART_SECONDS) liveHistory.shift();
+            renderLiveChart();
+        }
 
         const feed = document.getElementById("live-feed");
         const now = new Date().toLocaleTimeString();
@@ -1145,13 +1233,17 @@ document.addEventListener("DOMContentLoaded", () => {
             const item = document.createElement("li");
             const head = document.createElement("div");
             head.className = "live-alert-head";
-            head.append(textElement("span", now, "live-time"),
+            head.append(textElement("span", now, "live-time"), priorityBadge(alert),
                 textElement("span", isNew ? "Possible new attack" : "Known pattern",
                     isNew ? "kind-badge new" : "kind-badge known"),
                 textElement("span", `Row ${alert.row}`, "live-row"));
             item.append(head, textElement("div", alert.decision, "alert-decision"),
                 textElement("div", alert.reasons.length ? alert.reasons[0].text
                     : "No single measurement is unusual on its own.", "live-reason"));
+            const type = typeText(alert);
+            if (type) item.appendChild(textElement("div", type, "alert-type"));
+            if (alert.where) item.appendChild(textElement("div", `Where: ${whereText(alert.where)}`, "alert-meta"));
+            if (alert.next_step) item.appendChild(textElement("div", `Next step: ${alert.next_step}`, "next-step"));
             if (alert.label_in_file !== undefined) {
                 item.appendChild(textElement("div", `Label in file: ${alert.label_in_file}`, "alert-label"));
             }
@@ -1162,6 +1254,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 "more alert(s) in that second (counted above, not listed).", "muted-text"));
         }
         while (feed.children.length > LIVE_FEED_MAX) feed.lastElementChild.remove();
+    }
+
+    // Alerts found in each check (one per second of traffic) as a row of small bars.
+    function renderLiveChart() {
+        const max = Math.max(1, ...liveHistory);
+        const bars = liveHistory.map(n => {
+            const bar = document.createElement("div");
+            bar.className = n > 0 ? "spark-bar" : "spark-bar empty";
+            bar.style.height = `${Math.max(2, Math.round(100 * n / max))}%`;
+            bar.title = `${n.toLocaleString()} alert(s)`;
+            return bar;
+        });
+        document.getElementById("live-chart").replaceChildren(...bars);
+        document.getElementById("live-chart-box").hidden = false;
     }
 
     function endLiveReplay(message) {
@@ -1196,6 +1302,9 @@ document.addEventListener("DOMContentLoaded", () => {
     function resetLivePanel() {
         document.getElementById("live-feed").replaceChildren();
         document.getElementById("live-stats").replaceChildren();
+        liveHistory = [];
+        document.getElementById("live-chart").replaceChildren();
+        document.getElementById("live-chart-box").hidden = true;
         const progress = document.getElementById("live-progress");
         progress.value = 0;
         progress.hidden = true;

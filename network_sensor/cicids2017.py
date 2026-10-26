@@ -90,6 +90,30 @@ FAMILY_MEANINGS = {
     "Infiltration": "an attacker inside the network after a malicious download",
     "Heartbleed": "exploiting the Heartbleed bug to read a server's memory",
 }
+# What each family could do if it succeeds (see actions.py for how this sets an
+# alert's priority), and one suggested first step for an analyst.
+FAMILY_IMPACT = {"DoS": "Medium", "DDoS": "Medium", "PortScan": "Low", "Brute Force": "High",
+                 "Web Attack": "High", "Botnet": "High", "Infiltration": "High", "Heartbleed": "High"}
+FAMILY_ACTIONS = {
+    "DoS": "Check whether the web server is slowing down or failing. If it is, rate-limit or block the "
+           "source at the firewall or load balancer and tell the team that runs the server.",
+    "DDoS": "Many machines may be flooding the server. Check that it is still reachable, turn on rate "
+            "limiting, and ask the network provider about filtering upstream if the traffic keeps growing.",
+    "PortScan": "Someone is scanning for open ports. Check which ports the scan reached and close any that "
+                "should not be open; block the source if it is outside the organisation.",
+    "Brute Force": "Someone may be guessing FTP or SSH passwords. Check the server's login log for successful "
+                   "logins from this source, lock affected accounts, and block the source or limit login attempts.",
+    "Web Attack": "Check the web server's request log for this connection (password guessing, SQL injection "
+                  "or cross-site scripting attempts), confirm the site rejects such input, and block the "
+                  "source if the attempts continue.",
+    "Botnet": "A machine inside the network may be infected and taking orders from an attacker. Isolate it, "
+              "scan it for malware, and block the address it is talking to.",
+    "Infiltration": "An attacker may already be inside the network. Isolate the internal machine involved, "
+                    "check what it downloaded and connected to, and start incident response.",
+    "Heartbleed": "Someone may be exploiting the Heartbleed bug. Update OpenSSL on the target server now, "
+                  "then replace its certificates and keys and make users log in again, because secrets may "
+                  "have leaked.",
+}
 
 # Every column of the official files (names without their leading spaces), in order.
 ALL_COLUMNS = [
@@ -298,6 +322,8 @@ CICIDS2017_SPEC = DatasetSpec(
     yes_no_columns=frozenset(),
     families=FAMILIES,
     family_meanings=FAMILY_MEANINGS,
+    family_impact=FAMILY_IMPACT,
+    family_actions=FAMILY_ACTIONS,
     family_of=family_of,
     normal_label=NORMAL_LABEL,
     format_value=format_value,

@@ -686,3 +686,120 @@ tr:hover {
 }
 
 .live-reason { font-size: 0.875rem; }
+
+/* Network Sensor - actionable alerts: priority, likely type, next step */
+.priority-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.priority-badge.high { background: var(--error-color); color: #ffffff; }
+.priority-badge.medium { background: #f6e3b4; color: #6b4a00; }
+.priority-badge.low { background: #e3e8ee; color: #3b4450; }
+
+.alert-type {
+    font-size: 0.8rem;
+    margin-top: 0.35rem;
+}
+
+.alert-meta {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    overflow-wrap: anywhere;
+}
+
+.next-step {
+    margin-top: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    border-left: 3px solid var(--primary-color);
+    background: #f3f6fb;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+/* Network Sensor - charts (plain elements; bar sizes are set from app.js) */
+.chart-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.chart-box {
+    flex: 1 1 280px;
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.chart-box[hidden] { display: none; }
+
+#live-chart-box { margin-bottom: 1rem; }
+
+.chart-title {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+}
+
+.bar-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 10rem) 1fr 4rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.bar-label { overflow-wrap: anywhere; }
+
+.bar-track {
+    background: #eef1f4;
+    border-radius: 4px;
+    height: 0.8rem;
+    overflow: hidden;
+}
+
+.bar-fill {
+    background: var(--primary-color);
+    border-radius: 4px;
+    height: 100%;
+}
+
+.bar-fill.new { background: var(--accent-color); }
+.bar-fill.priority-high { background: var(--error-color); }
+.bar-fill.priority-medium { background: #c98a00; }
+.bar-fill.priority-low { background: #8a96a3; }
+
+.bar-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.spark-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 4rem;
+}
+
+/* 60 slots (one per second), filled from the left */
+.spark-bar {
+    flex: 0 0 calc((100% - 118px) / 60);
+    min-width: 2px;
+    background: var(--error-color);
+    border-radius: 2px 2px 0 0;
+}
+
+.spark-bar.empty { background: #d5dbe1; }

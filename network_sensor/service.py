@@ -3,7 +3,8 @@ What the web app uses to run the network sensor (kept out of backend/api/main.py
 that file only needs two short endpoints).
 
   read_connections(file_bytes) - turns an uploaded file into a table, or refuses it
-  sensor.scan(table)           - checks every connection and returns ranked alerts
+  sensor.scan(table)           - checks every connection and returns ranked alerts, each
+                                 with its likely attack type, priority and next step
   sensor.status()              - is the sensor trained, and how well did it score?
   live                         - live replays (see live.py)
 
@@ -22,6 +23,7 @@ from typing import Optional
 
 import pandas as pd
 
+from network_sensor.actions import IDENTITY_COLUMNS, priority_rank, summarise, where_of
 from network_sensor.cicids2017 import clean_label
 from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS
 from network_sensor.errors import ScanError
@@ -39,7 +41,7 @@ MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few 
 # possible new attacks would never be shown. The totals are always reported.
 MAX_ALERTS_PER_KIND = 300
 MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag / port names are short
-TEXT_COLUMNS = ("protocol_type", "service", "flag", "Destination Port", "label")
+TEXT_COLUMNS = ("protocol_type", "service", "flag", "label") + IDENTITY_COLUMNS
 
 
 def _decode(content: bytes) -> str:
@@ -167,6 +169,7 @@ class SensorService:
             "dataset": dataset,
             "title": spec.title,
             "ready": True,
+            "attack_types": model.has_attack_types,     # False: trained before attack types existed
             "trained_at": info.get("trained_at"),
             "training_connections": info.get("training_rows"),
             "decision_rule": info.get("decision_rule"),
@@ -202,12 +205,16 @@ class SensorService:
             if e["verdict"] != "attack":
                 continue
             alert = {"row": i + 1, **e}
+            where = where_of(connections, i)
+            if where:
+                alert["where"] = where
             if has_labels:
                 alert["label_in_file"] = connections["label"].iat[i]
             alerts.append(alert)
-        # Most serious first: alerts all three models agree on, then by Random Forest score.
+        # Most serious first: highest priority, then alerts all three models agree on,
+        # then by Random Forest score.
         def seriousness(a):
-            return (-sum(a["votes"].values()), -a["random_forest_score"], a["row"])
+            return (priority_rank(a), -sum(a["votes"].values()), -a["random_forest_score"], a["row"])
 
         known = sorted((a for a in alerts if a["votes"]["random_forest"] == 1), key=seriousness)
         new = sorted((a for a in alerts if a["votes"]["random_forest"] == 0), key=seriousness)
@@ -222,6 +229,8 @@ class SensorService:
             "possible_new_attacks": len(new),
             "alerts_shown": len(shown),
             "max_alerts_per_kind": MAX_ALERTS_PER_KIND,
+            **summarise(alerts),                          # counts of ALL alerts, for the charts
+            "attack_types": model.has_attack_types,
             "alerts": shown,
             "model": {"trained_at": model.training_info.get("trained_at"),
                       "decision_rule": model.training_info.get("decision_rule")},

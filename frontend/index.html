@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNICC Cyber AI Gateway</title>
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
     <div id="app">
@@ -153,7 +153,7 @@
                 <div id="network-tab" class="tab-content">
                     <div class="glass-panel">
                         <h2>Network Sensor</h2>
-                        <p class="section-intro">Checks a file of network connection records for attacks. Three machine-learning models check each other, and every alert says why it was raised.</p>
+                        <p class="section-intro">Checks a file of network connection records for attacks. Three machine-learning models check each other, and every alert says why it was raised, its likely attack type, how urgent it is and what to check first.</p>
                         <div id="sensor-status" class="sensor-status">
                             <p class="placeholder-text">Checking the sensor...</p>
                         </div>
@@ -175,6 +175,9 @@
                                 <option value="all">All alerts</option>
                                 <option value="known">Known attack patterns</option>
                                 <option value="new">Possible new attacks (anomaly models only)</option>
+                                <option value="High">High priority</option>
+                                <option value="Medium">Medium priority</option>
+                                <option value="Low">Low priority</option>
                             </select>
                         </div>
                         <div class="table-container">
@@ -182,10 +185,11 @@
                                 <thead>
                                     <tr>
                                         <th>Row</th>
-                                        <th>Kind</th>
+                                        <th title="How much is at stake: High = could give an attacker control of a machine, an account or data; Medium = could make a service unavailable or an unknown kind of attack; Low = information gathering only.">Priority</th>
+                                        <th>Kind and likely type</th>
                                         <th>Raised by</th>
                                         <th title="Random Forest score: the share of its decision trees voting 'attack'. Use it to rank alerts; it is not a guaranteed probability.">Score</th>
-                                        <th>Why it was flagged</th>
+                                        <th>Why it was flagged, and what to do</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -210,6 +214,10 @@
                         <p id="live-status" class="muted-text">Not running.</p>
                         <progress id="live-progress" max="1" value="0" hidden></progress>
                         <div id="live-stats"></div>
+                        <div id="live-chart-box" class="chart-box" hidden>
+                            <h3 class="chart-title">Alerts per second (last 60 seconds)</h3>
+                            <div id="live-chart" class="spark-chart"></div>
+                        </div>
                         <ul id="live-feed" class="live-feed"></ul>
                     </div>
                 </div>
@@ -276,6 +284,6 @@
     
     <div id="toast-container"></div>
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>
