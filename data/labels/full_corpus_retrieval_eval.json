@@ -1,0 +1,2922 @@
+{
+  "corpus_total_records": 362301,
+  "test_cve_queries": 160,
+  "original_id_masked_queries": {
+    "query_source": "NVD description text with CVE identifier stripped",
+    "layer1_triggered_count": 0,
+    "layer2_deciding_count": 160,
+    "precision_at_1": 0.7937,
+    "precision_at_1_pct": 79.38,
+    "clopper_pearson_95_ci": [
+      72.27,
+      85.36
+    ],
+    "mrr_at_10": 0.8656,
+    "rank_distribution": {
+      "rank_1": 127,
+      "rank_2_to_5": 24,
+      "rank_6_to_10": 5,
+      "rank_gt_10_or_missed": 4
+    }
+  },
+  "harder_paraphrased_queries": {
+    "query_source": "Shortened Product + Vulnerability Type without copied sentences",
+    "layer1_triggered_count": 0,
+    "layer2_deciding_count": 160,
+    "precision_at_1": 0.1688,
+    "precision_at_1_pct": 16.88,
+    "clopper_pearson_95_ci": [
+      11.43,
+      23.59
+    ],
+    "mrr_at_10": 0.2258,
+    "rank_distribution": {
+      "rank_1": 27,
+      "rank_2_to_5": 18,
+      "rank_6_to_10": 7,
+      "rank_gt_10_or_missed": 108
+    }
+  },
+  "details": [
+    {
+      "cve": "CVE-2017-0037",
+      "target_doc_id": "CVE-2017-0037_KEV",
+      "query_original": "Microsoft Edge and Internet Explorer Type Confusion Vulnerability",
+      "query_harder": "Software application type confusion",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-10172",
+      "target_doc_id": "CVE-2017-10172",
+      "query_original": "Vulnerability in the Oracle Retail Open Commerce Platform component of Oracle Retail Applications (subcomponent: Framework)",
+      "query_harder": "Oracle Retail Open Commerce Platform remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2017-10206",
+      "target_doc_id": "CVE-2017-10206",
+      "query_original": "Vulnerability in the Oracle Hospitality Simphony component of Oracle Hospitality Applications (subcomponent: Engagement)",
+      "query_harder": "Oracle Hospitality Simphony component of denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2017-10803",
+      "target_doc_id": "CVE-2017-10803",
+      "query_original": "In Odoo 8.0, Odoo Community Edition 9.0 and 10.0, and Odoo Enterprise Edition 9.0 and 10.0, insecure handling of anonymization data in the Database Anonymization module allows",
+      "query_harder": "In Odoo 8.0 security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-11666",
+      "target_doc_id": "CVE-2017-11666",
+      "query_original": "Cross-site scripting (XSS) vulnerability in js/ViewerPanel.js in the file previewer plugin in Kopano WebApp versions 3.3.0 and earlier allows remote attackers to inject arbitrary",
+      "query_harder": "Cross-site scripting cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-12233",
+      "target_doc_id": "CVE-2017-12233_KEV",
+      "query_original": "Cisco IOS Software Common Industrial Protocol Request Denial-of-Service Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-13023",
+      "target_doc_id": "CVE-2017-13023",
+      "query_original": "The IPv6 mobility parser in tcpdump before 4.9.2 has a buffer over-read in print-mobility.c:mobility_opt_print()",
+      "query_harder": "The IPv6 mobility parser in security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-14522",
+      "target_doc_id": "CVE-2017-14522",
+      "query_original": "In WonderCMS 2.3.1, the application's input fields accept arbitrary user input resulting in execution of malicious JavaScript",
+      "query_harder": "In WonderCMS 2.3.1 security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 22,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-16574",
+      "target_doc_id": "CVE-2017-16574",
+      "query_original": "This vulnerability allows remote attackers to disclose sensitive information on vulnerable installations of Foxit Reader 8.3.1.21155",
+      "query_harder": "This security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-17132",
+      "target_doc_id": "CVE-2017-17132",
+      "query_original": "Huawei VP9660 V500R002C10 has a uncontrolled format string vulnerability when the license module output the log information",
+      "query_harder": "Huawei VP9660 V500R002C10 has a denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2017-17579",
+      "target_doc_id": "CVE-2017-17579",
+      "query_original": "FS Freelancer Clone 1.0 has SQL Injection via the profile.php u parameter",
+      "query_harder": "FS Freelancer Clone 1.0 has SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2017-18368",
+      "target_doc_id": "CVE-2017-18368_KEV",
+      "query_original": "Zyxel P660HN-T1A Routers Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-6740",
+      "target_doc_id": "CVE-2017-6740_KEV",
+      "query_original": "Cisco IOS and IOS XE Software SNMP Remote Code Execution Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-8291",
+      "target_doc_id": "CVE-2017-8291_KEV",
+      "query_original": "Artifex Ghostscript Type Confusion Vulnerability",
+      "query_harder": "Software application type confusion",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-9728",
+      "target_doc_id": "CVE-2017-9728",
+      "query_original": "In uClibc 0.9.33.2, there is an out-of-bounds read in the get_subexp function in misc/regex/regexec.c when processing a crafted regular expression",
+      "query_harder": "In uClibc 0.9.33.2 buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2017-9822",
+      "target_doc_id": "CVE-2017-9822_KEV",
+      "query_original": "DotNetNuke (DNN) Remote Code Execution Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-0161",
+      "target_doc_id": "CVE-2018-0161_KEV",
+      "query_original": "Cisco IOS Software Resource Management Errors Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-14634",
+      "target_doc_id": "CVE-2018-14634_KEV",
+      "query_original": "Linux Kernel Integer Overflow Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-14657",
+      "target_doc_id": "CVE-2018-14657",
+      "query_original": "A flaw was found in Keycloak 4.2.1.Final, 4.3.0.Final",
+      "query_harder": "Target application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-14933",
+      "target_doc_id": "CVE-2018-14933_KEV",
+      "query_original": "NUUO NVRmini Devices OS Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-15160",
+      "target_doc_id": "CVE-2018-15160",
+      "query_original": "The libesedb_catalog_definition_read function in libesedb_catalog_definition.c in libesedb through 2018-04-01 allows remote attackers to cause a heap-based buffer over-read via a",
+      "query_harder": "The libesedb_catalog_definition_read function in libesedb_catalog_definition.c security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2018-15876",
+      "target_doc_id": "CVE-2018-15876",
+      "query_original": "An issue was discovered in the ajax-bootmodal-login plugin 1.4.3 for WordPress. The register form, login form, and password-recovery form require solving a CAPTCHA to perform",
+      "query_harder": "Target application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-17200",
+      "target_doc_id": "CVE-2018-17200",
+      "query_original": "The Apache OFBiz HTTP engine (org.apache.ofbiz.service.engine.HttpEngine.java) handles requests for HTTP services via the /webtools/control/httpService endpoint",
+      "query_harder": "The Apache OFBiz HTTP engine security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 34,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-17391",
+      "target_doc_id": "CVE-2018-17391",
+      "query_original": "SQL Injection exists in authors_post.php in Super Cms Blog Pro 1.0 via the author parameter",
+      "query_harder": "SQL Injection exists in authors_post.php SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2018-19082",
+      "target_doc_id": "CVE-2018-19082",
+      "query_original": "An issue was discovered on Foscam Opticam i5 devices with System Firmware 1.5.2.11 and Application Firmware 2.21.1.128. The ONVIF devicemgmt SetDNS method allows remote attackers",
+      "query_harder": "Target application buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-20138",
+      "target_doc_id": "CVE-2018-20138",
+      "query_original": "PHP Scripts Mall Entrepreneur B2B Script 3.0.6 allows Stored XSS via Account Settings fields such as FirstName and LastName, a similar issue to",
+      "query_harder": "PHP Scripts Mall Entrepreneur B2B cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-20442",
+      "target_doc_id": "CVE-2018-20442",
+      "query_original": "Technicolor TC7110.B STC8.62.02 devices allow remote attackers to discover Wi-Fi credentials via iso.3.6.1.4.1.2863.205.10.1.30.4.1.14.1.3.32 and",
+      "query_harder": "Technicolor TC7110.B STC8.62.02 devices allow security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2018-20753",
+      "target_doc_id": "CVE-2018-20753_KEV",
+      "query_original": "Kaseya VSA Remote Code Execution Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-4344",
+      "target_doc_id": "CVE-2018-4344_KEV",
+      "query_original": "Apple Multiple Products Memory Corruption Vulnerability",
+      "query_harder": "Software application memory corruption",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-6254",
+      "target_doc_id": "CVE-2018-6254",
+      "query_original": "In Android before the 2018-05-05 security patch level, NVIDIA Media Server contains an out-of-bounds read (due to improper input validation) vulnerability which could lead to",
+      "query_harder": "In Android buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-8021",
+      "target_doc_id": "CVE-2018-8021",
+      "query_original": "Versions of Superset prior to 0.23 used an unsafe load method from the pickle library to deserialize data leading to possible remote code execution",
+      "query_harder": "Target application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2018-8373",
+      "target_doc_id": "CVE-2018-8373_KEV",
+      "query_original": "Microsoft Scripting Engine Memory Corruption Vulnerability",
+      "query_harder": "Software application memory corruption",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-0541",
+      "target_doc_id": "CVE-2019-0541_KEV",
+      "query_original": "Microsoft MSHTML Remote Code Execution Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-1000020",
+      "target_doc_id": "CVE-2019-1000020",
+      "query_original": "libarchive version commit 5a98dcf8a86364b3c2c469c85b93647dfb139961 onwards (version v2.8.0 onwards) contains a CWE-835: Loop with Unreachable Exit Condition ('Infinite Loop')",
+      "query_harder": "libarchive denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-10068",
+      "target_doc_id": "CVE-2019-10068_KEV",
+      "query_original": "Kentico Xperience Deserialization of Untrusted Data Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-11543",
+      "target_doc_id": "CVE-2019-11543",
+      "query_original": "XSS exists in the admin web console in Pulse Secure Pulse Connect Secure (PCS) 9.0RX before 9.0R3.4, 8.3RX before 8.3R7.1, and 8.1RX before 8.1R15.1 and Pulse Policy Secure 9.0RX",
+      "query_harder": "XSS exists in the admin cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-11708",
+      "target_doc_id": "CVE-2019-11708_KEV",
+      "query_original": "Mozilla Firefox and Thunderbird Sandbox Escape Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-13272",
+      "target_doc_id": "CVE-2019-13272_KEV",
+      "query_original": "Linux Kernel Improper Privilege Management Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-16920",
+      "target_doc_id": "CVE-2019-16920_KEV",
+      "query_original": "D-Link Multiple Routers Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-17659",
+      "target_doc_id": "CVE-2019-17659",
+      "query_original": "A use of hard-coded cryptographic key vulnerability in FortiSIEM version 5.2.6 may allow a remote unauthenticated attacker to obtain SSH access to the supervisor as the restricted",
+      "query_harder": "use of hard-coded cryptographic key security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-18224",
+      "target_doc_id": "CVE-2019-18224",
+      "query_original": "idn2_to_ascii_4i in lib/lookup.c in GNU libidn2 before 2.1.1 has a heap-based buffer overflow via a long domain string",
+      "query_harder": "idn2_to_ascii_4i in lib buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2019-3778",
+      "target_doc_id": "CVE-2019-3778",
+      "query_original": "Spring Security OAuth, versions 2.3 prior to 2.3.5, and 2.2 prior to 2.2.4, and 2.1 prior to 2.1.4, and 2.0 prior to 2.0.17, and older unsupported versions could be susceptible to",
+      "query_harder": "Spring Security OAuth remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 28,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-5292",
+      "target_doc_id": "CVE-2019-5292",
+      "query_original": "Honor 10 Lite, Honor 8A, Huawei Y6 mobile phones with the versions before 9.1.0.217(C00E215R3P1), the versions before 9.1.0.205(C00E97R1P9), the versions before",
+      "query_harder": "Honor 10 Lite information disclosure",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-5445",
+      "target_doc_id": "CVE-2019-5445",
+      "query_original": "DoS in EdgeMAX EdgeSwitch prior to 1.8.2 allow an Admin user to Crash the SSH CLI interface by using crafted commands",
+      "query_harder": "DoS in EdgeMAX EdgeSwitch prior denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2019-6279",
+      "target_doc_id": "CVE-2019-6279",
+      "query_original": "ChinaMobile PLC Wireless Router GPN2.4P21-C-CN devices with firmware W2001EN-00 have an Incorrect Access Control vulnerability via the cgi-bin/webproc?getpage=html/index.html",
+      "query_harder": "ChinaMobile PLC Wireless Router GPN2.4P21-C-CN security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 5,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2019-7551",
+      "target_doc_id": "CVE-2019-7551",
+      "query_original": "Cantemo Portal before 3.2.13, 3.3.x before 3.3.8, and 3.4.x before 3.4.9 has XSS. Leveraging this vulnerability would enable performing actions as users, including administrative",
+      "query_harder": "Cantemo Portal cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2019-7738",
+      "target_doc_id": "CVE-2019-7738",
+      "query_original": "C.P.Sub before 5.3 allows CSRF via a manage.php?p=article_del&id= URI",
+      "query_harder": "C.P.Sub security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2019-9670",
+      "target_doc_id": "CVE-2019-9670_KEV",
+      "query_original": "Synacor Zimbra Collaboration Suite (ZCS) Improper Restriction of XML External Entity Reference",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-0944",
+      "target_doc_id": "CVE-2020-0944",
+      "query_original": "An elevation of privilege vulnerability exists when Connected User Experiences and Telemetry Service improperly handles file operations, aka 'Connected User Experiences and",
+      "query_harder": "elevation of privilege privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-11261",
+      "target_doc_id": "CVE-2020-11261_KEV",
+      "query_original": "Qualcomm Multiple Chipsets Improper Input Validation Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-1141",
+      "target_doc_id": "CVE-2020-1141",
+      "query_original": "An information disclosure vulnerability exists in the way that the Windows Graphics Device Interface (GDI) handles objects in memory, allowing an attacker to retrieve information",
+      "query_harder": "information disclosure remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 9,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-12815",
+      "target_doc_id": "CVE-2020-12815",
+      "query_original": "An improper neutralization of input vulnerability in FortiTester before 3.9.0 may allow a remote authenticated attacker to inject script related HTML tags via IPv4/IPv6 address",
+      "query_harder": "improper neutralization of input FortiTester security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2020-14724",
+      "target_doc_id": "CVE-2020-14724",
+      "query_original": "Vulnerability in the Oracle Solaris product of Oracle Systems (component: Device Driver Utility)",
+      "query_harder": "Oracle Solaris product of Oracle security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 42,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-15328",
+      "target_doc_id": "CVE-2020-15328",
+      "query_original": "Zyxel CloudCNM SecuManager 3.1.0 and 3.1.1 has weak /opt/axess/var/blobstorage/ permissions",
+      "query_harder": "Zyxel CloudCNM SecuManager 3.1.0 and security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-16009",
+      "target_doc_id": "CVE-2020-16009_KEV",
+      "query_original": "Google Chromium V8 Type Confusion Vulnerability",
+      "query_harder": "Software application type confusion",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-17496",
+      "target_doc_id": "CVE-2020-17496_KEV",
+      "query_original": "vBulletin PHP Module Remote Code Execution Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-25068",
+      "target_doc_id": "CVE-2020-25068",
+      "query_original": "Setelsa Conacwin v3.7.1.2 is vulnerable to a local file inclusion vulnerability",
+      "query_harder": "Setelsa Conacwin v3.7.1.2 is vulnerable path traversal",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2020-27376",
+      "target_doc_id": "CVE-2020-27376",
+      "query_original": "Dr Trust USA iCheck Connect BP Monitor BP Testing 118 version 1.2.1 is vulnerable to Missing Authentication",
+      "query_harder": "Dr Trust USA iCheck Connect security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2020-36908",
+      "target_doc_id": "CVE-2020-36908",
+      "query_original": "SnapGear Management Console SG560 version 3.1.5 contains a cross-site request forgery vulnerability that allows attackers to perform administrative actions without user consent",
+      "query_harder": "SnapGear Management Console SG560 security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-6572",
+      "target_doc_id": "CVE-2020-6572_KEV",
+      "query_original": "Google Chrome Media Use-After-Free Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-6819",
+      "target_doc_id": "CVE-2020-6819_KEV",
+      "query_original": "Mozilla Firefox And Thunderbird Use-After-Free Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-7474",
+      "target_doc_id": "CVE-2020-7474",
+      "query_original": "A CWE-427: Uncontrolled Search Path Element vulnerability exists in ProSoft Configurator (v1.002 and prior), for the PMEPXM0100 (H) module, which could cause the execution of",
+      "query_harder": "A CWE-427 security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 9,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2020-8092",
+      "target_doc_id": "CVE-2020-8092",
+      "query_original": "A privilege escalation vulnerability in BDLDaemon as used in Bitdefender Antivirus for Mac allows a local attacker to obtain authentication tokens for requests submitted to the",
+      "query_harder": "privilege escalation BDLDaemon as used privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2020-9819",
+      "target_doc_id": "CVE-2020-9819_KEV",
+      "query_original": "Apple iOS, iPadOS, and watchOS Memory Corruption Vulnerability",
+      "query_harder": "Software application denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-1447",
+      "target_doc_id": "CVE-2021-1447",
+      "query_original": "A vulnerability in the user account management system of Cisco AsyncOS for Cisco Content Security Management Appliance (SMA) could allow an authenticated, local attacker to",
+      "query_harder": "user account management system of security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 49,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-20124",
+      "target_doc_id": "CVE-2021-20124_KEV",
+      "query_original": "Draytek VigorConnect Path Traversal Vulnerability",
+      "query_harder": "Software application path traversal",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-21112",
+      "target_doc_id": "CVE-2021-21112",
+      "query_original": "Use after free in Blink in Google Chrome prior to 87.0.4280.141 allowed a remote attacker to potentially exploit heap corruption via a crafted HTML page",
+      "query_harder": "Use after free in Blink security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 33,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-26398",
+      "target_doc_id": "CVE-2021-26398",
+      "query_original": "Insufficient input validation in SYS_KEY_DERIVE system call in a compromised user application or ABL may allow an attacker to corrupt ASP (AMD Secure Processor) OS memory which",
+      "query_harder": "Insufficient input validation in SYS_KEY_DERIVE remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2021-29067",
+      "target_doc_id": "CVE-2021-29067",
+      "query_original": "Certain NETGEAR devices are affected by authentication bypass",
+      "query_harder": "Certain NETGEAR devices are affected authentication bypass",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 48,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 48,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-29256",
+      "target_doc_id": "CVE-2021-29256_KEV",
+      "query_original": "Arm Mali GPU Kernel Driver Use-After-Free Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 4,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-30665",
+      "target_doc_id": "CVE-2021-30665_KEV",
+      "query_original": "Apple Multiple Products WebKit Memory Corruption Vulnerability",
+      "query_harder": "Software application memory corruption",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-35242",
+      "target_doc_id": "CVE-2021-35242",
+      "query_original": "Serv-U server responds with valid CSRFToken when the request contains only Session",
+      "query_harder": "Serv-U server responds with valid security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2021-3663",
+      "target_doc_id": "CVE-2021-3663",
+      "query_original": "firefly-iii is vulnerable to Improper Restriction of Excessive Authentication Attempts",
+      "query_harder": "firefly-iii is vulnerable to Improper security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-40449",
+      "target_doc_id": "CVE-2021-40449_KEV",
+      "query_original": "Microsoft Windows Win32k Privilege Escalation Vulnerability",
+      "query_harder": "Software application privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-41773",
+      "target_doc_id": "CVE-2021-41773_KEV",
+      "query_original": "Apache HTTP Server Path Traversal Vulnerability",
+      "query_harder": "Software application path traversal",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-42287",
+      "target_doc_id": "CVE-2021-42287_KEV",
+      "query_original": "Microsoft Active Directory Domain Services Privilege Escalation Vulnerability",
+      "query_harder": "Software application privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-43608",
+      "target_doc_id": "CVE-2021-43608",
+      "query_original": "Doctrine DBAL 3.x before 3.1.4 allows SQL Injection",
+      "query_harder": "Doctrine DBAL 3.x SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-44675",
+      "target_doc_id": "CVE-2021-44675",
+      "query_original": "Zoho ManageEngine ServiceDesk Plus MSP before 10.5 Build 10534 is vulnerable to unauthenticated remote code execution due to a filter bypass in which authentication is not required",
+      "query_harder": "Zoho ManageEngine ServiceDesk Plus MSP remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-45683",
+      "target_doc_id": "CVE-2021-45683",
+      "query_original": "An issue was discovered in the binjs_io crate through 2021-01-03 for Rust. The Read method may read from uninitialized memory locations",
+      "query_harder": "Target application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2021-46687",
+      "target_doc_id": "CVE-2021-46687",
+      "query_original": "JFrog Artifactory prior to version 7.31.10 and 6.23.38 is vulnerable to Sensitive Data Exposure through the Project Administrator REST API",
+      "query_harder": "JFrog Artifactory prior to security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-21587",
+      "target_doc_id": "CVE-2022-21587_KEV",
+      "query_original": "Oracle E-Business Suite Unspecified Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-24521",
+      "target_doc_id": "CVE-2022-24521_KEV",
+      "query_original": "Microsoft Windows CLFS Driver Privilege Escalation Vulnerability",
+      "query_harder": "Software application privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-2586",
+      "target_doc_id": "CVE-2022-2586_KEV",
+      "query_original": "Linux Kernel Use-After-Free Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-26318",
+      "target_doc_id": "CVE-2022-26318_KEV",
+      "query_original": "WatchGuard Firebox and XTM Appliances Arbitrary Code Execution",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-29093",
+      "target_doc_id": "CVE-2022-29093",
+      "query_original": "Dell SupportAssist Client Consumer versions (3.10.4 and versions prior) and Dell SupportAssist Client Commercial versions (3.1.1 and versions prior) contain an arbitrary file",
+      "query_harder": "Dell SupportAssist Client Consumer security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-31802",
+      "target_doc_id": "CVE-2022-31802",
+      "query_original": "In CODESYS Gateway Server V2 for versions prior to V2.3.9.38 only a part of the the specified password is been compared to the real CODESYS Gateway password",
+      "query_harder": "In CODESYS Gateway Server V2 security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2022-34590",
+      "target_doc_id": "CVE-2022-34590",
+      "query_original": "Hospital Management System v1.0 was discovered to contain a SQL injection vulnerability via the editid parameter in /HMS/admin.php",
+      "query_harder": "Hospital Management System v1.0 was SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-40878",
+      "target_doc_id": "CVE-2022-40878",
+      "query_original": "In Exam Reviewer Management System 1.0, an authenticated attacker can upload a web-shell php file in profile page to achieve Remote Code Execution (RCE)",
+      "query_harder": "In Exam Reviewer Management System remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2022-41125",
+      "target_doc_id": "CVE-2022-41125_KEV",
+      "query_original": "Microsoft Windows CNG Key Isolation Service Privilege Escalation Vulnerability",
+      "query_harder": "Software application privilege escalation",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-41592",
+      "target_doc_id": "CVE-2022-41592",
+      "query_original": "The phones have the heap overflow, out-of-bounds read, and null pointer vulnerabilities in the fingerprint trusted application (TA).Successful exploitation of this vulnerability",
+      "query_harder": "The phones have the heap buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2022-43354",
+      "target_doc_id": "CVE-2022-43354",
+      "query_original": "Sanitization Management System v1.0 was discovered to contain a SQL injection vulnerability via the id parameter at /admin/?page=orders/manage_request",
+      "query_harder": "Sanitization Management System v1.0 was SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-43601",
+      "target_doc_id": "CVE-2022-43601",
+      "query_original": "Multiple code execution vulnerabilities exist in the IFFOutput::close() functionality of OpenImageIO Project OpenImageIO v2.4.4.2",
+      "query_harder": "Multiple code execution vulnerabilities exist remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-43769",
+      "target_doc_id": "CVE-2022-43769_KEV",
+      "query_original": "Hitachi Vantara Pentaho BA Server Special Element Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-44488",
+      "target_doc_id": "CVE-2022-44488",
+      "query_original": "Adobe Experience Manager version 6.5.14 (and earlier) is affected by a URL Redirection to Untrusted Site ('Open Redirect') vulnerability",
+      "query_harder": "Adobe Experience Manager security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-48820",
+      "target_doc_id": "CVE-2022-48820",
+      "query_original": "In the Linux kernel, the following vulnerability has been resolved: phy: stm32: fix a refcount leak in stm32_usbphyc_pll_enable() This error path needs to decrement",
+      "query_harder": "In the Linux kernel security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2022-50434",
+      "target_doc_id": "CVE-2022-50434",
+      "query_original": "In the Linux kernel, the following vulnerability has been resolved: blk-mq: fix possible memleak when register 'hctx' failed There's issue as follows when do fault injection test",
+      "query_harder": "In the Linux kernel security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-0896",
+      "target_doc_id": "CVE-2023-0896",
+      "query_original": "A default password was reported in Lenovo Smart Clock Essential with Alexa Built In that could allow unauthorized device access to an attacker with local network access",
+      "query_harder": "default password was reported in security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2023-1671",
+      "target_doc_id": "CVE-2023-1671_KEV",
+      "query_original": "Sophos Web Appliance Command Injection Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-22515",
+      "target_doc_id": "CVE-2023-22515_KEV",
+      "query_original": "Atlassian Confluence Data Center and Server Broken Access Control Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-23970",
+      "target_doc_id": "CVE-2023-23970",
+      "query_original": "Unrestricted Upload of File with Dangerous Type vulnerability in WooRockets Corsa.This issue affects Corsa: from n/a through 1.5",
+      "query_harder": "Unrestricted Upload of File with security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-27532",
+      "target_doc_id": "CVE-2023-27532_KEV",
+      "query_original": "Veeam Backup & Replication Cloud Connect Missing Authentication for Critical Function Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-29185",
+      "target_doc_id": "CVE-2023-29185",
+      "query_original": "SAP NetWeaver AS for ABAP (Business Server Pages) - versions 700, 701, 702, 731, 740, 750, 751, 752, 753, 754, 755, 756, 757, allows an attacker authenticated as a",
+      "query_harder": "SAP NetWeaver AS for ABAP remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-34553",
+      "target_doc_id": "CVE-2023-34553",
+      "query_original": "An issue was discovered in WAFU Keyless Smart Lock v1.0 allows attackers to unlock a device via code replay attack",
+      "query_harder": "Target application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-39216",
+      "target_doc_id": "CVE-2023-39216",
+      "query_original": "Improper input validation in Zoom Desktop Client for Windows before 5.14.7 may allow an unauthenticated user to enable an escalation of privilege via network access",
+      "query_harder": "Improper input validation in Zoom security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 12,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-49103",
+      "target_doc_id": "CVE-2023-49103_KEV",
+      "query_original": "ownCloud graphapi Information Disclosure Vulnerability",
+      "query_harder": "Software application information disclosure",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-49897",
+      "target_doc_id": "CVE-2023-49897_KEV",
+      "query_original": "FXC AE1021, AE1021PE OS Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-51495",
+      "target_doc_id": "CVE-2023-51495",
+      "query_original": "Missing Authorization vulnerability in Woo WooCommerce Warranty Requests.This issue affects WooCommerce Warranty Requests: from n/a through 2.2.7",
+      "query_harder": "Missing Authorization Woo WooCommerce Warranty remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-52389",
+      "target_doc_id": "CVE-2023-52389",
+      "query_original": "UTF32Encoding.cpp in POCO has a Poco::UTF32Encoding integer overflow and resultant stack buffer overflow because Poco::UTF32Encoding::convert() and Poco::UTF32::queryConvert() may",
+      "query_harder": "UTF32Encoding.cpp in POCO has a buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2023-52431",
+      "target_doc_id": "CVE-2023-52431",
+      "query_original": "The Plack::Middleware::XSRFBlock package before 0.0.19 for Perl allows attackers to bypass a CSRF protection mechanism via an empty form value and an empty cookie (if signed",
+      "query_harder": "The Plack security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-52656",
+      "target_doc_id": "CVE-2023-52656",
+      "query_original": "In the Linux kernel, the following vulnerability has been resolved: io_uring: drop any code related to SCM_RIGHTS This is dead code after we dropped support for passing io_uring",
+      "query_harder": "In the Linux kernel security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-5353",
+      "target_doc_id": "CVE-2023-5353",
+      "query_original": "Improper Access Control in GitHub repository salesagility/suitecrm prior to 7.14.1",
+      "query_harder": "Improper Access Control in GitHub security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 14,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2023-6448",
+      "target_doc_id": "CVE-2023-6448_KEV",
+      "query_original": "Unitronics Vision PLC and HMI Insecure Default Password Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-11496",
+      "target_doc_id": "CVE-2024-11496",
+      "query_original": "The Infility Global plugin for WordPress is vulnerable to unauthorized modification of data due to a missing capability check on the infility_global_ajax function in all versions",
+      "query_harder": "The Infility Global plugin for security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-12356",
+      "target_doc_id": "CVE-2024-12356_KEV",
+      "query_original": "BeyondTrust Privileged Remote Access (PRA) and Remote Support (RS) Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-12839",
+      "target_doc_id": "CVE-2024-12839",
+      "query_original": "The login mechanism via device authentication of CGFIDO from Changing Information Technology has an Authentication Bypass vulnerability",
+      "query_harder": "The login mechanism via device authentication bypass",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2024-20353",
+      "target_doc_id": "CVE-2024-20353_KEV",
+      "query_original": "Cisco ASA and FTD Denial of Service Vulnerability",
+      "query_harder": "Software application denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-20439",
+      "target_doc_id": "CVE-2024-20439_KEV",
+      "query_original": "Cisco Smart Licensing Utility Static Credential Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-27957",
+      "target_doc_id": "CVE-2024-27957",
+      "query_original": "Unrestricted Upload of File with Dangerous Type vulnerability in Pie Register.This issue affects Pie Register: from n/a through 3.8.3.1",
+      "query_harder": "Unrestricted Upload of File with security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-29824",
+      "target_doc_id": "CVE-2024-29824_KEV",
+      "query_original": "Ivanti Endpoint Manager (EPM) SQL Injection Vulnerability",
+      "query_harder": "Software application SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-3400",
+      "target_doc_id": "CVE-2024-3400_KEV",
+      "query_original": "Palo Alto Networks PAN-OS Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 9,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-35225",
+      "target_doc_id": "CVE-2024-35225",
+      "query_original": "Jupyter Server Proxy allows users to run arbitrary external processes alongside their notebook server and provide authenticated web access to them",
+      "query_harder": "Jupyter Server Proxy cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 5,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-38392",
+      "target_doc_id": "CVE-2024-38392",
+      "query_original": "Pexip Infinity Connect before 1.13.0 lacks sufficient authenticity checks during the loading of resources, and thus remote attackers can cause the application to run untrusted code",
+      "query_harder": "Pexip Infinity Connect remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-38475",
+      "target_doc_id": "CVE-2024-38475_KEV",
+      "query_original": "Apache HTTP Server Improper Escaping of Output Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-39025",
+      "target_doc_id": "CVE-2024-39025",
+      "query_original": "Incorrect access control in the /users endpoint of Cpacker MemGPT v0.3.17 allows attackers to access sensitive data",
+      "query_harder": "Incorrect access control in the security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-48938",
+      "target_doc_id": "CVE-2024-48938",
+      "query_original": "Znuny before LTS 6.5.1 through 6.5.10 and 7.0.1 through 7.0.16 allows DoS/ReDos via email",
+      "query_harder": "Znuny denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 14,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-52963",
+      "target_doc_id": "CVE-2024-52963",
+      "query_original": "A out-of-bounds write in Fortinet FortiOS versions 7.6.0, 7.4.0 through 7.4.6, 7.2.0 through 7.2.10, 7.0.0 through 7.0.16, 6.4.0 through 6.4.15 allows attacker to trigger a denial",
+      "query_harder": "out-of-bounds write in Fortinet FortiOS denial of service",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 4,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2024-58307",
+      "target_doc_id": "CVE-2024-58307",
+      "query_original": "CSZCMS 1.3.0 contains an authenticated SQL injection vulnerability in the members view functionality that allows authenticated attackers to manipulate database queries",
+      "query_harder": "CSZCMS 1.3.0 contains an authenticated SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2024-7961",
+      "target_doc_id": "CVE-2024-7961",
+      "query_original": "A path traversal vulnerability exists in the Rockwell Automation affected product",
+      "query_harder": "path traversal remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 38,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-0111",
+      "target_doc_id": "CVE-2025-0111_KEV",
+      "query_original": "Palo Alto Networks PAN-OS File Read Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-11063",
+      "target_doc_id": "CVE-2025-11063",
+      "query_original": "A vulnerability was identified in Campcodes Online Learning Management System 1.0",
+      "query_harder": "Target application SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-12620",
+      "target_doc_id": "CVE-2025-12620",
+      "query_original": "The Poll Maker \u2013 Versus Polls, Anonymous Polls, Image Polls plugin for WordPress is vulnerable to generic SQL Injection via the 'filterbyauthor' parameter in all versions up to",
+      "query_harder": "The Poll Maker SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 30,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-12871",
+      "target_doc_id": "CVE-2025-12871",
+      "query_original": "The a+HRD developed by aEnrich has an Authentication Abuse vulnerability, allowing unauthenticated remote attackers to craft administrator access tokens and use them to access the",
+      "query_harder": "The a security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-21042",
+      "target_doc_id": "CVE-2025-21042_KEV",
+      "query_original": "Samsung Mobile Devices Out-of-Bounds Write Vulnerability",
+      "query_harder": "Software application buffer overflow",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-22855",
+      "target_doc_id": "CVE-2025-22855",
+      "query_original": "An improper neutralization of input during web page generation ('Cross-site Scripting') [CWE-79] vulnerability in Fortinet FortiClient before 7.4.1 may allow the EMS administrator",
+      "query_harder": "improper neutralization of input during cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-24383",
+      "target_doc_id": "CVE-2025-24383",
+      "query_original": "Dell Unity, version(s) 5.4 and prior, contain(s) an Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection') vulnerability",
+      "query_harder": "Dell Unity security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 10,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 42,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-25257",
+      "target_doc_id": "CVE-2025-25257_KEV",
+      "query_original": "Fortinet FortiWeb SQL Injection Vulnerability",
+      "query_harder": "Software application SQL injection",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-27363",
+      "target_doc_id": "CVE-2025-27363_KEV",
+      "query_original": "FreeType Out-of-Bounds Write Vulnerability",
+      "query_harder": "Software application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 6,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-40536",
+      "target_doc_id": "CVE-2025-40536_KEV",
+      "query_original": "SolarWinds Web Help Desk Security Control Bypass Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-44862",
+      "target_doc_id": "CVE-2025-44862",
+      "query_original": "TOTOLINK CA300-POE V6.2c.884_B20180522 was found to contain a command injection vulnerability in the recvUpgradeNewFw function via the fwUrl parameter",
+      "query_harder": "TOTOLINK CA300-POE V6.2c.884_B20180522 was found security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2025-47641",
+      "target_doc_id": "CVE-2025-47641",
+      "query_original": "Unrestricted Upload of File with Dangerous Type vulnerability in printcart Printcart Web to Print Product Designer for WooCommerce printcart-integration allows Upload a Web Shell",
+      "query_harder": "Unrestricted Upload of File with remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-49549",
+      "target_doc_id": "CVE-2025-49549",
+      "query_original": "Adobe Commerce versions 2.4.8, 2.4.7-p5, 2.4.6-p10, 2.4.5-p12, 2.4.4-p13 and earlier are affected by an Incorrect Authorization vulnerability that could result in a Security",
+      "query_harder": "Adobe Commerce remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-66568",
+      "target_doc_id": "CVE-2025-66568",
+      "query_original": "The ruby-saml library implements the client side of an SAML authorization. Versions up to and including 1.12.4, are vulnerable to authentication bypass through the libxml2",
+      "query_harder": "The ruby-saml library implements the authentication bypass",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2025-66644",
+      "target_doc_id": "CVE-2025-66644_KEV",
+      "query_original": "Array Networks ArrayOS AG OS Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2025-8460",
+      "target_doc_id": "CVE-2025-8460",
+      "query_original": "Improper Neutralization of Input During Web Page Generation (XSS or 'Cross-site Scripting') vulnerability in Centreon Infra Monitoring (Notification rules, Open tickets module)",
+      "query_harder": "Improper Neutralization of Input During cross site scripting",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-16812",
+      "target_doc_id": "CVE-2026-16812_KEV",
+      "query_original": "Arista VeloCloud Orchestrator On-Prem OS Command Injection Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-21533",
+      "target_doc_id": "CVE-2026-21533_KEV",
+      "query_original": "Microsoft Windows Improper Privilege Management Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 6,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-30948",
+      "target_doc_id": "CVE-2026-30948",
+      "query_original": "Parse Server is an open source backend that can be deployed to any infrastructure that can run Node.js. Prior to 9.5.2-alpha.4 and 8.6.17, a stored cross-site scripting (XSS)",
+      "query_harder": "Parse Server is an open remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 5,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-32202",
+      "target_doc_id": "CVE-2026-32202_KEV",
+      "query_original": "Microsoft Windows Protection Mechanism Failure Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-34486",
+      "target_doc_id": "CVE-2026-34486_KEV",
+      "query_original": "Apache Tomcat Missing Encryption of Sensitive Data Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-35616",
+      "target_doc_id": "CVE-2026-35616_KEV",
+      "query_original": "Fortinet FortiClient EMS Improper Access Control Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-43379",
+      "target_doc_id": "CVE-2026-43379",
+      "query_original": "In the Linux kernel, the following vulnerability has been resolved: ksmbd: fix use-after-free in smb_lazy_parent_lease_break_close() opinfo pointer obtained via",
+      "query_harder": "In the Linux kernel security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-4587",
+      "target_doc_id": "CVE-2026-4587",
+      "query_original": "A vulnerability was found in HybridAuth up to 3.12.2",
+      "query_harder": "Target application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-54305",
+      "target_doc_id": "CVE-2026-54305",
+      "query_original": "n8n is an open source workflow automation platform. Prior to 1.123.55, 2.25.7, and 2.26.2, three EE endpoints used by the Dynamic Credentials feature accepted any authenticated",
+      "query_harder": "n8n is an open source remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-55569",
+      "target_doc_id": "CVE-2026-55569",
+      "query_original": "aqua is a declarative command-line version manager written in Go. Prior to 2.60.1, pkg/unarchive/archives.go in the handler.HandleFile method calls os.Symlink with",
+      "query_harder": "aqua is a declarative command-line security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      }
+    },
+    {
+      "cve": "CVE-2026-56290",
+      "target_doc_id": "CVE-2026-56290_KEV",
+      "query_original": "Joomlack Page Builder Improper Access Control Vulnerability",
+      "query_harder": "Software application security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-7076",
+      "target_doc_id": "CVE-2026-7076",
+      "query_original": "A vulnerability was determined in itsourcecode Courier Management System 1.0",
+      "query_harder": "Target application remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": null,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-72733",
+      "target_doc_id": "CVE-2026-72733",
+      "query_original": "Dokploy is a free, self-hostable Platform as a Service (PaaS). Prior to 0.29.13, the backup.restoreBackupWithLogs tRPC subscription builds database restore shell pipelines from",
+      "query_harder": "Dokploy is a free security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 44,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-75429",
+      "target_doc_id": "CVE-2026-75429",
+      "query_original": "PowerJob versions 4.x through 5.1.2 contain an unauthenticated remote code execution vulnerability in the /friend/process endpoint of the Server-Worker transport layer",
+      "query_harder": "PowerJob remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 3,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-7763",
+      "target_doc_id": "CVE-2026-7763",
+      "query_original": "A heap-based buffer overflow vulnerability in the morse.ko HaLow Wi-Fi kernel driver in Morse Micro HaLowLink 2 software versions prior to 2.11.13 allows an unauthenticated",
+      "query_harder": "heap-based buffer overflow morse.ko HaLow remote code execution",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 2,
+        "top1_hit": false
+      }
+    },
+    {
+      "cve": "CVE-2026-9920",
+      "target_doc_id": "CVE-2026-9920",
+      "query_original": "Uninitialized Use in GPU in Google Chrome on Android prior to 148.0.7778.216 allowed a remote attacker who had compromised the renderer process to leak cross-origin data via a",
+      "query_harder": "Uninitialized Use in GPU in security vulnerability",
+      "original": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 1,
+        "top1_hit": true
+      },
+      "harder": {
+        "layer1_triggered": false,
+        "deciding_layer": "Layer 2 (Model)",
+        "full_corpus_rank": 7,
+        "top1_hit": false
+      }
+    }
+  ]
+}

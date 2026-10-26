@@ -182,23 +182,58 @@ def build_from_sqlite(
     text_column: str = "enriched_text",
     k1: float = DEFAULT_K1,
     b: float = DEFAULT_B,
+    cache_path: str | Path | None = None,
 ) -> BM25Index:
     """
-    Build a BM25 index from the SQLite ``corpus`` table.
+    Build or load a BM25 index from the SQLite ``corpus`` table with optional persistence (R33).
 
     ``enriched_text`` (the Strategy-C context that was actually embedded) is used
     by default so lexical and dense sides see the same surface text; pass
     ``text_column="text"`` to index only the raw prose.
     """
+    import pickle
+    from pathlib import Path
+
     if text_column not in {"text", "enriched_text"}:
         raise ValueError("text_column must be 'text' or 'enriched_text'")
 
+    if cache_path:
+        cp = Path(cache_path)
+        if cp.is_file():
+            try:
+                with open(cp, "rb") as f:
+                    cached_idx = pickle.load(f)
+                logger.info("Loaded cached BM25 index from %s (%d docs).", cp, len(cached_idx._doc_len))
+                return cached_idx
+            except Exception as exc:
+                logger.warning("Failed to load cached BM25 index from %s: %s; rebuilding.", cp, exc)
+
     idx = BM25Index(k1=k1, b=b)
-    cursor = conn.execute(f"SELECT chunk_id, {text_column} FROM corpus")
-    count = 0
-    for chunk_id, text in cursor:
-        idx.add(chunk_id, text or "")
-        count += 1
-    idx.finalize()
+    should_close = False
+    if isinstance(conn, (str, Path)):
+        import sqlite3
+        conn = sqlite3.connect(str(conn))
+        should_close = True
+    try:
+        cursor = conn.execute(f"SELECT chunk_id, {text_column} FROM corpus")
+        count = 0
+        for chunk_id, text in cursor:
+            idx.add(chunk_id, text or "")
+            count += 1
+        idx.finalize()
+    finally:
+        if should_close:
+            conn.close()
     logger.info("Built BM25 index from SQLite — %d documents.", count)
+
+    if cache_path and count > 0:
+        try:
+            cp = Path(cache_path)
+            cp.parent.mkdir(parents=True, exist_ok=True)
+            with open(cp, "wb") as f:
+                pickle.dump(idx, f, protocol=pickle.HIGHEST_PROTOCOL)
+            logger.info("Saved BM25 index cache to %s.", cp)
+        except Exception as exc:
+            logger.warning("Could not persist BM25 index to %s: %s", cache_path, exc)
+
     return idx
