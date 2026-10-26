@@ -35,6 +35,7 @@
                 <div class="nav-links">
                     <!-- data-roles: which roles see this tab (shown by app.js after login) -->
                     <button class="nav-tab" data-target="investigate-tab" data-roles="investigator admin" hidden>Investigate</button>
+                    <button class="nav-tab" data-target="poc-tab" data-roles="investigator admin" hidden>PoC Discovery</button>
                     <button class="nav-tab" data-target="network-tab" data-roles="investigator admin" hidden>Network Sensor</button>
                     <button class="nav-tab" data-target="audit-tab" data-roles="auditor admin" hidden>Audit Logs</button>
                     <button class="nav-tab" data-target="admin-tab" data-roles="admin" hidden>System Config</button>
@@ -86,6 +87,63 @@
                                 </select>
                                 <textarea id="decision-notes" placeholder="Notes..." maxlength="5000"></textarea>
                                 <button id="submit-decision-btn" class="btn primary-btn">Submit Decision</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                                <!-- PoC Discovery Tab -->
+                <div id="poc-tab" class="tab-content">
+                    <div class="workflow-container">
+                        <div class="glass-panel" style="width: 100%;">
+                            <h2>Multi-Source OSINT PoC Discovery (Task 4)</h2>
+                            <p class="placeholder-text" style="margin-bottom: 1.5rem;">
+                                Search for public Proof-of-Concept exploits across GitHub, X, Mastodon, and Bluesky.
+                                Uses deterministic evidence scoring, anti-deception filters, and cross-source corroboration.
+                            </p>
+                            <form id="poc-search-form" onsubmit="return false;">
+                                <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.25rem;">
+                                    <div class="input-group" style="flex: 2; min-width: 260px; margin-bottom: 0;">
+                                        <label for="poc-cve-input">Target CVE Identifier</label>
+                                        <input type="text" id="poc-cve-input" placeholder="e.g. CVE-2024-3400, CVE-2021-44228" required autocomplete="off">
+                                    </div>
+                                    <div class="input-group" style="flex: 1; min-width: 180px; margin-bottom: 0;">
+                                        <label for="poc-min-confidence">Min Relevance Tier</label>
+                                        <select id="poc-min-confidence">
+                                            <option value="0.0">All Findings (0.0+)</option>
+                                            <option value="0.35">Related Discussions (0.35+)</option>
+                                            <option value="0.45">Possible PoCs (0.45+)</option>
+                                            <option value="0.70" selected>High Relevance Only (0.70+)</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" id="poc-search-btn" class="btn primary-btn" style="height: 44px;">Search OSINT PoCs</button>
+                                </div>
+                                <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+                                    <span style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500;">Sources to Query:</span>
+                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                        <input type="checkbox" id="poc-src-github" checked> GitHub
+                                    </label>
+                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                        <input type="checkbox" id="poc-src-mastodon" checked> Mastodon
+                                    </label>
+                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                        <input type="checkbox" id="poc-src-bluesky" checked> Bluesky
+                                    </label>
+                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                        <input type="checkbox" id="poc-src-x" checked> X (Twitter)
+                                    </label>
+                                </div>
+                            </form>
+
+                            <!-- Source Status Badges -->
+                            <div id="poc-source-statuses" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; margin-bottom: 1.5rem;"></div>
+
+                            <!-- Summary / Stats Banner -->
+                            <div id="poc-stats-banner" style="display: none; padding: 0.75rem 1rem; background: rgba(3, 73, 180, 0.08); border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem;"></div>
+
+                            <!-- Results Container -->
+                            <div id="poc-results-container">
+                                <p class="placeholder-text">Enter a CVE identifier above and click "Search OSINT PoCs" to discover public proof-of-concept repositories and discussions.</p>
                             </div>
                         </div>
                     </div>

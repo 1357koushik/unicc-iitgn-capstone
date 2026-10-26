@@ -105,16 +105,9 @@ def build_qdrant_filter(filters: dict[str, Any] | None) -> Filter | None:
                 )
             )
         elif isinstance(value, (list, tuple, set)):
-            if key == "source_org":
-                # MatchText matches substrings/tokens, suitable for comma-separated source_org strings
-                # Actually, MatchText only takes a string, not a list. So we need to OR multiple MatchText conditions
-                or_conditions = [FieldCondition(key=key, match=MatchText(text=str(v))) for v in value]
-                # Filter(should=[...]) acts as an OR
-                conditions.append(Filter(should=or_conditions))
-            else:
-                conditions.append(
-                    FieldCondition(key=key, match=MatchAny(any=list(value)))
-                )
+            conditions.append(
+                FieldCondition(key=key, match=MatchAny(any=[str(v) for v in value]))
+            )
         else:
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=value))
@@ -161,15 +154,21 @@ def resolve_filter_to_ids(
 def reciprocal_rank_fusion(
     ranked_lists: list[list[str]],
     k: int = DEFAULT_RRF_K,
+    weights: list[float] | None = None,
 ) -> dict[str, float]:
     """
-    Fuse several ranked lists of chunk_ids into one score map.
+    Fuse several ranked lists of chunk_ids into one score map with optional weights (R13).
     ``ranked_lists`` is a list of lists, each already ordered best-first.
     """
     scores: dict[str, float] = {}
-    for ranked in ranked_lists:
+    if weights is None or len(weights) != len(ranked_lists):
+        w_list = [1.0] * len(ranked_lists)
+    else:
+        w_list = weights
+
+    for w, ranked in zip(w_list, ranked_lists):
         for rank, chunk_id in enumerate(ranked, start=1):
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + w * (1.0 / (k + rank))
     return scores
 
 
@@ -211,14 +210,14 @@ class HybridSearcher:
         filters: dict[str, Any] | None = None,
         candidate_k: int = DEFAULT_CANDIDATE_K,
         allowed_sources: list[str] | None = None,
+        alpha: float = 0.5,
     ) -> list[HybridResult]:
         """
-        Run lexical + dense retrieval, fuse with RRF, return the top_k.
+        Run lexical + dense retrieval, fuse with weighted RRF (R13), return the top_k.
         """
         if allowed_sources is not None:
             if filters is None:
                 filters = {}
-            # MatchText allows token matching, which handles comma-separated strings!
             filters["source_org"] = allowed_sources
 
         qfilter = build_qdrant_filter(filters)
@@ -251,8 +250,14 @@ class HybridSearcher:
         lexical_hits = self.bm25.search(query, top_k=candidate_k, allowed_ids=allowed_ids)
         lexical_ranked = [h.chunk_id for h in lexical_hits]
 
-        # --- fuse ---
-        fused = reciprocal_rank_fusion([dense_ranked, lexical_ranked], k=self.rrf_k)
+        # --- fuse (weighted by alpha, R13) ---
+        dense_w = max(0.0, min(1.0, float(alpha))) * 2.0
+        lex_w = max(0.0, min(1.0, 1.0 - float(alpha))) * 2.0
+        fused = reciprocal_rank_fusion(
+            [dense_ranked, lexical_ranked],
+            k=self.rrf_k,
+            weights=[dense_w, lex_w],
+        )
 
         dense_pos = {cid: i + 1 for i, cid in enumerate(dense_ranked)}
         lex_pos = {cid: i + 1 for i, cid in enumerate(lexical_ranked)}

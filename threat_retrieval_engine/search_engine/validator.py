@@ -733,7 +733,7 @@ def parse_cisa_kev_csv(csv_path: Path) -> Generator[ThreatChunk, None, None]:
                     published_date=published_date,
                     section_header="Known Exploited Vulnerability",
                     text=text,
-                    entities=CyberEntities(cves=[cve_id], severity="HIGH"),
+                    entities=CyberEntities(cves=[cve_id], severity="UNKNOWN"),
                 )
                 stats["valid"] += 1
                 yield chunk
@@ -812,7 +812,7 @@ def parse_epss_csv(csv_path: Path) -> Generator[ThreatChunk, None, None]:
                     published_date=datetime.now(timezone.utc),
                     section_header="Exploitation Probability",
                     text=text,
-                    entities=CyberEntities(cves=[cve_id], severity="HIGH" if epss_score >= 0.8 else "MEDIUM"),
+                    entities=CyberEntities(cves=[cve_id], severity="UNKNOWN"),
                 )
                 stats["valid"] += 1
                 yield chunk
