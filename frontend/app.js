@@ -808,53 +808,69 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // The dataset choices an admin can give a user (used by threat matching).
+    const DATASET_CHOICES = [
+        ["ALL", "ALL (Full Access)"],
+        ["INTERNAL", "INTERNAL Only"],
+        ["CISA_KEV", "CISA KEV"],
+        ["NVD", "NVD"],
+        ["MITRE_ATTACK", "MITRE ATT&CK"],
+    ];
+
+    // One row of the user table. Built with textContent (never innerHTML), like the rest
+    // of the page, so a username or other stored value can never put code into the page.
+    function userRow(u) {
+        const current = String(u.allowed_datasets ?? "");
+        const choices = DATASET_CHOICES.slice();
+        // A value set some other way (e.g. "NVD,CISA_KEV") is shown as it is, so saving
+        // the row can never silently change it to the first choice (ALL).
+        if (!choices.some(([value]) => value === current)) {
+            choices.push([current, `Other: ${current || "(none)"}`]);
+        }
+        const select = document.createElement("select");
+        select.className = "dataset-dropdown";
+        select.setAttribute("aria-label", `Allowed datasets for ${u.username}`);
+        choices.forEach(([value, label]) => {
+            const option = textElement("option", label);
+            option.value = value;
+            option.selected = value === current;
+            select.appendChild(option);
+        });
+        const save = textElement("button", "Save", "btn secondary-btn small-btn save-user-btn");
+        save.type = "button";
+        save.addEventListener("click", () => saveUserDatasets(u.id, select.value));
+
+        const selectCell = document.createElement("td");
+        selectCell.appendChild(select);
+        const saveCell = document.createElement("td");
+        saveCell.appendChild(save);
+        const tr = document.createElement("tr");
+        tr.append(textElement("td", u.username), textElement("td", u.role), selectCell, saveCell);
+        return tr;
+    }
+
+    async function saveUserDatasets(userId, datasets) {
+        try {
+            const res = await api(`/api/v1/admin/users/${encodeURIComponent(userId)}/permissions`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ allowed_datasets: datasets })
+            });
+            if (res.ok) showToast("Permissions updated", "success");
+            else showToast("Failed to update", "error");
+        } catch (err) {
+            showToast("Failed to update", "error");
+        }
+    }
+
     async function loadUsers() {
         try {
             const res = await api("/api/v1/admin/users");
             if (res.ok) {
                 const data = await res.json();
-                const tbody = document.querySelector("#users-table tbody");
-                tbody.innerHTML = "";
-                data.forEach(u => {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td>${u.username}</td>
-                        <td>${u.role}</td>
-                        <td>
-                            <select id="ds-${u.id}" class="dataset-dropdown">
-                                <option value="ALL" ${u.allowed_datasets === 'ALL' ? 'selected' : ''}>ALL (Full Access)</option>
-                                <option value="INTERNAL" ${u.allowed_datasets === 'INTERNAL' ? 'selected' : ''}>INTERNAL Only</option>
-                                <option value="CISA_KEV" ${u.allowed_datasets === 'CISA_KEV' ? 'selected' : ''}>CISA KEV</option>
-                                <option value="NVD" ${u.allowed_datasets === 'NVD' ? 'selected' : ''}>NVD</option>
-                                <option value="MITRE_ATTACK" ${u.allowed_datasets === 'MITRE_ATTACK' ? 'selected' : ''}>MITRE ATT&CK</option>
-                            </select>
-                        </td>
-                        <td>
-                            <button class="btn secondary-btn small-btn save-user-btn" data-user-id="${u.id}">Save</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                
-                document.querySelectorAll(".save-user-btn").forEach(btn => {
-                    btn.addEventListener("click", async (e) => {
-                        const userId = e.target.getAttribute("data-user-id");
-                        const datasets = document.getElementById(`ds-${userId}`).value;
-                        try {
-                            const res = await api(`/api/v1/admin/users/${userId}/permissions`, {
-                                method: "PUT",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ allowed_datasets: datasets })
-                            });
-                            if (res.ok) showToast("Permissions updated", "success");
-                            else showToast("Failed to update", "error");
-                        } catch(err) {
-                            showToast("Failed to update", "error");
-                        }
-                    });
-                });
+                document.querySelector("#users-table tbody").replaceChildren(...data.map(userRow));
             }
-        } catch(e) {
+        } catch (e) {
             showToast("Failed to load users", "error");
         }
     }

@@ -369,10 +369,21 @@ class DashboardTests(unittest.TestCase):
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
         html = Path("frontend/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="app\.js\?v=8"')
-        self.assertRegex(html, r'href="style\.css\?v=8"')
+        self.assertRegex(html, r'src="app\.js\?v=9"')
+        self.assertRegex(html, r'href="style\.css\?v=9"')
         script = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
+
+    def test_user_table_is_built_as_plain_text(self):
+        """System Config's user table must not put stored text (usernames, roles, dataset
+        names) into the page as HTML, so a crafted username can never run as code."""
+        script = Path("frontend/app.js").read_text(encoding="utf-8")
+        start = script.index("const DATASET_CHOICES")
+        end = script.index('getElementById("refresh-users-btn")')
+        user_table = script[start:end]
+        self.assertIsNone(re.search(r"\.(innerHTML|outerHTML)\s*\+?=|insertAdjacentHTML", user_table))
+        self.assertIn('textElement("td", u.username)', user_table)
+        self.assertIn("encodeURIComponent(userId)", user_table)
 
 
 if __name__ == "__main__":
