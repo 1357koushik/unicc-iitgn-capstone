@@ -3,12 +3,39 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import re
 from typing import Any
+import unicodedata
 
 
 def utc_now() -> str:
     """Return an explicit UTC timestamp for source and result provenance."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def sanitize_untrusted_text(text: str, max_chars: int = 2000) -> str:
+    """Sanitize untrusted text from external OSINT sources (R-3.1).
+
+    Strips non-printable control characters, Unicode format characters
+    (category 'Cf' including bidi overrides U+202A-U+202E, U+2066-U+2069 and
+    zero-width spaces U+200B, U+FEFF, U+200C, U+200D, U+2060), collapses
+    multiple whitespaces, and bounds length to max_chars to protect downstream
+    LLM consumers from prompt injection, formatting bypasses, and DoS.
+    """
+    if not text:
+        return ""
+    chars = []
+    for ch in text:
+        cat = unicodedata.category(ch)
+        if cat == "Cc":
+            if ch not in ("\n", "\t", " "):
+                continue
+        elif cat == "Cf":
+            continue
+        chars.append(ch)
+    cleaned = "".join(chars)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:max_chars]
 
 
 @dataclass

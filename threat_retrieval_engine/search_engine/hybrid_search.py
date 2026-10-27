@@ -46,6 +46,7 @@ try:
         MatchAny,
         MatchValue,
         MatchText,
+        SearchParams,
     )
 except ImportError:
     QdrantClient = Any  # type: ignore
@@ -53,6 +54,7 @@ except ImportError:
     FieldCondition = Any  # type: ignore
     Filter = Any  # type: ignore
     MatchAny = Any  # type: ignore
+    SearchParams = Any  # type: ignore
     MatchValue = Any  # type: ignore
 
 try:
@@ -196,12 +198,21 @@ class HybridSearcher:
         bm25: BM25Index,
         query_encoder: Callable[[str], list[float]],
         rrf_k: int = DEFAULT_RRF_K,
+        hnsw_ef_search: int | None = None,
     ) -> None:
         self.qdrant = qdrant
         self.sqlite = sqlite
         self.bm25 = bm25
         self.query_encoder = query_encoder
         self.rrf_k = rrf_k
+        if hnsw_ef_search is None:
+            try:
+                from threat_retrieval_engine.config import get_config
+                self.hnsw_ef_search = get_config().hnsw_ef_search
+            except Exception:
+                self.hnsw_ef_search = 64
+        else:
+            self.hnsw_ef_search = hnsw_ef_search
 
     def search(
         self,
@@ -235,6 +246,7 @@ class HybridSearcher:
                     query_dense_vector=dense_vec,
                     top_k=candidate_k,
                     filter_dict=None,          # richer filter already applied via qfilter below
+                    hnsw_ef=self.hnsw_ef_search,
                 ) if qfilter is None else self._dense_search_filtered(dense_vec, candidate_k, qfilter)
                 dense_ranked = [h["chunk_id"] for h in dense_hits if h.get("chunk_id")]
                 dense_meta = {h["chunk_id"]: h for h in dense_hits if h.get("chunk_id")}
@@ -250,9 +262,9 @@ class HybridSearcher:
         lexical_hits = self.bm25.search(query, top_k=candidate_k, allowed_ids=allowed_ids)
         lexical_ranked = [h.chunk_id for h in lexical_hits]
 
-        # --- fuse (weighted by alpha, R13) ---
-        dense_w = max(0.0, min(1.0, float(alpha))) * 2.0
-        lex_w = max(0.0, min(1.0, 1.0 - float(alpha))) * 2.0
+        # --- fuse (weighted by alpha, R13: dense_w + lex_w = 1.0) ---
+        dense_w = max(0.0, min(1.0, float(alpha)))
+        lex_w = max(0.0, min(1.0, 1.0 - float(alpha)))
         fused = reciprocal_rank_fusion(
             [dense_ranked, lexical_ranked],
             k=self.rrf_k,
@@ -279,11 +291,13 @@ class HybridSearcher:
         self, dense_vec: list[float], candidate_k: int, qfilter: Filter
     ) -> list[dict[str, Any]]:
         """Dense search using the full Qdrant Filter object (not the simple dict path)."""
+        search_params = SearchParams(hnsw_ef=self.hnsw_ef_search) if (self.hnsw_ef_search is not None and SearchParams is not Any) else None
         res = self.qdrant.query_points(
             collection_name=COLLECTION_NAME,
             query=dense_vec,
             using="dense",
             query_filter=qfilter,
+            search_params=search_params,
             limit=candidate_k,
         )
         return [

@@ -28,6 +28,7 @@ try:
     from threat_retrieval_engine.poc_intelligence.sources.github_scraper import GitHubPoCSource
     from threat_retrieval_engine.poc_intelligence.sources.mastodon_scraper import MastodonPoCSource
     from threat_retrieval_engine.poc_intelligence.sources.x_scraper import XPoCSource
+    from threat_retrieval_engine.config import get_config
 except ImportError:
     from api.schemas import (
         PoCFindRequest,
@@ -71,12 +72,18 @@ class PoCFinderEngine:
         validator: PoCValidator | None = None,
         aggregator: ResultAggregator | None = None,
         sources: dict[str, BasePoCSource] | None = None,
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float | None = None,
     ) -> None:
         self.validator = validator or PoCValidator()
         self.aggregator = aggregator or ResultAggregator(validator=self.validator)
         self.cache = cache or PoCCache()
-        self.timeout_seconds = timeout_seconds
+        if timeout_seconds is None:
+            try:
+                cfg = get_config()
+                timeout_seconds = getattr(cfg, "d_poc_seconds", 10.0)
+            except Exception:
+                timeout_seconds = 10.0
+        self.timeout_seconds = float(timeout_seconds)
         self.sources: dict[str, BasePoCSource] = sources or {
             "github": GitHubPoCSource(timeout_seconds=timeout_seconds),
             "x": XPoCSource(timeout_seconds=timeout_seconds),
@@ -212,13 +219,16 @@ class PoCFinderEngine:
         sources: list[str] | None = None,
         min_confidence: float = 0.0,
         bypass_cache: bool = False,
+        timeout: float | None = None,
     ) -> PoCFindResponse:
-        """Synchronous wrapper for thread/blocking contexts."""
+        """Synchronous wrapper for thread/blocking contexts with unblocked timeout shutdown."""
+        effective_timeout = timeout if timeout is not None else self.timeout_seconds
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
                     future = pool.submit(
                         asyncio.run,
                         self.find_pocs(
@@ -229,25 +239,37 @@ class PoCFinderEngine:
                             bypass_cache=bypass_cache,
                         ),
                     )
-                    return future.result(timeout=self.timeout_seconds * 2)
+                    return future.result(timeout=effective_timeout)
+                except (concurrent.futures.TimeoutError, TimeoutError):
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    logger.warning("find_pocs_sync timed out after %.2fs for %s", effective_timeout, cve_id)
+                    raise TimeoutError(f"PoC search for {cve_id} timed out after {effective_timeout}s")
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
             else:
                 return loop.run_until_complete(
+                    asyncio.wait_for(
+                        self.find_pocs(
+                            cve_id=cve_id,
+                            max_results=max_results,
+                            sources=sources,
+                            min_confidence=min_confidence,
+                            bypass_cache=bypass_cache,
+                        ),
+                        timeout=effective_timeout,
+                    )
+                )
+        except RuntimeError:
+            return asyncio.run(
+                asyncio.wait_for(
                     self.find_pocs(
                         cve_id=cve_id,
                         max_results=max_results,
                         sources=sources,
                         min_confidence=min_confidence,
                         bypass_cache=bypass_cache,
-                    )
-                )
-        except RuntimeError:
-            return asyncio.run(
-                self.find_pocs(
-                    cve_id=cve_id,
-                    max_results=max_results,
-                    sources=sources,
-                    min_confidence=min_confidence,
-                    bypass_cache=bypass_cache,
+                    ),
+                    timeout=effective_timeout,
                 )
             )
 

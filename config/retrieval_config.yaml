@@ -71,7 +71,6 @@ security:
     - "http://127.0.0.1:8080"
   service_auth_enabled: false   # false in dev mode, true in production
   api_key_header: "X-API-Key"
-  max_query_chars: 4096
 
 # ---------------------------------------------------------------------------
 # POC & Exploit Intelligence (Task 4)

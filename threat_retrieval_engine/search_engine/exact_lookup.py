@@ -99,6 +99,11 @@ def _qdrant_lookup(
     return out
 
 
+def _escape_like(s: str) -> str:
+    """Escape special SQLite LIKE wildcards (%, _, \\)."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _sqlite_lookup(
     sqlite: sqlite3.Connection,
     value: str,
@@ -114,9 +119,9 @@ def _sqlite_lookup(
             return [r[0] for r in rows]
     except Exception:
         pass
-    needle = f'%"{value}"%'
+    needle = f'%"{_escape_like(value)}"%'
     rows = sqlite.execute(
-        "SELECT chunk_id FROM corpus WHERE entities_json LIKE ? LIMIT ?",
+        "SELECT chunk_id FROM corpus WHERE entities_json LIKE ? ESCAPE '\\' LIMIT ?",
         (needle, limit),
     ).fetchall()
     return [r[0] for r in rows]
@@ -196,9 +201,10 @@ def exact_lookup(
         else:
             for val in vals:
                 v_clean = val.upper()
+                v_escaped = _escape_like(v_clean)
                 rows = sqlite.execute(
-                    "SELECT chunk_id FROM corpus WHERE doc_id = ? OR doc_id LIKE ? LIMIT ?",
-                    (v_clean, f"{v_clean}%", limit),
+                    "SELECT chunk_id FROM corpus WHERE doc_id = ? OR doc_id LIKE ? ESCAPE '\\' LIMIT ?",
+                    (v_clean, f"{v_escaped}%", limit),
                 ).fetchall()
                 if not rows:
                     try:

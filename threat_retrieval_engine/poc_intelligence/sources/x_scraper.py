@@ -19,10 +19,10 @@ import httpx
 
 try:
     from threat_retrieval_engine.poc_intelligence.sources.base import (
-        BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse,
+        BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse, sanitize_untrusted_text,
     )
 except ImportError:  # pragma: no cover - retained for standalone execution
-    from sources.base import BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse
+    from sources.base import BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse, sanitize_untrusted_text
 
 
 logger = logging.getLogger(__name__)
@@ -280,10 +280,15 @@ class XPoCSource(BasePoCSource):
                 if mapped not in linked_urls:
                     linked_urls.append(mapped)
             metrics = post.get("public_metrics") if isinstance(post.get("public_metrics"), dict) else {}
+            sanitized_text = sanitize_untrusted_text(text, max_chars=2000)
             candidates.append(RawCandidate(
-                url=post_url, title=f"X post by {author} about {cve_id}: {text[:120]}", source="x", author=author,
+                url=post_url,
+                title=sanitize_untrusted_text(f"X post by {author} about {cve_id}: {sanitized_text[:120]}", max_chars=200),
+                source="x",
+                author=author,
                 published_at=post.get("created_at") if isinstance(post.get("created_at"), str) else None,
-                description=text, linked_urls=linked_urls,
+                description=sanitized_text,
+                linked_urls=linked_urls,
                 evidence=["Exact requested CVE query", "Public X API v2 post metadata"],
                 raw_metadata={"post_id": post_id, "post_url": post_url, "author_id": author_id or None,
                     "author_username": username or None, "author_name": user.get("name") if isinstance(user.get("name"), str) else None,
