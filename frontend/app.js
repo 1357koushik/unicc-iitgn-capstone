@@ -871,7 +871,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const SCAN_HINT = `.csv or .txt (NSL-KDD or CIC-IDS2017 format), up to ${MAX_SCAN_MB} MB`;
     const scanInput = document.getElementById("scan-file-input");
     const scanBtn = document.getElementById("scan-file-btn");
-    let lastScanAlerts = [];
+    let lastScanAlerts = [];             // the alerts sent back (the most serious of each group)
+    let lastScanTotals = null;           // how many alerts the WHOLE file has, for each filter
 
     const pct = (x) => `${(100 * x).toFixed(1)}%`;
     const localTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { timeZoneName: "short" }) : "unknown";
@@ -1025,17 +1026,18 @@ document.addEventListener("DOMContentLoaded", () => {
             charts.appendChild(barChart("Alerts by likely attack type", data.by_type, typeClass));
             parts.push(charts);
         }
-        if (data.alerts_shown < data.alerts_total) {
-            parts.push(textElement("p", `Showing ${data.alerts_shown.toLocaleString()} of ` +
-                `${data.alerts_total.toLocaleString()} alerts: the ${data.max_alerts_per_kind} most serious ` +
-                `known-pattern alerts and the ${data.max_alerts_per_kind} most serious possible new attacks.`, "muted-text"));
-        }
         if (data.alerts_total === 0) {
             parts.push(textElement("p", "No connection in this file looks like an attack.", "muted-text"));
         }
         showInBox("scan-summary", ...parts);
 
         lastScanAlerts = data.alerts || [];
+        lastScanTotals = { all: data.alerts_total, known: data.known_pattern_alerts,
+                           new: data.possible_new_attacks, attackTypes: data.attack_types !== false,
+                           limit: data.max_alerts_per_filter };
+        if (lastScanTotals.attackTypes) {
+            (data.by_priority || []).forEach(p => { lastScanTotals[p.name] = p.alerts; });
+        }
         document.getElementById("alert-filter").value = "all";
         document.getElementById("alert-filter-row").hidden = lastScanAlerts.length === 0;
         renderAlerts();
@@ -1075,9 +1077,36 @@ document.addEventListener("DOMContentLoaded", () => {
         return alert.priority === filter;            // "High", "Medium" or "Low"
     }
 
+    const FILTER_NAMES = {
+        all: "alerts", known: "known-pattern alerts", new: "possible new attacks",
+        High: "High-priority alerts", Medium: "Medium-priority alerts", Low: "Low-priority alerts",
+    };
+
+    // Under the filter: how many of the chosen alerts the whole file has. Each choice shows
+    // at most its max_alerts_per_filter most serious alerts (the server sends enough of
+    // each kind and priority for that), so say whether these are all of them.
+    function filterNote(filter, shownCount) {
+        if (!lastScanTotals) return "";
+        const name = FILTER_NAMES[filter];
+        if (!(filter in lastScanTotals)) {
+            return lastScanTotals.attackTypes ? "" :
+                "This sensor was trained before priorities were added, so its alerts have none. Retrain it to see them.";
+        }
+        const total = lastScanTotals[filter];
+        if (total === 0) return `No ${name} in this file.`;
+        if (shownCount < total) {
+            return `Showing the ${shownCount.toLocaleString()} most serious of ${total.toLocaleString()} ${name}.`;
+        }
+        return `Showing all ${total.toLocaleString()} ${name}.`;
+    }
+
     function renderAlerts() {
         const filter = document.getElementById("alert-filter").value;
-        const shown = lastScanAlerts.filter(a => alertMatchesFilter(a, filter));
+        const limit = (lastScanTotals && lastScanTotals.limit) || Infinity;
+        const shown = lastScanAlerts.filter(a => alertMatchesFilter(a, filter)).slice(0, limit);
+        const note = document.getElementById("alert-filter-note");
+        note.textContent = filterNote(filter, shown.length);
+        note.hidden = !note.textContent;
         const rows = shown.map(alert => {
             const isNew = isPossibleNewAttack(alert);
             const tr = document.createElement("tr");
@@ -1315,9 +1344,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (liveReplay) endLiveReplay("Not running.");
         resetLivePanel();
         lastScanAlerts = [];
+        lastScanTotals = null;
         document.getElementById("scan-file-name").textContent = SCAN_HINT;
         showInBox("scan-summary", textElement("p", "No file scanned yet.", "placeholder-text"));
         document.getElementById("alert-filter-row").hidden = true;
+        document.getElementById("alert-filter-note").hidden = true;
         document.querySelector("#alerts-table tbody").replaceChildren();
         document.getElementById("alerts-table").hidden = true;
         document.getElementById("sensor-status").className = "sensor-status";

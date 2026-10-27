@@ -25,6 +25,7 @@ import numpy as np                                # noqa: E402
 import pandas as pd                               # noqa: E402
 
 from network_sensor import actions                # noqa: E402
+from network_sensor import service                # noqa: E402
 from network_sensor.actions import (IDENTITY_COLUMNS, PRIORITIES, certainty_of, priority_of,  # noqa: E402
                                     summarise, where_of)
 from network_sensor.datasets import NUMERIC_COLUMNS, attack_category   # noqa: E402
@@ -289,6 +290,43 @@ class AppTests(unittest.TestCase):
             self.assertTrue(a["next_step"] and a["certainty"] and a["attack_type"]["likely"])
             self.assertNotIn("where", a)                    # NSL-KDD files have no addresses
 
+    def test_every_filter_shows_its_most_serious_alerts(self):
+        # The dashboard can show all alerts, known patterns, possible new attacks or one
+        # priority, each limited to its most serious alerts. With one cap per kind, a file
+        # with many High alerts sent back only High ones, so the Medium and Low filters
+        # found nothing. Now every filter's most serious alerts are sent back.
+        connections = make_mixed(40, 15, seed=42).drop(columns=["is_attack", "attack_category"])
+        # A few normal connections made very unusual, so that some alerts are possible new
+        # attacks (only the two anomaly models flag them).
+        unusual = connections[connections["label"] == "normal"].head(3).copy()
+        unusual[["count", "srv_count", "dst_host_count", "dst_host_srv_count"]] = [300.0, 300.0, 255.0, 255.0]
+        unusual[["src_bytes", "num_compromised", "root_shell"]] = [1e6, 5.0, 1.0]
+        content = pd.concat([connections, unusual], ignore_index=True).to_csv(index=False)
+        everything = self.scan(content.encode()).json()
+        self.assertEqual(everything["alerts_shown"], everything["alerts_total"])   # small file: all sent
+        with mock.patch.object(service, "MAX_ALERTS_PER_FILTER", 2):
+            capped = self.scan(content.encode()).json()
+
+        def matches(a, view):
+            if view == "all":
+                return True
+            if view in ("known", "new"):
+                return a["votes"]["random_forest"] == (1 if view == "known" else 0)
+            return a["priority"] == view
+
+        views = ("all", "known", "new", "High", "Medium", "Low")
+        for view in views:
+            full = [a["row"] for a in everything["alerts"] if matches(a, view)]
+            cut = [a["row"] for a in capped["alerts"] if matches(a, view)]
+            self.assertTrue(full, f"the test data should have alerts for '{view}'")
+            self.assertEqual(cut[:2], full[:2], f"the 2 most serious alerts for '{view}'")
+        self.assertEqual(capped["max_alerts_per_filter"], 2)
+        self.assertEqual(capped["alerts_shown"], len(capped["alerts"]))
+        self.assertLess(capped["alerts_shown"], capped["alerts_total"])
+        self.assertEqual(capped["by_priority"], everything["by_priority"])     # totals are of ALL alerts
+        ranks = [PRIORITIES.index(a["priority"]) for a in capped["alerts"]]
+        self.assertEqual(ranks, sorted(ranks))                                # still High first
+
     def test_cic_alerts_show_where_the_connection_came_from(self):
         text = official_csv([("BENIGN", 30), ("DoS Hulk", 10), (f"Web Attack {DASH} XSS", 5)], seed=43).decode("cp1252")
         lines = text.splitlines()
@@ -326,13 +364,13 @@ class DashboardTests(unittest.TestCase):
         tab = html[start:end]
         self.assertNotRegex(tab, r"\sstyle\s*=")
         self.assertNotRegex(tab, r"\son[a-z]+\s*=")
-        for element_id in ("live-chart", "live-chart-box", "alert-filter"):
+        for element_id in ("live-chart", "live-chart-box", "alert-filter", "alert-filter-note"):
             self.assertIn(f'id="{element_id}"', tab)
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
         html = Path("frontend/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="app\.js\?v=7"')
-        self.assertRegex(html, r'href="style\.css\?v=7"')
+        self.assertRegex(html, r'src="app\.js\?v=8"')
+        self.assertRegex(html, r'href="style\.css\?v=8"')
         script = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
 

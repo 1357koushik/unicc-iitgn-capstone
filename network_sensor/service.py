@@ -35,11 +35,14 @@ from network_sensor.paths import model_path, reports_dir
 from network_sensor.spec import DATASETS, DEFAULT_DATASET, dataset_of_columns, get_spec
 
 MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few seconds
-# Alerts sent back per scan: the most serious of EACH kind (known attack patterns, and
-# possible new attacks raised only by the anomaly models). One shared cap would be
-# filled entirely by known patterns - all three models agree on those - and the
-# possible new attacks would never be shown. The totals are always reported.
-MAX_ALERTS_PER_KIND = 300
+# Alerts sent back per scan. The dashboard shows all alerts, or only known attack
+# patterns, or only possible new attacks (raised only by the anomaly models), or one
+# priority, and each of those views shows its MAX_ALERTS_PER_FILTER most serious alerts.
+# So the most serious MAX_ALERTS_PER_FILTER of each GROUP (one kind at one priority) are
+# sent back: every view's most serious alerts are then among them. One shared cap would
+# be filled entirely by the most serious group (known patterns at High priority), and the
+# other views would find nothing. The totals are always reported.
+MAX_ALERTS_PER_FILTER = 300
 MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag / port names are short
 TEXT_COLUMNS = ("protocol_type", "service", "flag", "label") + IDENTITY_COLUMNS
 
@@ -216,9 +219,12 @@ class SensorService:
         def seriousness(a):
             return (priority_rank(a), -sum(a["votes"].values()), -a["random_forest_score"], a["row"])
 
-        known = sorted((a for a in alerts if a["votes"]["random_forest"] == 1), key=seriousness)
-        new = sorted((a for a in alerts if a["votes"]["random_forest"] == 0), key=seriousness)
-        shown = sorted(known[:MAX_ALERTS_PER_KIND] + new[:MAX_ALERTS_PER_KIND], key=seriousness)
+        known = [a for a in alerts if a["votes"]["random_forest"] == 1]
+        new = [a for a in alerts if a["votes"]["random_forest"] == 0]
+        groups = {}
+        for a in sorted(alerts, key=seriousness):
+            groups.setdefault((a["votes"]["random_forest"], a.get("priority")), []).append(a)
+        shown = sorted((a for group in groups.values() for a in group[:MAX_ALERTS_PER_FILTER]), key=seriousness)
 
         result = {
             "dataset": dataset,
@@ -228,7 +234,7 @@ class SensorService:
             "known_pattern_alerts": len(known),
             "possible_new_attacks": len(new),
             "alerts_shown": len(shown),
-            "max_alerts_per_kind": MAX_ALERTS_PER_KIND,
+            "max_alerts_per_filter": MAX_ALERTS_PER_FILTER,
             **summarise(alerts),                          # counts of ALL alerts, for the charts
             "attack_types": model.has_attack_types,
             "alerts": shown,

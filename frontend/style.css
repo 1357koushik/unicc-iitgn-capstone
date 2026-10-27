@@ -604,6 +604,8 @@ tr:hover {
     white-space: nowrap;
 }
 
+.filter-note { margin: -0.5rem 0 1rem; }
+
 #alerts-table td { vertical-align: top; }
 
 .kind-badge {

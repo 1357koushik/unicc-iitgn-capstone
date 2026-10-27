@@ -149,8 +149,9 @@ Train the sensor first (above), then start the app as usual. Investigators and a
   If a label column is present, the answer also says how precise the sensor was on that
   file. Labels are never used to decide.
 - **Limits:** 5 MB and 25,000 connections per file; one scan at a time (others get "try again").
-  The 300 most serious alerts of each kind are returned (known attack patterns, and possible
-  new attacks raised only by the anomaly models); the totals are always given.
+  The dashboard can show all alerts, only known attack patterns, only possible new attacks
+  (raised only by the anomaly models), or one priority; each of these shows its 300 most
+  serious alerts, and says how many the whole file has. The totals are always given.
 - **Audit log:** every scan, including refused files, is recorded with the file's name,
   size and SHA-256 fingerprint and the number of alerts. The file itself is not kept.
 - If scikit-learn is not installed on the server, the rest of the app still works and

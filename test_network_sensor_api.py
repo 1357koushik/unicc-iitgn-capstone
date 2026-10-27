@@ -149,11 +149,11 @@ class NetworkSensorApiTests(unittest.TestCase):
 
     def test_a_big_scan_still_shows_possible_new_attacks(self):
         # Known patterns usually outnumber and outrank possible new attacks, so a single
-        # shared cap would hide the new ones. Each kind gets its own cap.
+        # shared cap would hide the new ones. Each kind (at each priority) gets its own cap.
         new_rows = {a["row"] for a in self.scan(csv_with_header(self.connections)).json()["alerts"]
                     if a["votes"]["random_forest"] == 0}
         self.assertTrue(new_rows, "the test data should contain at least one possible new attack")
-        with mock.patch.object(service, "MAX_ALERTS_PER_KIND", 2):
+        with mock.patch.object(service, "MAX_ALERTS_PER_FILTER", 2):
             body = self.scan(csv_with_header(self.connections)).json()
         kinds = [a["votes"]["random_forest"] for a in body["alerts"]]
         self.assertEqual(kinds.count(1), 2)                          # 2 of the known patterns
