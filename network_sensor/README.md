@@ -42,14 +42,16 @@ public ground truth (see "How this compares with SentinelAI" for the tool the sh
 | NSL-KDD | 96.7% | 72.3% | 3.2% |
 | CIC-IDS2017 | 96.1% | 99.4% | 0.9% |
 | CSE-CIC-IDS2018: **another network**, checked by the CIC-IDS2017 sensor without retraining | 57.0% | **2.5%** | 0.9% |
+| CSE-CIC-IDS2018, after **retraining on its own labelled traffic** (`--own-data`, its 30% test part) | 87.7% | **97.5%** | 5.5% |
 
-(From `python -m network_sensor.evaluate` and `python -m network_sensor.cicids2018`, October 2026;
-the reports explain every number.)
+(From `python -m network_sensor.evaluate`, `python -m network_sensor.cicids2018` and
+`python -m network_sensor.train --own-data`, October 2026; the reports explain every number.)
 
-**Read the last row before relying on the first two.** The first two test each sensor on traffic
-like its training data. On a network it was not trained on, the CIC-IDS2017 sensor stays quiet
-but misses almost every attack (see "On another network" below). To protect a real network,
-the sensor has to be retrained on that network's own labelled traffic.
+**Read the last two rows before relying on the first two.** The first two test each sensor on
+traffic like its training data. On a network it was not trained on, the CIC-IDS2017 sensor stays
+quiet but misses almost every attack (see "On another network" below). Retrained on that
+network's own labelled traffic, it catches almost every attack; its precision there is held back
+by one unreliable label in that dataset (see "Training on your own traffic" below).
 
 The same models and decision rule are used for both, fixed on NSL-KDD before CIC-IDS2017
 was used. One setting, the anomaly models' false-alarm budget, was re-chosen for CIC-IDS2017
@@ -114,7 +116,7 @@ CIC-IDS2017 sensor - **not retrained or adjusted** - checked
 recorded a year later on another network, written by the next version of the same flow tool
 (CICFlowMeter 4.0, which uses shorter column names; `cicids2018.py` renames them).
 
-Seven of its days (6,624,262 flows: FTP and SSH password guessing, four DoS attacks, two DDoS
+Seven of its days (6,622,549 flows: FTP and SSH password guessing, four DoS attacks, two DDoS
 attacks, web attacks, infiltration, a botnet) were used. A random sample of 399,117 flows was
 checked - 5% of the normal flows and up to 20,000 flows of each attack type per day - and each
 sampled flow counted for the flows it stands for, so the numbers estimate checking every flow.
@@ -153,7 +155,8 @@ What the checks show:
 
 So the benchmark scores are not what to expect on UNICC's network. The sensor, the explanations
 and the dashboard carry over; the trained models do not. Before real use, the sensor must be
-retrained (and re-scored) on labelled traffic from the network it watches.
+retrained (and re-scored) on labelled traffic from the network it watches - one command does
+both (see "Training on your own traffic").
 
 Run the check yourself (the CIC-IDS2017 sensor must be trained first): download the
 "Processed Traffic Data for ML Algorithms" CSV files you want from the dataset's page into one
@@ -177,7 +180,7 @@ python -m network_sensor.download_data   # downloads NSL-KDD (~22 MB), checks fi
 python -m network_sensor.train           # trains the three models and the attack-type classifier (under a minute)
 python -m network_sensor.evaluate        # precision / recall report on the official test file
 
-python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live test_network_sensor_cicids2017 test_network_sensor_actions -v   # automatic checks
+python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live test_network_sensor_cicids2017 test_network_sensor_actions test_network_sensor_cicids2018 test_network_sensor_own_data -v   # automatic checks
 ```
 
 **CIC-IDS2017** (optional, larger): download `MachineLearningCSV.zip` from the
@@ -272,11 +275,59 @@ Two warnings, both measured:
   instead of microseconds, counts the first packet of every flow twice, and measures packet
   sizes including their headers. The models would get the wrong numbers.
 - **Expect the CIC-IDS2017 sensor to miss most attacks on another network** (see "On another
-  network" above) until it is retrained on that network's labelled traffic.
+  network" above) until it is retrained on that network's labelled traffic (next section).
 
 Watching a network continuously would put a flow meter where it sees the traffic (for example
 a copy of a switch's traffic) and send its flows to the sensor in batches, as live mode does
 with a file. That is a deployment step on UNICC's own network, not part of the sensor.
+
+### Training on your own traffic
+
+The sensor for CICFlowMeter files can learn your own network instead of CIC-IDS2017. The format
+stays the same (CICFlowMeter's measurements, under the CIC-IDS2017 names); what changes is what
+it has learned normal traffic and attacks look like. It needs **labelled** flows from that
+network: CICFlowMeter writes `No Label` in the `Label` column, so replace it for every flow -
+`Benign` (or `Normal`) for normal traffic, an attack name for attacks, for example from the times
+and machines of a penetration test. Attack names it knows, so alerts get a likely type, priority
+and next step: the CIC-IDS2017 and CSE-CIC-IDS2018 names (`SSH-Patator`, `DoS attacks-Hulk`, ...)
+or a family (`DoS`, `DDoS`, `PortScan`, `Brute Force`, `Web Attack`, `Botnet`, `Infiltration`,
+`Heartbleed`). Put the CSV files in one folder, then on the server:
+
+```powershell
+python -m network_sensor.train --own-data "C:\path\to\folder"
+```
+
+It refuses flows without a label, and files without normal traffic or without any attack name it
+knows. It splits the flows 70% / 30% like CIC-IDS2017, trains the same four models on the 70%,
+and scores them on the 30%. **Only if precision reaches the 90% target** does the new sensor
+replace the one the app uses (the app picks it up by itself); the old one is kept as
+`models/sensor_model_cicids2017.previous.joblib`. Below the target nothing changes, unless you
+add `--accept-below-target`. The report (`reports/cicids2017/own_data_training.md` / `.json`)
+gives the results per attack name and lists the files with their SHA-256 fingerprints, which are
+also stored in the model. The dashboard then says the sensor was trained "from your own labelled
+files" and shows the result on their test part. To go back to the public sensor:
+`python -m network_sensor.train --dataset cicids2017`.
+
+There is deliberately no training button in the web app: whoever picks the training files
+decides what the sensor learns (see "Security notes").
+
+**Checked on real data** (October 2026), treating the seven CSE-CIC-IDS2018 days above
+(6,622,549 flows) as "your own network": `--own-data` on that folder trained on 671,452 sampled
+flows of the 70% and checked 223,729 flows of the 30% test part (about 12 minutes on a 2-core
+machine, at most 3.4 GB of memory). It caught **97.5%** of the attacks (2.5% without retraining),
+with false alarms on 5.5% of the normal traffic, so precision was **87.7% - below the target, and
+the command did not install it**. Almost all of its false alarms (99.7%) were taken for
+Infiltration, and 4,203 normal flows in the sample have exactly the same measurements as flows
+labelled Infiltration: in these files that label also covers ordinary-looking traffic. Trained
+and tested the same way without the Infiltration flows, it reaches 97.3% precision, catching
+99.9% of the attacks with false alarms on 1.0%. This is what the 90% check is for: when labels
+do not match the traffic, the old sensor stays in place until the labels are fixed.
+
+In Docker with `docker-compose.yml`, run the command on the host as above (the app uses the
+project's `data/` folder). With `deployment/api` or `deployment/onprem`, copy the folder into the
+container first, for example
+`docker compose -f deployment/api/docker-compose.yml cp own-flows backend:/tmp/own-flows`, then
+`docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train --own-data /tmp/own-flows`.
 
 ## Run it in Docker
 
@@ -345,7 +396,8 @@ AI summaries are off); set them for real use.
 | `models.py` | the three models, the decision rule, the attack-type classifier, saving and loading |
 | `actions.py` | makes alerts actionable: priority rule, certainty, next step, where, counts for the charts |
 | `explain.py` | the normal-traffic profile and the plain-English reason for each alert |
-| `train.py` | trains on a dataset's training part and saves the model |
+| `train.py` | trains on a dataset's training part and saves the model; with `--own-data`, on your own labelled files |
+| `own_data.py` | training on your own labelled CICFlowMeter files: checks the labels, splits, trains, tests, installs only above the target |
 | `evaluate.py` | scores the model on the test part, checks the explanations, writes the report |
 | `calibrate.py` | chooses the anomaly models' false-alarm budget on validation data from the training part |
 | `service.py` | used by the web app: reads uploaded files, picks the matching sensor, runs scans, reports status |
@@ -358,6 +410,11 @@ AI summaries are off); set them for real use.
 - Trained model files are Python pickles: **opening one can run code hidden inside it**.
   Only load model files you trained yourself; never commit them or accept them from others.
 - Downloaded data is checked against fixed SHA-256 fingerprints before it is used.
+- Whoever chooses the training files decides what the sensor learns: wrongly labelled flows
+  (by mistake or on purpose, "data poisoning") teach it to ignore those attacks. So training is
+  only a command on the server, never a button in the web app; a sensor trained on your own
+  files replaces the current one only if it reaches the 90% precision target on their test part;
+  and the files' fingerprints are recorded in the model and the report.
 
 ## How this compares with SentinelAI
 
@@ -381,7 +438,9 @@ Both use only free, open-source libraries, so neither has a licence cost.
 
 - NSL-KDD comes from 1998 traffic; CIC-IDS2017 from a 2017 test network. On another network
   (CSE-CIC-IDS2018) the CIC-IDS2017 sensor caught only 2.5% of the attacks: the trained models
-  do not carry over, and must be retrained on the network the sensor watches.
+  do not carry over, and must be retrained on the network the sensor watches (`--own-data`).
+  That needs labelled traffic from that network - in practice, normal traffic plus the attacks
+  of a penetration test whose times and machines are known.
 - The sensor does not capture packets itself: flow records come from files (live mode replays
   them). The official CICFlowMeter can make them from a packet capture (see "Scanning your
   own traffic").

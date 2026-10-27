@@ -817,7 +817,7 @@ def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(
         lambda service, connections, details: service.sensor.scan(connections))
     log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "success",
                {**details, "connections": result["connections"], "alerts": result["alerts_total"],
-                "model_trained_at": result["model"]["trained_at"]})
+                "model_trained_at": result["model"]["trained_at"], "model_trained_on": result["trained_on"]})
     return {"correlation_id": correlation_id, "filename": details["filename"], **result}
 
 

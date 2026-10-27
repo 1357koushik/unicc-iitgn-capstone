@@ -10,7 +10,9 @@ that file only needs two short endpoints).
   live                         - live replays (see live.py)
 
 Files can be in the NSL-KDD format or the CIC-IDS2017 format (the CSV files that the
-CICFlowMeter tool writes); each format is checked by the sensor trained on that dataset.
+CICFlowMeter tool writes); each format is checked by the sensor trained on that dataset -
+or, for CICFlowMeter files, on your own labelled traffic if the server trained it so
+(python -m network_sensor.train --own-data, see own_data.py).
 
 The file size limit and accepted file types are checked by main.py, next to the
 app's other input limits, before anything here runs.
@@ -33,6 +35,7 @@ from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError
 from network_sensor.live import LiveSessions
 from network_sensor.models import NetworkSensorModel
+from network_sensor.own_data import TRAINED_ON, own_data_evaluation
 from network_sensor.paths import model_path, reports_dir
 from network_sensor.spec import DATASETS, DEFAULT_DATASET, dataset_of_columns, get_spec
 
@@ -142,6 +145,17 @@ def read_connections(content: bytes) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+def trained_on_own_data(model: NetworkSensorModel) -> bool:
+    """Was this sensor trained on someone's own labelled files (python -m network_sensor.train
+    --own-data), rather than on the public dataset of its format?"""
+    return model.training_info.get("trained_on") == TRAINED_ON
+
+
+def trained_on(model: NetworkSensorModel) -> str:
+    """What the sensor learned from, for people: 'CIC-IDS2017' or 'your own labelled files'."""
+    return "your own labelled files" if trained_on_own_data(model) else model.spec.title
+
+
 def dataset_of(connections: pd.DataFrame) -> str:
     """Which trained sensor checks this table: 'cicids2017' or 'nsl_kdd'."""
     return dataset_of_columns(connections.columns)
@@ -234,6 +248,7 @@ class SensorService:
         except ScanError as e:
             return {"dataset": dataset, "title": spec.title, "ready": False, "message": e.message}
         info = model.training_info
+        own = trained_on_own_data(model)
         return {
             "dataset": dataset,
             "title": spec.title,
@@ -241,8 +256,13 @@ class SensorService:
             "attack_types": model.has_attack_types,     # False: trained before attack types existed
             "trained_at": info.get("trained_at"),
             "training_connections": info.get("training_rows"),
+            "trained_on": trained_on(model),
+            "own_data": own,
             "decision_rule": info.get("decision_rule"),
-            "evaluation": _latest_evaluation(reports_dir(dataset) / "evaluation_report.json"),
+            # A sensor trained on your own files is scored on their test part; the public
+            # dataset's evaluation report says nothing about it.
+            "evaluation": (own_data_evaluation(info) if own
+                           else _latest_evaluation(reports_dir(dataset) / "evaluation_report.json")),
         }
 
     def status(self) -> dict:
@@ -305,6 +325,7 @@ class SensorService:
             **summarise(alerts),                          # counts of ALL alerts, for the charts
             "attack_types": model.has_attack_types,
             "alerts": shown,
+            "trained_on": trained_on(model),
             "model": {"trained_at": model.training_info.get("trained_at"),
                       "decision_rule": model.training_info.get("decision_rule")},
         }
@@ -324,7 +345,8 @@ class SensorService:
         dataset, _, model, _, alerts = self._all_alerts(connections)
         text = alerts_to_csv(alerts, has_labels="label" in connections.columns)
         return text, {"dataset": dataset, "connections": len(connections), "alerts": len(alerts),
-                      "model_trained_at": model.training_info.get("trained_at")}
+                      "model_trained_at": model.training_info.get("trained_at"),
+                      "model_trained_on": trained_on(model)}
 
 
 # The one shared sensor, and the live replays, that the web app uses.

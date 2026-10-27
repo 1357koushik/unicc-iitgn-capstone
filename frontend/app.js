@@ -923,8 +923,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     lines.push(textElement("p", d.message || `${d.title}: not trained yet.`, "muted-text"));
                     continue;
                 }
+                // A sensor can be trained on the server's own labelled traffic instead of the
+                // public dataset (python -m network_sensor.train --own-data).
                 let text = `${d.title} files: trained ${localTime(d.trained_at)} on ` +
-                    `${Number(d.training_connections).toLocaleString()} connections.`;
+                    `${Number(d.training_connections).toLocaleString()} connections` +
+                    `${d.own_data ? " from your own labelled files" : ""}.`;
                 const ev = d.evaluation;
                 if (ev) {
                     text += ` Last evaluation (${ev.dataset}): precision ${pct(ev.precision)} ` +
@@ -1027,7 +1030,8 @@ document.addEventListener("DOMContentLoaded", () => {
             statTile(data.possible_new_attacks.toLocaleString(), "Possible new attacks"));
         const parts = [tiles];
         if (data.dataset_title) {
-            parts.push(textElement("p", `Checked by the sensor trained on ${data.dataset_title}.`, "muted-text"));
+            parts.push(textElement("p", `Checked by the sensor trained on ${data.trained_on || data.dataset_title}.`,
+                "muted-text"));
         }
         if (data.label_check) {
             const c = data.label_check;

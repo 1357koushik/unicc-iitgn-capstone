@@ -152,6 +152,8 @@ class NetworkSensorApiTests(unittest.TestCase):
         self.assertEqual(audit["correlation_id"], body["correlation_id"])
         self.assertEqual(audit["alerts"], len(self.flagged_rows))
         self.assertEqual(audit["file_sha256"], main._sha256(content))
+        self.assertEqual(audit["model_trained_on"], "NSL-KDD")          # which sensor judged the file
+        self.assertEqual(body["trained_on"], "NSL-KDD")
 
     def test_a_big_scan_still_shows_possible_new_attacks(self):
         # Known patterns usually outnumber and outrank possible new attacks, so a single

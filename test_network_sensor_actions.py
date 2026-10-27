@@ -416,8 +416,8 @@ class DashboardTests(unittest.TestCase):
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
         html = Path("frontend/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="app\.js\?v=11"')
-        self.assertRegex(html, r'href="style\.css\?v=11"')
+        self.assertRegex(html, r'src="app\.js\?v=12"')
+        self.assertRegex(html, r'href="style\.css\?v=12"')
         script = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
 
