@@ -1,5 +1,10 @@
-FROM python:3.13-slim
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Base images are pinned to an exact version (the sha256 digest). With only a name like
+# "python:3.13-slim", every rebuild after that name moved to a new version redid every
+# step, package installs included (12 minutes for a one-line code change). To update on
+# purpose: docker buildx imagetools inspect python:3.13-slim  (the "Digest:" line), then
+# test the app and change the digest here.
+FROM python:3.13-slim@sha256:b3575dcf816cdacc5292df77a6e3e59b8941631078373a045efa2ac1e9c5c3b2
+COPY --from=ghcr.io/astral-sh/uv:latest@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /bin/
 WORKDIR /app
 COPY requirements-backend.txt .
 RUN uv pip install --system --no-cache -r requirements-backend.txt

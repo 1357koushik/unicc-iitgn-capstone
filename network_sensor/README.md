@@ -202,6 +202,8 @@ Python 3.13 because the sensor's pinned packages need Python 3.12 or newer.
 
 - **`docker-compose.yml`** in the project folder: the backend uses the project's `data/`
   folder, so a sensor trained on the host (`python -m network_sensor.train`) is used as it is.
+  The login accounts and the audit log are kept there too (`data/app.db`), so they survive
+  `docker compose down` and rebuilds; the passwords are shown only on the very first start.
 - **`deployment/api`** and **`deployment/onprem`**: the sensor keeps its files on the
   `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`), so they survive
   rebuilds. Set it up once, from the project folder (for on-premise, use
