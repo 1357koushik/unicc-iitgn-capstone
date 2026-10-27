@@ -3,18 +3,28 @@ services:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.retrieval
+    # "127.0.0.1:" = only this computer can reach the service, not other devices on the same
+    # network (Docker otherwise opens the port on every network connection). The backend still
+    # reaches it inside Docker as http://retrieval:8000.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data
+      # The service downloads its two AI models (BAAI/bge-m3 and bge-reranker-v2-m3, several GB)
+      # on its first start. Keeping them in this Docker volume means a new container (after a
+      # rebuild or "docker compose down") starts in seconds instead of downloading them again.
+      # "docker compose down -v" deletes the volume, and the next start downloads them once more.
+      - huggingface-cache:/root/.cache/huggingface
     restart: unless-stopped
 
   backend:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.backend
+    # Only this computer can open the app (http://localhost:8080). To show it to other devices on
+    # the network on purpose, change this to "8080:8080".
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./data:/app/data
     env_file:
@@ -28,3 +38,6 @@ services:
     depends_on:
       - retrieval
     restart: unless-stopped
+
+volumes:
+  huggingface-cache:
