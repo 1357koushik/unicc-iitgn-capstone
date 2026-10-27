@@ -10,6 +10,11 @@ The sensor itself: three models plus the rule that combines their answers.
 
 Decision rule:  attack  =  Random Forest says attack
                            OR (Isolation Forest AND One-Class SVM both say abnormal)
+
+A fourth model, the attack-type classifier (another Random Forest, trained on the
+labelled ATTACKS only), names the attack family each alert most resembles. It never
+decides whether a connection is flagged; it only makes the alert actionable (likely
+type, priority and suggested next step - see actions.py).
 """
 import platform
 import warnings
@@ -25,14 +30,19 @@ import sklearn
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.svm import OneClassSVM
 
+from network_sensor.actions import add_actions
 from network_sensor.explain import NormalProfile, explain_rows
 from network_sensor.features import InputError, build_preprocessor, prepare_features
 from network_sensor.spec import DEFAULT_DATASET, DatasetSpec, get_spec
 
 MODEL_NAMES = ("isolation_forest", "one_class_svm", "random_forest")
 DECISION_RULE = "random_forest OR (isolation_forest AND one_class_svm)"
-FILE_FORMAT_VERSION = 3     # 2 = also stores the normal-traffic profile; 3 = also the dataset name
-READABLE_FILE_VERSIONS = (2, 3)   # version 2 files are NSL-KDD models and still work
+# 2 = also stores the normal-traffic profile; 3 = also the dataset name; 4 = also the
+# attack-type classifier
+FILE_FORMAT_VERSION = 4
+# Version 2 files are NSL-KDD models. Versions 2 and 3 still work, but their alerts have
+# no attack type, priority or next step until the sensor is retrained.
+READABLE_FILE_VERSIONS = (2, 3, 4)
 
 
 @dataclass
@@ -44,6 +54,7 @@ class SensorSettings:
     # of this many normal connections (all of them if there are fewer).
     svm_training_rows: int = 15_000
     n_trees: int = 200          # trees in the Isolation Forest and in the Random Forest
+    type_trees: int = 100       # trees in the attack-type classifier
     random_seed: int = 0        # fixed, so training twice gives the same model
 
 
@@ -56,6 +67,7 @@ class NetworkSensorModel:
         self.isolation_forest = None
         self.one_class_svm = None
         self.random_forest = None
+        self.type_classifier = None      # attack family of an alert (None: no labels to learn from)
         self.normal_profile = None
         self.training_info: dict = {}
 
@@ -67,8 +79,9 @@ class NetworkSensorModel:
 
     # ---------------------------------------------------------------- training
     def fit(self, train_df: pd.DataFrame) -> "NetworkSensorModel":
-        """Train all three models. train_df needs the dataset's measurement columns and
-        is_attack (1 = attack, 0 = normal); 'label' (the attack name) is optional."""
+        """Train the three models and the attack-type classifier. train_df needs the
+        dataset's measurement columns and is_attack (1 = attack, 0 = normal); 'label'
+        (the attack name) is optional, but without it there is no attack-type classifier."""
         if "is_attack" not in train_df.columns:
             raise InputError("Training data needs an 'is_attack' column (1 = attack, 0 = normal).")
         features = prepare_features(train_df, self.spec)
@@ -92,6 +105,20 @@ class NetworkSensorModel:
         self.random_forest = RandomForestClassifier(
             n_estimators=s.n_trees, class_weight="balanced", n_jobs=-1, random_state=s.random_seed
         ).fit(X, y)
+
+        # Attack-type classifier: learns, from the labelled attacks only, which family an
+        # attack belongs to. Trained after (and independently of) the three models above,
+        # so it cannot change which connections are flagged.
+        type_info = None
+        if "label" in train_df.columns:
+            families = train_df["label"].astype(str).map(self.spec.family_of).to_numpy()
+            known = (y == 1) & (families != "unknown")
+            if known.any():
+                self.type_classifier = RandomForestClassifier(
+                    n_estimators=s.type_trees, class_weight="balanced", n_jobs=-1, random_state=s.random_seed
+                ).fit(X[known], families[known])
+                type_info = {"families": [str(f) for f in self.type_classifier.classes_],
+                             "training_attacks": int(known.sum())}
         _answer_with_one_thread(self)
 
         self.normal_profile = NormalProfile(features[y == 0], self._importance_per_measurement(), self.spec)
@@ -108,6 +135,7 @@ class NetworkSensorModel:
             "attack_types_seen_in_training": attack_labels,
             "settings": asdict(s),
             "decision_rule": DECISION_RULE,
+            "attack_type_classifier": type_info,
         }
         return self
 
@@ -144,13 +172,33 @@ class NetworkSensorModel:
 
     def explain(self, df: pd.DataFrame, top_n: int = 3) -> list:
         """For each connection: the verdict, which models raised the alarm, the Random
-        Forest's score, and up to top_n measurements that are rare in normal traffic.
-        See network_sensor/explain.py."""
+        Forest's score, and up to top_n measurements that are rare in normal traffic
+        (see explain.py). Alerts also get their likely attack type, priority and a
+        suggested next step (see actions.py)."""
         features, X = self._checked_matrix(df)
         votes = self._votes_from_matrix(X, df.index)
         rf_scores = self.random_forest.predict_proba(X)[:, 1]
-        return explain_rows(self.normal_profile, features, votes, self.combine(votes),
-                            rf_scores, top_n=top_n)
+        verdicts = self.combine(votes)
+        explanations = explain_rows(self.normal_profile, features, votes, verdicts, rf_scores, top_n=top_n)
+        types, confidences = self.attack_types_of_matrix(X[verdicts == 1])
+        add_actions(explanations, types, confidences, self.spec)
+        return explanations
+
+    @property
+    def has_attack_types(self) -> bool:
+        """False for sensors trained before the attack-type classifier existed."""
+        return getattr(self, "type_classifier", None) is not None
+
+    def attack_types_of_matrix(self, X):
+        """(likely attack family, share of the type classifier's trees that agree) for
+        each row of an already-prepared matrix; (None, None) without a type classifier."""
+        if not self.has_attack_types:
+            return None, None
+        if X.shape[0] == 0:
+            return np.array([], dtype=object), np.array([])
+        proba = self.type_classifier.predict_proba(X)
+        best = proba.argmax(axis=1)
+        return self.type_classifier.classes_[best], proba[np.arange(len(best)), best]
 
     @staticmethod
     def combine(votes: pd.DataFrame) -> np.ndarray:
@@ -212,6 +260,8 @@ def _answer_with_one_thread(model: "NetworkSensorModel") -> None:
     271 ms). The answers are exactly the same either way. Trade-off: one very large file
     (22,544 connections) took 6.4 s instead of 5.4 s on a 2-core machine."""
     model.random_forest.set_params(n_jobs=1)
+    if getattr(model, "type_classifier", None) is not None:
+        model.type_classifier.set_params(n_jobs=1)
 
 
 def _library_versions() -> dict:

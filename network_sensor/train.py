@@ -32,7 +32,7 @@ def main(argv=None) -> int:
     sample_note = train.attrs.get("sample_note")
     if sample_note:
         print(sample_note)
-    print("Training the three models (usually a minute or two) ...")
+    print("Training the three models and the attack-type classifier (usually a minute or two) ...")
 
     started = time.perf_counter()
     model = NetworkSensorModel(dataset=dataset).fit(train)

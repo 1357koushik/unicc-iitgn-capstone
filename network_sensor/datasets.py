@@ -54,6 +54,21 @@ FAMILY_MEANINGS = {"DoS": "flooding a service so real users cannot reach it",
                    "R2L": "an outsider trying to get in, e.g. guessing passwords",
                    "U2R": "a logged-in user trying to become administrator"}
 
+# What each family could do if it succeeds (see actions.py for how this sets an
+# alert's priority), and one suggested first step for an analyst.
+FAMILY_IMPACT = {"DoS": "Medium", "Probe": "Low", "R2L": "High", "U2R": "High"}
+FAMILY_ACTIONS = {
+    "DoS": "Check whether the target service is slowing down or failing. If it is, rate-limit or block "
+           "the source at the firewall and tell the team that runs the service.",
+    "Probe": "Someone is mapping the network. Check which machines and services the source reached and "
+             "close any that should not be open; block the source if it is outside the organisation.",
+    "R2L": "An outsider may be trying to get in. Check the target machine's login records around this time "
+           "for failed or unusual logins, reset any account that may be affected, and block the source.",
+    "U2R": "Someone may be trying to become administrator. Treat the machine as possibly compromised: "
+           "isolate it if you can, look for new administrator accounts or changed system files, and start "
+           "incident response.",
+}
+
 # Plain-English meaning of each measurement (definitions from the KDD Cup 1999 /
 # NSL-KDD documentation). "Recent" = the 2 seconds before this connection;
 # "last 100" = the 100 connections before it that went to the same destination machine.
@@ -193,6 +208,8 @@ NSL_KDD_SPEC = DatasetSpec(
     yes_no_columns=frozenset(YES_NO_COLUMNS),
     families=("DoS", "Probe", "R2L", "U2R"),
     family_meanings=FAMILY_MEANINGS,
+    family_impact=FAMILY_IMPACT,
+    family_actions=FAMILY_ACTIONS,
     family_of=attack_category,
     normal_label="normal",
     format_value=format_value,
