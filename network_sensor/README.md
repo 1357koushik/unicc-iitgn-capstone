@@ -41,8 +41,15 @@ public ground truth (see "How this compares with SentinelAI" for the tool the sh
 |---|---|---|---|
 | NSL-KDD | 96.7% | 72.3% | 3.2% |
 | CIC-IDS2017 | 96.1% | 99.4% | 0.9% |
+| CSE-CIC-IDS2018: **another network**, checked by the CIC-IDS2017 sensor without retraining | 57.0% | **2.5%** | 0.9% |
 
-(From `python -m network_sensor.evaluate`, October 2026; the reports explain every number.)
+(From `python -m network_sensor.evaluate` and `python -m network_sensor.cicids2018`, October 2026;
+the reports explain every number.)
+
+**Read the last row before relying on the first two.** The first two test each sensor on traffic
+like its training data. On a network it was not trained on, the CIC-IDS2017 sensor stays quiet
+but misses almost every attack (see "On another network" below). To protect a real network,
+the sensor has to be retrained on that network's own labelled traffic.
 
 The same models and decision rule are used for both, fixed on NSL-KDD before CIC-IDS2017
 was used. One setting, the anomaly models' false-alarm budget, was re-chosen for CIC-IDS2017
@@ -98,6 +105,68 @@ The dashboard shows the priority, type and next step on every alert, can show on
 priority level, and draws two charts: alerts by priority and alerts by likely type (and, in
 live mode, alerts per second).
 
+## On another network: CSE-CIC-IDS2018
+
+The CIC-IDS2017 test part comes from the same recording as its training part (the same
+machines, week and attack tools), so 96.1% is optimistic. To see what happens elsewhere, the
+CIC-IDS2017 sensor - **not retrained or adjusted** - checked
+[CSE-CIC-IDS2018](https://www.unb.ca/cic/datasets/ids-2018.html): the same lab's next dataset,
+recorded a year later on another network, written by the next version of the same flow tool
+(CICFlowMeter 4.0, which uses shorter column names; `cicids2018.py` renames them).
+
+Seven of its days (6,624,262 flows: FTP and SSH password guessing, four DoS attacks, two DDoS
+attacks, web attacks, infiltration, a botnet) were used. A random sample of 399,117 flows was
+checked - 5% of the normal flows and up to 20,000 flows of each attack type per day - and each
+sampled flow counted for the flows it stands for, so the numbers estimate checking every flow.
+
+| | CIC-IDS2017 test part (same recording) | CSE-CIC-IDS2018 (another network) |
+|---|---|---|
+| Precision | 96.1% | 57.0% |
+| Attacks caught | 99.4% | 2.5% |
+| False alarms on normal traffic | 0.9% | 0.9% |
+
+| Family (2018) | Caught |
+|---|---|
+| DoS | 7.3% (Slowloris 98.9%, GoldenEye 29.2%, Hulk 5.4%, SlowHTTPTest 0.0%) |
+| DDoS (HOIC, LOIC-UDP) | 0.0% |
+| Password guessing (FTP 0.0%, SSH 1.1%) | 0.6% |
+| Web attacks | 9.7% (362 flows only) |
+| Infiltration | 3.5% |
+| Botnet | 0.0% |
+
+What the checks show:
+
+- **The column mapping is right.** For Slowloris, which was caught, the 2017 and 2018 flows
+  have practically the same measurements (packet counts, sizes, durations).
+- **Some 2018 "attacks" never happened on the wire.** Every FTP-BruteForce and DoS-SlowHTTPTest
+  flow in these files carries no data in either direction, and the SlowHTTPTest flows went to
+  port 21 (FTP), not to a web server. No flow-based sensor can recognise those as the attack.
+  Researchers have documented other errors in both datasets (Liu, Engelen et al., *Error
+  Prevalence in NIDS datasets: A Case Study on CIC-IDS-2017 and CSE-CIC-IDS-2018*, IEEE CNS 2022).
+- **The real attacks look different on another network** (other machines, operating systems
+  and tool versions), and the Random Forest only recognises what it was shown: its own alerts
+  were still right 98.7% of the time, but it caught 2.4% of the attacks. Published studies that
+  train on CIC-IDS2017 and test on CSE-CIC-IDS2018 also find poor results.
+- **The normal traffic looks different too:** the One-Class SVM finds 46.6% of the 2018 normal
+  flows unusual. The decision rule (both anomaly models must agree) keeps false alarms at 0.9%,
+  but those false alarms are why precision falls to 57%.
+
+So the benchmark scores are not what to expect on UNICC's network. The sensor, the explanations
+and the dashboard carry over; the trained models do not. Before real use, the sensor must be
+retrained (and re-scored) on labelled traffic from the network it watches.
+
+Run the check yourself (the CIC-IDS2017 sensor must be trained first): download the
+"Processed Traffic Data for ML Algorithms" CSV files you want from the dataset's page into one
+folder, then
+
+```powershell
+python -m network_sensor.cicids2018 "C:\path\to\folder"
+```
+
+The report (`reports/cicids2017/cross_dataset_cicids2018.md` / `.json`) lists every file, the
+sample, each attack type, the alerts' likely types and priorities, and which measurements of the
+2018 normal traffic differ most from 2017. It takes about two minutes for the seven days.
+
 ## Run it (Windows PowerShell, in the project folder)
 
 ```powershell
@@ -145,7 +214,10 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 
 - **File formats:** `.csv` with a header row naming the 41 NSL-KDD columns, a raw NSL-KDD
   file with no header (41 values per row, optionally followed by the label and difficulty,
-  like `KDDTest+.txt`), or a CIC-IDS2017 CSV file (the format the CICFlowMeter tool writes).
+  like `KDDTest+.txt`), a CIC-IDS2017 CSV file, or a CSV file written by CICFlowMeter 4.0
+  (as in CSE-CIC-IDS2018: "Dst Port", "Tot Fwd Pkts", ...; renamed to the CIC-IDS2017 names
+  and checked by that sensor; its placeholder label, "No Label" or "NeedManualLabel", counts
+  as no label).
   Each format is checked by the sensor trained on that dataset; the answer says which one.
   If a label column is present, the answer also says how precise the sensor was on that
   file. Labels are never used to decide.
@@ -172,7 +244,7 @@ check. `python -m network_sensor.evaluate` measures these times on your computer
 writes them in the report's "Speed" section.
 
 - It is a **replay of recorded traffic**, not a capture of this computer's own network
-  (see "Not done: capturing live traffic" below).
+  (see "Scanning your own traffic" below).
 - Each alert in the feed shows its priority, likely type and next step; the counters
   include the number of High-priority alerts, and a chart shows the alerts found each second.
 - Only the user who started a replay can see or stop it. One replay per user; at most
@@ -182,18 +254,29 @@ writes them in the report's "Speed" section.
 - Replays are kept in the server's memory, so they assume one server process (the
   normal `uvicorn backend.api.main:app`).
 
-### Not done: capturing live traffic
+### Scanning your own traffic
 
-To watch a real network, a flow meter would sit where it can see the traffic (for example a
-copy of a switch's traffic), turn packets into connection records, and pass them to the sensor
-in batches, the way live mode does with a file. For the CIC-IDS2017 format that tool is
-CICFlowMeter, which wrote that dataset's measurements. This is not done here because:
+The sensor does not capture packets itself. To check traffic from a real network:
 
-- capturing packets needs administrator rights and permission to watch the network (privacy);
-- the measurements must be computed exactly as in the training data, or the models see
-  something different (the 2017 CICFlowMeter output already has quirks, such as the
-  mislabelled TCP flag columns described in the CIC-IDS2017 report);
-- it is a deployment step on UNICC's own network rather than part of the sensor.
+1. Capture it, for example with Wireshark (this needs administrator rights and permission to
+   watch that network), and save it as a `.pcap` file.
+2. Turn the capture into flow records with the official
+   [CICFlowMeter](https://github.com/ahlashkari/CICFlowMeter) (version 4.0, a Java program),
+   which writes a CSV file.
+3. Upload that CSV file in the dashboard (scan or live mode).
+
+Two warnings, both measured:
+
+- **Use the official CICFlowMeter.** The Python package of the same name (`pip install
+  cicflowmeter`, version 0.5.0) was tried and is not compatible: it gives durations in seconds
+  instead of microseconds, counts the first packet of every flow twice, and measures packet
+  sizes including their headers. The models would get the wrong numbers.
+- **Expect the CIC-IDS2017 sensor to miss most attacks on another network** (see "On another
+  network" above) until it is retrained on that network's labelled traffic.
+
+Watching a network continuously would put a flow meter where it sees the traffic (for example
+a copy of a switch's traffic) and send its flows to the sensor in batches, as live mode does
+with a file. That is a deployment step on UNICC's own network, not part of the sensor.
 
 ## Run it in Docker
 
@@ -257,6 +340,7 @@ AI summaries are off); set them for real use.
 | `download_data.py` | downloads NSL-KDD and refuses files whose SHA-256 fingerprint does not match |
 | `datasets.py` | NSL-KDD: reads the files, adds `is_attack` and the attack family (DoS, Probe, R2L, U2R), plain-English wording |
 | `cicids2017.py` | CIC-IDS2017: checks the zip's fingerprints, reads and splits it, plain-English wording |
+| `cicids2018.py` | CICFlowMeter 4.0 / CSE-CIC-IDS2018 files: renames their columns and attack names; the check on another network |
 | `features.py` | checks input (no missing columns, text in number columns, impossible values) and converts it to model inputs |
 | `models.py` | the three models, the decision rule, the attack-type classifier, saving and loading |
 | `actions.py` | makes alerts actionable: priority rule, certainty, next step, where, counts for the charts |
@@ -285,7 +369,7 @@ but not its code:
 |---|---|---|---|
 | Models | Isolation Forest, One-Class SVM, DBSCAN | Isolation Forest, One-Class SVM, Random Forest, plus a Random Forest for the attack type | a model trained on labelled attacks recognises known attacks directly |
 | Training and test data | synthetic traffic it generates itself (with the Faker library) | public labelled datasets: NSL-KDD and CIC-IDS2017 | the evaluation sheet asks for public ground truth, not synthetic benchmarks |
-| Measured precision | none published | 96.7% (NSL-KDD), 96.1% (CIC-IDS2017) | Task 5.0 is scored on precision |
+| Measured precision | none published | 96.7% (NSL-KDD), 96.1% (CIC-IDS2017); on another network (CSE-CIC-IDS2018) 57.0%, catching 2.5% of attacks | Task 5.0 is scored on precision; the last number shows the models must be retrained for a new network |
 | Explanations | "feature importance" and human-readable insights | up to 3 plain-English reasons per alert, checked to be true | an analyst must be able to trust the reasons |
 | Attack type and severity | lists 4 attack types it detects; High / Medium / Low from anomaly-score thresholds | likely type with measured accuracy; High / Medium / Low from what the type can do; certainty shown separately; a next step | priority means "what is at stake" |
 | Real time | analyses the flows it generates "as they happen" | replays recorded files at up to 1,000 connections per second | neither captures live traffic (SentinelAI lists it as a future extension) |
@@ -295,11 +379,12 @@ Both use only free, open-source libraries, so neither has a licence cost.
 
 ## Known limitations
 
-- NSL-KDD comes from 1998 traffic; CIC-IDS2017 from a 2017 test network. Real UNICC traffic
-  will look different from both.
-- The measurements come with the datasets; the sensor does not yet compute them from
-  live traffic (live mode replays recorded traffic). For CIC-IDS2017-format files, the
-  CICFlowMeter tool can produce them from captured packets.
+- NSL-KDD comes from 1998 traffic; CIC-IDS2017 from a 2017 test network. On another network
+  (CSE-CIC-IDS2018) the CIC-IDS2017 sensor caught only 2.5% of the attacks: the trained models
+  do not carry over, and must be retrained on the network the sensor watches.
+- The sensor does not capture packets itself: flow records come from files (live mode replays
+  them). The official CICFlowMeter can make them from a packet capture (see "Scanning your
+  own traffic").
 - On NSL-KDD, remote-access attacks (R2L, e.g. password guessing) are mostly missed, because
   its training file has very few examples of them. The evaluation reports show results per family.
 - CIC-IDS2017 has no official training/test split, and researchers have found some wrong

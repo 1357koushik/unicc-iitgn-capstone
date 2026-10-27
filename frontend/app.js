@@ -884,7 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // never innerHTML: a crafted file must not be able to put code in the page.
     // ------------------------------------------------------------------
     const MAX_SCAN_MB = 5;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
-    const SCAN_HINT = `.csv or .txt (NSL-KDD or CIC-IDS2017 format), up to ${MAX_SCAN_MB} MB`;
+    const SCAN_HINT = `.csv or .txt (NSL-KDD, CIC-IDS2017 or CICFlowMeter format), up to ${MAX_SCAN_MB} MB`;
     const scanInput = document.getElementById("scan-file-input");
     const scanBtn = document.getElementById("scan-file-btn");
     let lastScanAlerts = [];             // the alerts sent back (the most serious of each group)

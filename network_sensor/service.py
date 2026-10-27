@@ -26,6 +26,7 @@ import pandas as pd
 
 from network_sensor.actions import IDENTITY_COLUMNS, priority_rank, summarise, where_of
 from network_sensor.cicids2017 import clean_label
+from network_sensor.cicids2018 import COLUMNS_2018, is_cicflowmeter4, is_placeholder_label, rename_columns, translate_label
 from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS
 from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
@@ -66,11 +67,14 @@ def _decode(content: bytes) -> str:
 def read_connections(content: bytes) -> pd.DataFrame:
     """Read an uploaded file of connection records.
 
-    Three layouts are accepted:
+    Four layouts are accepted:
       * a CSV file whose first row names the columns and includes the 41 NSL-KDD
         measurement columns (extra columns such as 'label' are allowed),
       * a CIC-IDS2017 / CICFlowMeter CSV file (first row: 'Destination Port', 'Flow Duration',
-        ...; a 'Label' column is allowed), or
+        ...; a 'Label' column is allowed),
+      * a CSV file written by CICFlowMeter 4.0, as in CSE-CIC-IDS2018 ('Dst Port',
+        'Tot Fwd Pkts', ...): the same measurements under shorter names, renamed here to
+        the CIC-IDS2017 names (and its attack labels translated; see cicids2018.py), or
       * a raw NSL-KDD file with no header row: 41 values per row, optionally followed
         by the label and the difficulty score (like KDDTest+.txt).
     If a label column is present it is used only to report how the sensor did on
@@ -83,11 +87,15 @@ def read_connections(content: bytes) -> pd.DataFrame:
 
     first_values = [value.strip() for value in next(csv.reader([first]))]
     cic_columns = get_spec("cicids2017").feature_columns
+    flowmeter4 = is_cicflowmeter4(first_values)
+    if flowmeter4:
+        first_values = [COLUMNS_2018.get(v, v) for v in first_values]
     if "Flow Duration" in first_values or "Destination Port" in first_values:
         header, names = 0, None
         missing = [c for c in cic_columns if c not in first_values]
         if missing:
-            raise ScanError(400, "The header row looks like CIC-IDS2017 but is missing these columns: "
+            looks_like = "CICFlowMeter 4.0 (CSE-CIC-IDS2018)" if flowmeter4 else "CIC-IDS2017"
+            raise ScanError(400, f"The header row looks like {looks_like} but is missing these columns: "
                                  f"{', '.join(missing[:10])}" + (" ..." if len(missing) > 10 else "") + ".")
     elif "duration" in first_values or "protocol_type" in first_values:
         header, names = 0, None
@@ -107,9 +115,16 @@ def read_connections(content: bytes) -> pd.DataFrame:
         raise ScanError(400, f"The file could not be read as CSV: {str(e)[:200]}")
 
     df.columns = [str(c).strip() for c in df.columns]
+    if flowmeter4:
+        df = rename_columns(df)
+        # The CSE-CIC-IDS2018 files repeat their header row in places.
+        df = df[df["Destination Port"].str.strip() != "Dst Port"]
     cic = dataset_of_columns(df.columns) == "cicids2017"
     if cic and "Label" in df.columns and "label" not in df.columns:
         df = df.rename(columns={"Label": "label"})
+    if flowmeter4 and "label" in df.columns and df["label"].fillna("").map(is_placeholder_label).all():
+        # CICFlowMeter writes "No Label" (or "NeedManualLabel") when nobody labelled the flows.
+        df = df.drop(columns="label")
     if len(df) == 0:
         raise ScanError(400, "The file has no connection records.")
     if len(df) > MAX_CONNECTIONS:
@@ -120,7 +135,10 @@ def read_connections(content: bytes) -> pd.DataFrame:
     if "label" in df.columns:
         if df["label"].isna().any():
             raise ScanError(400, "The 'label' column has empty cells. Remove the column or fill it in.")
-        df["label"] = df["label"].map(clean_label) if cic else df["label"].str.strip().str.rstrip(".")
+        if flowmeter4:
+            df["label"] = df["label"].map(translate_label)     # e.g. "DoS attacks-Hulk" -> "DoS Hulk"
+        else:
+            df["label"] = df["label"].map(clean_label) if cic else df["label"].str.strip().str.rstrip(".")
     return df.reset_index(drop=True)
 
 
