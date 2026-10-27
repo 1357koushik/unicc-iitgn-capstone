@@ -198,7 +198,15 @@ def classify_confidence_tier(probability: float) -> str:
 # ---------------------------------------------------------------------------
 
 class ConfidenceModel:
-    """Lightweight, vectorized CPU inference for L2 Logistic Regression & Calibrator with support guards."""
+    """Lightweight, vectorized CPU inference for L2 Logistic Regression & Calibrator with support guards.
+
+    NOTE ON FEATURE WEIGHTS (v1.0.0):
+    In the default shipped model artifact (models/confidence_model.json), non-zero weights
+    are present only for `ioc_coverage`, `bm25_norm_score`, and `inter_ioc_cov`. Features
+    such as `cve_coverage`, `ttp_coverage`, and `reranker_score` have 0.0 weights pending
+    Phase 2 retraining on expanded behavioral datasets. Layer 1 (EXACT_ID) handles primary
+    CVE matching deterministically.
+    """
 
     def __init__(
         self,
@@ -227,6 +235,14 @@ class ConfidenceModel:
             }
         else:
             self.weights = {}
+
+    @property
+    def is_calibrated(self) -> bool:
+        """Return True only if an active calibrator (sigmoid/platt/isotonic) is configured."""
+        if not self.calibrator or not isinstance(self.calibrator, dict):
+            return False
+        method = (self.calibrator.get("method") or self.calibrator.get("type") or "").lower()
+        return method in ("sigmoid", "platt", "isotonic")
 
     def is_in_support(self, features: dict[str, float]) -> bool:
         """Check if feature vector is within valid training support bounds (R1)."""
@@ -433,7 +449,18 @@ def resolve_confidence(
         query_profile.mitre_techniques or query_profile.threat_actors or query_profile.malware
     )
 
-    # Option B: Behavioral query (no CVE, only IOC/TTP) - Renormalized (R17)
+    # Option B: Behavioral query (no CVE, only IOC/TTP) - Renormalized Presence Weights (R17)
+    # Rationale:
+    # When a query contains behavioral observables (IOCs, TTPs) but no explicit CVE,
+    # the learned model's CVE-centric features cannot fire. Instead of penalizing absent
+    # CVE observables, Option B activates only the present observable modalities:
+    #   - Semantic base weight: 0.20 (always active via reranker / dense / BM25)
+    #   - IOC weight: 0.40 (active only if query has IOCs)
+    #   - TTP weight: 0.20 (active only if query has TTPs)
+    # The composite probability is normalized by dividing by total active weight:
+    #   prob = sum(w_i * sim_i) / sum(w_i)
+    # Results are uncalibrated (calibrated=False, tier_basis="UNCALIBRATED_BEHAVIORAL_HEURISTIC")
+    # and strictly capped at tier "STRONG" (never "EXACT").
     if not has_cve and has_behavioral and not force_degraded:
         ioc_sim = features["ioc_coverage"]
         ttp_sim = features["ttp_coverage"]
@@ -491,15 +518,16 @@ def resolve_confidence(
         if tier == "EXACT":
             tier = "STRONG"
         contributions = active_model.get_contributions(features)
+        is_cal = getattr(active_model, "is_calibrated", False)
         return ConfidenceResolution(
             match_type="LEARNED_MODEL",
             probability=round(prob, 4),
             tier=tier,
-            tier_basis="CALIBRATED_LOGISTIC_REGRESSION",
+            tier_basis="CALIBRATED_LOGISTIC_REGRESSION" if is_cal else "UNCALIBRATED_LOGISTIC_REGRESSION",
             features=features,
             feature_contributions=contributions,
             model_version=active_model.model_version,
-            calibrated=True,
+            calibrated=is_cal,
             degraded=False,
             evidence_record_class=record_class,
         )

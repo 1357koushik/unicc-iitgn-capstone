@@ -288,6 +288,16 @@ def run_pipeline(
         logger.info("Progress: %d chunks vectorized and persisted.", total_stored)
 
     logger.info("=== Pipeline Complete — %d chunks stored. ===", total_stored)
+    if total_stored > 0 and sqlite is not None:
+        try:
+            from threat_retrieval_engine.config import get_config
+            from threat_retrieval_engine.search_engine.bm25_index import build_from_sqlite
+            cfg = get_config()
+            logger.info("Pre-building BM25 index cache to accelerate server cold start...")
+            build_from_sqlite(sqlite, cache_path=cfg.bm25_cache_file, force_rebuild=True)
+            logger.info("BM25 index cache successfully pre-built at %s.", cfg.bm25_cache_file)
+        except Exception as exc:
+            logger.warning("BM25 index pre-building during ingestion failed: %s", exc)
     return total_stored
 
 

@@ -57,6 +57,7 @@ class PoCCache:
     def _get_connection(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+        conn.execute("PRAGMA busy_timeout=30000;")
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -65,6 +66,7 @@ class PoCCache:
         try:
             conn = self._get_connection()
             with conn:
+                conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS poc_cache (

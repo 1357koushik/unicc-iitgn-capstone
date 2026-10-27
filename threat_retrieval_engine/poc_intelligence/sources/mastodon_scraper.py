@@ -21,9 +21,16 @@ try:
         RawCandidate,
         SearchConfig,
         SourceSearchResponse,
+        sanitize_untrusted_text,
     )
 except ImportError:
-    from sources.base import BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse
+    from sources.base import (
+        BasePoCSource,
+        RawCandidate,
+        SearchConfig,
+        SourceSearchResponse,
+        sanitize_untrusted_text,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +51,11 @@ def _strip_html(html_str: str) -> str:
     return re.sub(r"<[^>]+>", "", html_str).strip()
 
 
+def _sanitize_text(text: str, max_chars: int = 2000) -> str:
+    """Sanitize untrusted text using shared sanitizer (R-3.1, R-3.2)."""
+    return sanitize_untrusted_text(text, max_chars=max_chars)
+
+
 class MastodonPoCSource(BasePoCSource):
     """Searches Mastodon federated infosec instances for PoC discussions and releases."""
 
@@ -55,7 +67,19 @@ class MastodonPoCSource(BasePoCSource):
         timeout_seconds: float = 10.0,
         access_token: str | None = None,
     ) -> None:
-        self.instances = instances or ["infosec.exchange", "defcon.social"]
+        if instances is not None:
+            self.instances = list(instances)
+        else:
+            try:
+                from threat_retrieval_engine.config import get_config
+                cfg_instances = getattr(get_config(), "poc_mastodon_instances", None)
+                self.instances = list(cfg_instances) if cfg_instances else [
+                    "infosec.exchange", "defcon.social", "chaos.social", "ioc.exchange", "hachyderm.io"
+                ]
+            except Exception:
+                self.instances = [
+                    "infosec.exchange", "defcon.social", "chaos.social", "ioc.exchange", "hachyderm.io"
+                ]
         self.timeout_seconds = timeout_seconds
         self.access_token = access_token or os.environ.get("MASTODON_ACCESS_TOKEN", "").strip()
 
@@ -101,7 +125,7 @@ class MastodonPoCSource(BasePoCSource):
 
         headers = {
             "Accept": "application/json",
-            "User-Agent": "UNICC-Team2-PoC-Harvester/1.0",
+            "User-Agent": "UNICC-CVE-PoC-Discovery/1.0",
         }
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
@@ -128,7 +152,7 @@ class MastodonPoCSource(BasePoCSource):
                         for st in statuses:
                             post_url = st.get("url") or ""
                             raw_content = st.get("content", "")
-                            clean_text = _strip_html(raw_content)
+                            clean_text = _sanitize_text(_strip_html(raw_content))
                             created_at = st.get("created_at")
                             account = st.get("account", {}).get("acct", "unknown")
 

@@ -22,9 +22,16 @@ try:
         RawCandidate,
         SearchConfig,
         SourceSearchResponse,
+        sanitize_untrusted_text,
     )
 except ImportError:  # pragma: no cover - permits running this module directly
-    from sources.base import BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse
+    from sources.base import (
+        BasePoCSource,
+        RawCandidate,
+        SearchConfig,
+        SourceSearchResponse,
+        sanitize_untrusted_text,
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -150,12 +157,14 @@ class GitHubPoCSource(BasePoCSource):
     def _repository_metadata(item: Mapping[str, Any]) -> dict[str, Any]:
         owner = item.get("owner") if isinstance(item.get("owner"), Mapping) else {}
         license_info = item.get("license") if isinstance(item.get("license"), Mapping) else {}
+        raw_desc = item.get("description")
+        clean_desc = sanitize_untrusted_text(raw_desc, max_chars=2000) if isinstance(raw_desc, str) else None
         return {
             "full_name": item.get("full_name"),
             "api_url": item.get("url"),
             "owner": owner.get("login"),
             "owner_url": owner.get("html_url"),
-            "description": item.get("description"),
+            "description": clean_desc,
             "stars": item.get("stargazers_count"),
             "forks": item.get("forks_count"),
             "language": item.get("language"),
@@ -180,9 +189,10 @@ class GitHubPoCSource(BasePoCSource):
         url = self._repository_url(item)
         if not url:
             return None
-        name = item.get("name") or item.get("full_name") or url
-        title = str(name)
-        description = item.get("description") if isinstance(item.get("description"), str) else ""
+        raw_name = item.get("name") or item.get("full_name") or url
+        title = sanitize_untrusted_text(str(raw_name), max_chars=200)
+        raw_desc = item.get("description") if isinstance(item.get("description"), str) else ""
+        description = sanitize_untrusted_text(raw_desc, max_chars=2000)
         corpus = f"{title} {description}"
         evidence = [
             f"GitHub repository search returned this repository for query: {query}",

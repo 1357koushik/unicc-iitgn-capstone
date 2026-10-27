@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import sys
+import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-# Ensure root and internal directories are on sys.path
-_API_DIR = Path(__file__).resolve().parent
-_ENGINE_DIR = _API_DIR.parent
-_ROOT_DIR = _ENGINE_DIR.parent
-for p in [_ROOT_DIR, _ENGINE_DIR, _API_DIR, _ENGINE_DIR / "search_engine"]:
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+# Ensure repository root is on sys.path (C-4)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 try:
     from threat_retrieval_engine.config import get_config
@@ -84,7 +84,10 @@ logger = logging.getLogger(__name__)
 
 def _build_starter_attack_graph():
     """Construct an in-memory starter ATT&CK graph if enterprise-attack.json is not present."""
-    from mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
+    try:
+        from threat_retrieval_engine.search_engine.mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
+    except ImportError:
+        from mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
 
     g = MitreAttackGraph()
     # Core Actors
@@ -130,109 +133,123 @@ class ThreatRetrieverEngine:
     ) -> None:
         self.qdrant = qdrant_client
         self.sqlite = sqlite_conn
+        self.sqlite_path = None
         self.hybrid_searcher = hybrid_searcher
         self.attack_graph = attack_graph
         self.reranker = reranker
         self.confidence_model = confidence_model
         self.attack_graph_status: str = "uninitialized"
         self.degraded_components: list[str] = []
+        self._init_lock = threading.RLock()
         self._initialized = False
+
+    def get_sqlite_conn(self) -> sqlite3.Connection:
+        """Thread-safe SQLite connection accessor (R-4.1)."""
+        if self.sqlite_path and Path(self.sqlite_path).is_file():
+            try:
+                from threat_retrieval_engine.search_engine.vector_database import get_thread_sqlite
+                return get_thread_sqlite(str(self.sqlite_path), readonly=True)
+            except Exception:
+                pass
+        return self.sqlite
 
     def initialize(self, qdrant_path: str | None = None, sqlite_path: str | None = None) -> None:
         """Initialize all three search engines and knowledge graph."""
-        if self._initialized:
-            return
+        with self._init_lock:
+            if self._initialized:
+                return
 
-        cfg = get_config()
-        self.degraded_components = []
+            cfg = get_config()
+            self.degraded_components = []
+            self.sqlite_path = sqlite_path or str(cfg.sqlite_db_path)
 
-        # 1. Databases (Qdrant + SQLite)
-        if self.qdrant is None or self.sqlite is None:
-            db_kwargs = {
-                "qdrant_path": qdrant_path or str(cfg.qdrant_storage_path),
-                "sqlite_path": sqlite_path or str(cfg.sqlite_db_path),
-            }
-            try:
-                self.qdrant, self.sqlite = setup_databases(**db_kwargs)
-            except Exception as exc:
-                logger.error("Failed to setup databases: %s", exc)
-                self.degraded_components.append("databases")
-
-        # 2. Knowledge Graph (MITRE STIX)
-        if self.attack_graph is None:
-            bundle_path = cfg.mitre_attack_bundle_path
-            if bundle_path.is_file():
+            # 1. Databases (Qdrant + SQLite)
+            if self.qdrant is None or self.sqlite is None:
+                db_kwargs = {
+                    "qdrant_path": qdrant_path or str(cfg.qdrant_storage_path),
+                    "sqlite_path": sqlite_path or str(cfg.sqlite_db_path),
+                }
                 try:
-                    from mitre_graph import load_attack_bundle
-                    self.attack_graph = load_attack_bundle(bundle_path)
-                    self.attack_graph_status = "ready"
+                    self.qdrant, self.sqlite = setup_databases(**db_kwargs)
                 except Exception as exc:
-                    logger.warning("Failed to load ATT&CK STIX bundle: %s; using starter stub.", exc)
+                    logger.error("Failed to setup databases: %s", exc)
+                    self.degraded_components.append("databases")
+
+            # 2. Knowledge Graph (MITRE STIX)
+            if self.attack_graph is None:
+                bundle_path = cfg.mitre_attack_bundle_path
+                if bundle_path.is_file():
+                    try:
+                        from threat_retrieval_engine.search_engine.mitre_graph import load_attack_bundle
+                        self.attack_graph = load_attack_bundle(bundle_path)
+                        self.attack_graph_status = "ready"
+                    except Exception as exc:
+                        logger.warning("Failed to load ATT&CK STIX bundle: %s; using starter stub.", exc)
+                        self.attack_graph = _build_starter_attack_graph()
+                        self.attack_graph_status = "starter_stub"
+                else:
                     self.attack_graph = _build_starter_attack_graph()
                     self.attack_graph_status = "starter_stub"
-            else:
-                self.attack_graph = _build_starter_attack_graph()
-                self.attack_graph_status = "starter_stub"
 
-        # 3. Hybrid Searcher (BM25 + BGE-M3)
-        if self.hybrid_searcher is None:
-            from bm25_index import build_from_sqlite, BM25Index
-            from hybrid_search import HybridSearcher, default_query_encoder
+            # 3. Hybrid Searcher (BM25 + BGE-M3)
+            if self.hybrid_searcher is None:
+                from threat_retrieval_engine.search_engine.bm25_index import build_from_sqlite, BM25Index
+                from threat_retrieval_engine.search_engine.hybrid_search import HybridSearcher, default_query_encoder
 
-            bm25_cache_file = cfg.sqlite_db_path.parent / "bm25_index.pkl"
-            try:
-                bm25 = build_from_sqlite(self.sqlite, cache_path=bm25_cache_file)
-            except Exception as exc:
-                logger.warning("BM25 index build failed: %s; lexical search degraded.", exc)
-                self.degraded_components.append("bm25")
-                bm25 = BM25Index()
+                bm25_cache_file = cfg.bm25_cache_file
+                try:
+                    bm25 = build_from_sqlite(self.sqlite, cache_path=bm25_cache_file)
+                except Exception as exc:
+                    logger.warning("BM25 index build failed: %s; lexical search degraded.", exc)
+                    self.degraded_components.append("bm25")
+                    bm25 = BM25Index()
 
-            # Vectorizer
-            try:
-                from vectorizer import BGEVectorizer
-                logger.info("Pre-loading BGE-M3 embedding model during startup...")
-                vectorizer = BGEVectorizer(eager_load=True)
-                query_encoder = default_query_encoder(vectorizer)
-                query_encoder("startup warmup query")
-                logger.info("BGE-M3 embedding model preloaded successfully.")
-            except Exception as exc:
-                logger.warning("BGEVectorizer load deferred or stubbed: %s", exc)
-                self.degraded_components.append("embedder")
-                query_encoder = lambda q: [0.0] * 1024
+                # Vectorizer
+                try:
+                    from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
+                    logger.info("Pre-loading BGE-M3 embedding model during startup...")
+                    vectorizer = BGEVectorizer(eager_load=True)
+                    query_encoder = default_query_encoder(vectorizer)
+                    query_encoder("startup warmup query")
+                    logger.info("BGE-M3 embedding model preloaded successfully.")
+                except Exception as exc:
+                    logger.warning("BGEVectorizer load deferred or stubbed: %s", exc)
+                    self.degraded_components.append("embedder")
+                    query_encoder = lambda q: [0.0] * 1024
 
-            self.hybrid_searcher = HybridSearcher(
-                qdrant=self.qdrant,
-                sqlite=self.sqlite,
-                bm25=bm25,
-                query_encoder=query_encoder,
-                rrf_k=cfg.rrf_k,
-            )
+                self.hybrid_searcher = HybridSearcher(
+                    qdrant=self.qdrant,
+                    sqlite=self.sqlite,
+                    bm25=bm25,
+                    query_encoder=query_encoder,
+                    rrf_k=cfg.rrf_k,
+                )
 
-        # 4. Cross-Encoder Reranker
-        if self.reranker is None:
-            try:
-                from reranker import CrossEncoderReranker
-                logger.info("Pre-loading Cross-Encoder Reranker during startup...")
-                reranker_instance = CrossEncoderReranker()
-                reranker_instance._load()
-                self.reranker = reranker_instance
-                logger.info("Reranker preloaded successfully.")
-            except Exception as exc:
-                logger.warning("Reranker load failed: %s; running in degraded rerank mode.", exc)
-                self.degraded_components.append("reranker")
-                self.reranker = None
+            # 4. Cross-Encoder Reranker
+            if self.reranker is None:
+                try:
+                    from threat_retrieval_engine.search_engine.reranker import CrossEncoderReranker
+                    logger.info("Pre-loading Cross-Encoder Reranker during startup...")
+                    reranker_instance = CrossEncoderReranker()
+                    reranker_instance._load()
+                    self.reranker = reranker_instance
+                    logger.info("Reranker preloaded successfully.")
+                except Exception as exc:
+                    logger.warning("Reranker load failed: %s; running in degraded rerank mode.", exc)
+                    self.degraded_components.append("reranker")
+                    self.reranker = None
 
-        # 5. Learned Confidence Model
-        if self.confidence_model is None:
-            try:
-                self.confidence_model = get_confidence_model()
-            except Exception as exc:
-                logger.warning("Failed to load confidence model: %s. Using degraded mode.", exc)
-                self.degraded_components.append("confidence_model")
-                self.confidence_model = None
+            # 5. Learned Confidence Model
+            if self.confidence_model is None:
+                try:
+                    self.confidence_model = get_confidence_model()
+                except Exception as exc:
+                    logger.warning("Failed to load confidence model: %s. Using degraded mode.", exc)
+                    self.degraded_components.append("confidence_model")
+                    self.confidence_model = None
 
-        self._initialized = True
-        logger.info("ThreatRetrieverEngine initialized with degraded_components=%s", self.degraded_components)
+            self._initialized = True
+            logger.info("ThreatRetrieverEngine initialized with degraded_components=%s", self.degraded_components)
 
     def run_query(
         self,
@@ -247,8 +264,9 @@ class ThreatRetrieverEngine:
         self.initialize()
         cfg = get_config()
 
-        query_threat_id = f"query_{int(time.time())}"
+        query_threat_id = f"query_{int(time.time())}_{uuid.uuid4().hex[:8]}"
         query_ent = parse_query_entities(query)
+        sqlite_handle = self.get_sqlite_conn()
 
         # -------------------------------------------------------------------
         # Engine 1: Exact Match Lookup (Qdrant & SQLite) (R2, R7)
@@ -258,15 +276,15 @@ class ThreatRetrieverEngine:
         try:
             exact_matches = exact_lookup(
                 self.qdrant,
-                self.sqlite,
+                sqlite_handle,
                 query=query,
                 limit=top_k,
                 hydrate=True,
                 allowed_sources=allowed_sources,
             )
             for m in exact_matches:
-                meta = m.metadata or fetch_chunk_metadata(m.chunk_id, self.sqlite) or {}
-                txt = meta.get("text") or fetch_text(m.chunk_id, self.sqlite) or ""
+                meta = m.metadata or fetch_chunk_metadata(m.chunk_id, sqlite_handle) or {}
+                txt = meta.get("text") or fetch_text(m.chunk_id, sqlite_handle) or ""
                 doc_id = meta.get("doc_id", "")
                 
                 # Determine authentic match kind (R7)
@@ -323,8 +341,8 @@ class ThreatRetrieverEngine:
         candidate_map: dict[str, dict[str, Any]] = {}
         for er in exact_results:
             cid = er["chunk_id"]
-            meta = er.get("metadata") or fetch_chunk_metadata(cid, self.sqlite) or {}
-            txt = er.get("text") or fetch_text(cid, self.sqlite) or ""
+            meta = er.get("metadata") or fetch_chunk_metadata(cid, sqlite_handle) or {}
+            txt = er.get("text") or fetch_text(cid, sqlite_handle) or ""
             candidate_map[cid] = {
                 "chunk_id": cid,
                 "text": txt,
@@ -340,8 +358,8 @@ class ThreatRetrieverEngine:
         for hr in hybrid_results:
             cid = hr["chunk_id"]
             if cid not in candidate_map:
-                meta = fetch_chunk_metadata(cid, self.sqlite) or {}
-                txt = fetch_text(cid, self.sqlite) or (hr["payload"].get("text", "") if hr.get("payload") else "")
+                meta = fetch_chunk_metadata(cid, sqlite_handle) or {}
+                txt = fetch_text(cid, sqlite_handle) or (hr["payload"].get("text", "") if hr.get("payload") else "")
                 candidate_map[cid] = {
                     "chunk_id": cid,
                     "text": txt,
@@ -353,12 +371,21 @@ class ThreatRetrieverEngine:
                     "source_org": meta.get("source_org", ""),
                     "doc_id": meta.get("doc_id", ""),
                 }
+            else:
+                # Merge hybrid scores if exact lookup candidate didn't have them
+                if candidate_map[cid].get("dense_score") is None:
+                    candidate_map[cid]["dense_score"] = hr.get("dense_score")
+                if candidate_map[cid].get("rrf_score") is None:
+                    candidate_map[cid]["rrf_score"] = hr.get("rrf_score")
 
         # -------------------------------------------------------------------
-        # Engine 2.5: Cross-Encoder Reranking (R12)
+        # Engine 2.5: Cross-Encoder Reranking (R12, R-2.5, N-4)
         # -------------------------------------------------------------------
         t_rerank_start = time.perf_counter()
-        if getattr(self, "reranker", None) and candidate_map:
+        elapsed_before_rerank = time.perf_counter() - t_total_start
+        if elapsed_before_rerank >= (cfg.d_match_seconds * 0.70):
+            logger.warning("Over 70%% of match deadline elapsed (%.2fs); skipping cross-encoder reranking.", elapsed_before_rerank)
+        elif getattr(self, "reranker", None) and candidate_map:
             try:
                 # Rerank on enriched_text (R12)
                 rerank_pairs = []
@@ -370,13 +397,10 @@ class ThreatRetrieverEngine:
                 rerank_limit = min(len(candidate_map), max(top_k * 4, 25))
                 reranked = self.reranker.rerank(query, rerank_pairs, top_k=rerank_limit)
 
-                # Update measured rerank scores without overwriting with synthetic 1.0 (R7, R12)
+                # Update measured rerank scores; do NOT overwrite dense_score (N-4)
                 for res in reranked:
                     if res.chunk_id in candidate_map:
                         candidate_map[res.chunk_id]["rerank_score"] = res.rerank_score
-                        # If dense_score was not measured, attach rerank probability
-                        if candidate_map[res.chunk_id].get("dense_score") is None:
-                            candidate_map[res.chunk_id]["dense_score"] = res.rerank_score
             except Exception as exc:
                 logger.warning("Reranking encountered error: %s", exc)
 
@@ -384,49 +408,65 @@ class ThreatRetrieverEngine:
         vector_database_ms += rerank_ms
 
         # -------------------------------------------------------------------
-        # Engine 3: Knowledge Graph Expansion (R8)
+        # Engine 3: Knowledge Graph Expansion (R8, R-2.5, C-1)
         # -------------------------------------------------------------------
         t_kg_start = time.perf_counter()
         chunk_graph_relations: dict[str, list[str]] = {}
 
-        for cid, cand in candidate_map.items():
-            meta = cand.get("metadata") or {}
-            txt = cand.get("text") or ""
-            raw_ent = meta.get("entities") or {}
-            if isinstance(raw_ent, str):
-                try:
-                    raw_ent = json.loads(raw_ent)
-                except Exception:
-                    raw_ent = {}
-
-            # Document entities (R8: never mix query entities into document provenance)
-            doc_actors = list(raw_ent.get("threat_actors", []))
-            doc_ttps = list(raw_ent.get("mitre_ttps", []))
-            doc_mal = list(raw_ent.get("malware_families", []))
-
-            doc_rels: list[str] = []
-            if self.attack_graph and (doc_actors or doc_ttps or doc_mal):
-                expanded_doc = self.attack_graph.expand(
-                    threat_actors=doc_actors,
-                    techniques=doc_ttps,
-                    malware=doc_mal,
-                )
-                for r in expanded_doc.get("relationships", []):
-                    doc_rels.append(f"[DOCUMENT] {r}")
-
-            # Query context relationships (explicitly labelled)
+        elapsed_before_kg = time.perf_counter() - t_total_start
+        if elapsed_before_kg >= (cfg.d_match_seconds * 0.85):
+            logger.warning("Over 85%% of match deadline elapsed (%.2fs); skipping knowledge graph expansion.", elapsed_before_kg)
+        elif self.attack_graph and candidate_map:
+            # Query context relationships: computed ONCE outside the candidate loop (C-1)
             query_rels: list[str] = []
-            if self.attack_graph and (query_ent.threat_actors or query_ent.mitre_techniques or query_ent.malware):
-                expanded_q = self.attack_graph.expand(
-                    threat_actors=query_ent.threat_actors,
-                    techniques=query_ent.mitre_techniques,
-                    malware=query_ent.malware,
-                )
-                for r in expanded_q.get("relationships", []):
-                    query_rels.append(f"[QUERY_CONTEXT] {r}")
+            if query_ent.threat_actors or query_ent.mitre_techniques or query_ent.malware:
+                try:
+                    expanded_q = self.attack_graph.expand(
+                        threat_actors=query_ent.threat_actors,
+                        techniques=query_ent.mitre_techniques,
+                        malware=query_ent.malware,
+                    )
+                    for r in expanded_q.get("relationships", []):
+                        query_rels.append(f"[QUERY_CONTEXT] {r}")
+                except Exception as q_exc:
+                    logger.warning("Query graph expansion failed: %s", q_exc)
 
-            combined_rels = list(dict.fromkeys(doc_rels + query_rels))
-            chunk_graph_relations[cid] = combined_rels
+            doc_expansion_cache: dict[tuple, list[str]] = {}
+            for cid, cand in candidate_map.items():
+                meta = cand.get("metadata") or {}
+                txt = cand.get("text") or ""
+                raw_ent = meta.get("entities") or {}
+                if isinstance(raw_ent, str):
+                    try:
+                        raw_ent = json.loads(raw_ent)
+                    except Exception:
+                        raw_ent = {}
+
+                # Document entities cached by entity tuple (C-1)
+                doc_actors = tuple(sorted(str(a) for a in raw_ent.get("threat_actors", [])))
+                doc_ttps = tuple(sorted(str(t) for t in raw_ent.get("mitre_ttps", [])))
+                doc_mal = tuple(sorted(str(m) for m in raw_ent.get("malware_families", [])))
+                doc_key = (doc_actors, doc_ttps, doc_mal)
+
+                if doc_key in doc_expansion_cache:
+                    doc_rels = doc_expansion_cache[doc_key]
+                else:
+                    doc_rels = []
+                    if any(doc_key):
+                        try:
+                            expanded_doc = self.attack_graph.expand(
+                                threat_actors=list(doc_actors),
+                                techniques=list(doc_ttps),
+                                malware=list(doc_mal),
+                            )
+                            for r in expanded_doc.get("relationships", []):
+                                doc_rels.append(f"[DOCUMENT] {r}")
+                        except Exception as doc_exc:
+                            logger.warning("Doc graph expansion failed: %s", doc_exc)
+                    doc_expansion_cache[doc_key] = doc_rels
+
+                combined_rels = list(dict.fromkeys(doc_rels + query_rels))
+                chunk_graph_relations[cid] = combined_rels
 
         knowledge_graph_ms = (time.perf_counter() - t_kg_start) * 1000
 
@@ -520,18 +560,44 @@ class ThreatRetrieverEngine:
         t_cite_start = time.perf_counter()
         top_matches: list[TopMatchSchema] = []
 
-        # Decoupled PoC discovery: only run if include_pocs is True (R34)
+        # Decoupled PoC discovery: only run if include_pocs is True (R34, R-2.1, C-2, N-5)
         t_poc_start = time.perf_counter()
         discovered_pocs: dict[str, list[PoCResultSchema]] = {}
+        poc_degraded = False
         if include_pocs and query_ent.cves:
-            try:
-                from threat_retrieval_engine.poc_intelligence import get_poc_finder
-                poc_finder = get_poc_finder()
-                for cve in query_ent.cves:
-                    poc_resp = poc_finder.find_pocs_sync(cve, max_results=5)
-                    discovered_pocs[cve.upper()] = poc_resp.results
-            except Exception as exc:
-                logger.debug("PoC discovery enrichment skipped or encountered exception: %s", exc)
+            target_cves = list(dict.fromkeys(cve.upper() for cve in query_ent.cves))[:3]
+            remaining_budget = max(0.0, cfg.d_match_seconds - (time.perf_counter() - t_total_start))
+            poc_budget = min(cfg.d_poc_seconds, remaining_budget)
+
+            if poc_budget < 0.5:
+                logger.warning(
+                    "Remaining match deadline budget (%.2fs) insufficient for PoC discovery; skipping.",
+                    remaining_budget,
+                )
+                poc_degraded = True
+            else:
+                try:
+                    from threat_retrieval_engine.poc_intelligence import get_poc_finder
+                    import concurrent.futures
+                    poc_finder = get_poc_finder()
+
+                    def _fetch_one_cve(cve_id: str) -> tuple[str, list[PoCResultSchema]]:
+                        resp = poc_finder.find_pocs_sync(cve_id, max_results=5, timeout=poc_budget)
+                        return cve_id, resp.results
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(target_cves), 3)) as pool:
+                        futures = {pool.submit(_fetch_one_cve, cve): cve for cve in target_cves}
+                        for future in concurrent.futures.as_completed(futures):
+                            cve_target = futures[future]
+                            try:
+                                cve_res, results = future.result()
+                                discovered_pocs[cve_res] = results
+                            except Exception as cve_exc:
+                                logger.warning("PoC lookup for %s failed or timed out: %s", cve_target, cve_exc)
+                                poc_degraded = True
+                except Exception as exc:
+                    logger.warning("PoC discovery enrichment encountered error: %s", exc)
+                    poc_degraded = True
         poc_discovery_ms = (time.perf_counter() - t_poc_start) * 1000
 
         for rank, cand in enumerate(top_candidates, start=1):
@@ -584,6 +650,8 @@ class ThreatRetrieverEngine:
         # Deadline contract check (V2)
         deadline_exceeded = total_ms > (cfg.d_match_seconds * 1000.0)
 
+        current_degraded = list(dict.fromkeys(self.degraded_components + (["poc_discovery"] if poc_degraded else [])))
+
         return MatchResponse(
             query_threat_id=query_threat_id,
             top_matches=top_matches,
@@ -596,7 +664,7 @@ class ThreatRetrieverEngine:
                 poc_discovery_ms=round(poc_discovery_ms, 1),
                 total_ms=round(total_ms, 1),
             ),
-            degraded_components=list(self.degraded_components),
+            degraded_components=current_degraded,
             deadline_exceeded=deadline_exceeded,
         )
 

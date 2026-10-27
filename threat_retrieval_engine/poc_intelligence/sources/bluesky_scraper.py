@@ -15,14 +15,26 @@ try:
         RawCandidate,
         SearchConfig,
         SourceSearchResponse,
+        sanitize_untrusted_text,
     )
 except ImportError:
-    from sources.base import BasePoCSource, RawCandidate, SearchConfig, SourceSearchResponse
+    from sources.base import (
+        BasePoCSource,
+        RawCandidate,
+        SearchConfig,
+        SourceSearchResponse,
+        sanitize_untrusted_text,
+    )
 
 logger = logging.getLogger(__name__)
 
 _CVE_REGEX = re.compile(r"^CVE-\d{4}-\d{4,7}$", re.IGNORECASE)
 _URL_REGEX = re.compile(r"https?://[^\s<>\"']+")
+
+
+def _sanitize_text(text: str, max_chars: int = 2000) -> str:
+    """Sanitize untrusted text using shared sanitizer (R-3.1, R-3.2)."""
+    return sanitize_untrusted_text(text, max_chars=max_chars)
 
 
 class BlueSkyPoCSource(BasePoCSource):
@@ -85,10 +97,11 @@ class BlueSkyPoCSource(BasePoCSource):
 
         headers = {
             "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "UNICC-CVE-PoC-Discovery/1.0",
         }
 
         cursor: str | None = None
+        last_good_cursor: str | None = None
         pages_fetched = 0
         requests_made = 0
         terminal_status = "success"
@@ -146,6 +159,8 @@ class BlueSkyPoCSource(BasePoCSource):
 
                     posts = data.get("posts", [])
                     cursor = data.get("cursor")
+                    if cursor:
+                        last_good_cursor = str(cursor)
                     for post in posts:
                         if not isinstance(post, dict):
                             continue
@@ -157,7 +172,7 @@ class BlueSkyPoCSource(BasePoCSource):
                         author_info = post.get("author") if isinstance(post.get("author"), dict) else {}
                         handle = author_info.get("handle", "anonymous")
                         record = post.get("record") if isinstance(post.get("record"), dict) else {}
-                        text = record.get("text", "")
+                        text = _sanitize_text(record.get("text", ""))
                         created_at = record.get("createdAt")
 
                         rkey = at_uri.split("/")[-1] if "/" in at_uri else ""
@@ -210,6 +225,9 @@ class BlueSkyPoCSource(BasePoCSource):
                     errors.append(f"BlueSky API returned HTTP {response.status_code}")
                     break
 
+        if candidates and terminal_status in ("error", "timeout", "rate_limited"):
+            terminal_status = "partial"
+
         if terminal_status == "success" and not candidates:
             warnings.append("No matching public posts found on BlueSky.")
 
@@ -218,7 +236,7 @@ class BlueSkyPoCSource(BasePoCSource):
             status=terminal_status,
             query=f"{cve_clean} poc",
             candidates=candidates,
-            next_cursor=cursor,
+            next_cursor=last_good_cursor or cursor,
             pages_fetched=pages_fetched,
             errors=errors,
             warnings=warnings,

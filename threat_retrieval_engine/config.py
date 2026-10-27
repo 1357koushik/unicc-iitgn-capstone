@@ -28,6 +28,20 @@ def _resolve_path(rel_or_abs: str | Path) -> Path:
     return (REPO_ROOT / p).resolve()
 
 
+def _env_bool(val: Any, default: bool = False) -> bool:
+    """Robust boolean environment variable parser handling true/false/0/1."""
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in {"1", "true", "yes", "on", "enable", "enabled"}:
+        return True
+    if s in {"0", "false", "no", "off", "disable", "disabled", ""}:
+        return False
+    return default
+
+
 class RetrievalConfig:
     REPO_ROOT = REPO_ROOT
 
@@ -39,6 +53,7 @@ class RetrievalConfig:
         # Storage paths
         self.qdrant_storage_path = _resolve_path(cfg.get("qdrant_storage_path", "./data/qdrant_storage"))
         self.sqlite_db_path = _resolve_path(cfg.get("sqlite_db_path", "./data/sqlite/corpus_store.db"))
+        self.bm25_cache_file = _resolve_path(cfg.get("bm25_cache_file", self.sqlite_db_path.parent / "bm25_index.pkl"))
         self.quarantine_path = _resolve_path(cfg.get("quarantine_path", "./data/quarantined"))
 
         # Qdrant HNSW
@@ -84,6 +99,22 @@ class RetrievalConfig:
         if self.t_client_match_seconds <= self.d_match_seconds:
             self.t_client_match_seconds = self.d_match_seconds + self.client_margin_seconds
 
+        # Concurrency: dedicated bounded pool for /match (V-4)
+        self.match_max_workers = int(cfg.get("match_max_workers", 4))
+
+        # Confidence model auditing (V-1). ``warn`` keeps serving an unverified
+        # artifact but reports calibrated=False; ``enforce`` refuses to serve it.
+        self.confidence_model_audit_enforce = _env_bool(
+            os.getenv("CONFIDENCE_MODEL_AUDIT_ENFORCE"),
+            default=bool(cfg.get("confidence_model_audit_enforce", False)),
+        )
+
+        # BM25 cache integrity (V-5): HMAC key is never stored beside the cache.
+        self.bm25_cache_hmac_key = os.getenv("BM25_CACHE_HMAC_KEY", "")
+        self.bm25_cache_key_file = _resolve_path(
+            cfg.get("bm25_cache_key_file", str(Path.home() / ".config" / "unicc-team2" / "bm25_cache.key"))
+        )
+
         # Security
         sec = cfg.get("security", {})
         self.cors_allowed_origins = list(sec.get("cors_allowed_origins", [
@@ -91,10 +122,12 @@ class RetrievalConfig:
             "http://localhost:8000", "http://127.0.0.1:8000",
             "http://localhost:8080", "http://127.0.0.1:8080"
         ]))
-        self.service_auth_enabled = bool(os.getenv("SERVICE_AUTH_ENABLED", sec.get("service_auth_enabled", False)))
+        self.service_auth_enabled = _env_bool(
+            os.getenv("SERVICE_AUTH_ENABLED"),
+            default=bool(sec.get("service_auth_enabled", False)),
+        )
         self.api_key = os.getenv("RETRIEVAL_API_KEY", "")
         self.api_key_header = str(sec.get("api_key_header", "X-API-Key"))
-        self.max_query_chars = int(sec.get("max_query_chars", 4096))
 
         # PoC Intelligence
         poc = cfg.get("poc_intelligence", {})
@@ -105,7 +138,13 @@ class RetrievalConfig:
         self.poc_max_total_results = int(poc.get("max_total_results", 30))
         self.poc_min_confidence_threshold = float(poc.get("min_confidence_threshold", 0.0))
         self.poc_request_timeout_seconds = float(poc.get("request_timeout_seconds", 10.0))
-        self.x_allow_paid_requests = bool(os.getenv("X_ALLOW_PAID_REQUESTS", poc.get("x_allow_paid_requests", False)))
+        self.x_allow_paid_requests = _env_bool(
+            os.getenv("X_ALLOW_PAID_REQUESTS"),
+            default=bool(poc.get("x_allow_paid_requests", False)),
+        )
+        self.poc_mastodon_instances = list(poc.get("mastodon_instances", [
+            "infosec.exchange", "defcon.social", "chaos.social", "ioc.exchange", "hachyderm.io"
+        ]))
         self.poc_sources = poc.get("sources", {})
 
 

@@ -34,12 +34,33 @@ class MatchRequest(BaseModel):
     include_pocs: bool = Field(False, description="Whether to perform live OSINT PoC enrichment. Defaults to False for fast decoupled matching (R34)")
 
 
+class FeatureVectorSchema(BaseModel):
+    """Explicit 12-dimensional Layer 2 feature vector."""
+    has_cve: float = 0.0
+    has_ioc: float = 0.0
+    has_ttp: float = 0.0
+    cve_coverage: float = 0.0
+    ioc_coverage: float = 0.0
+    ttp_coverage: float = 0.0
+    reranker_score: float = 0.0
+    bm25_norm_score: float = 0.0
+    inter_cve_cov: float = 0.0
+    inter_ioc_cov: float = 0.0
+    inter_ttp_cov: float = 0.0
+    inter_reranker: float = 0.0
+
+    model_config = {"extra": "allow"}
+
+
 class EvidenceBreakdownSchema(BaseModel):
     ioc_similarity: float | None = 0.0
     cve_similarity: float | None = 0.0
     ttp_similarity: float | None = 0.0
     semantic_similarity: float | None = 0.0
-    features: dict[str, float] = Field(default_factory=dict)
+    features: FeatureVectorSchema | dict[str, float] = Field(
+        default_factory=dict,
+        description="12-dimensional Layer 2 feature vector (train-serve parity)",
+    )
 
 
 class AttributionSchema(BaseModel):
@@ -70,6 +91,10 @@ class PoCResultSchema(BaseModel):
     updated_at: str | None = None
     retrieved_at: str | None = None
     description: str = ""
+    description_is_untrusted: bool = Field(
+        True,
+        description="Explicit flag indicating downstream LLM consumers must treat description as raw untrusted data and not prompt instructions"
+    )
     linked_urls: list[str] = Field(default_factory=list, description="Artifacts linked by this source record")
     repository_metadata: dict[str, object] = Field(default_factory=dict)
     match_type: str = Field("LOW_CONFIDENCE", description="HIGH_RELEVANCE_POC_CANDIDATE | POSSIBLE_POC | RELATED_DISCUSSION | ADVISORY_OR_PATCH | LOW_CONFIDENCE | NOT_RELEVANT")

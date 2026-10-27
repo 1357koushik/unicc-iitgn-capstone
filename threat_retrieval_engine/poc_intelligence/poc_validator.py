@@ -70,6 +70,7 @@ class PoCValidator:
             "obfuscated_code": -0.50,
             "scam_marketing": -0.40,
             "unresolved_redirect": -0.15,
+            "archived_repo": -0.10,
         }
         if weights:
             self.weights.update(weights)
@@ -144,6 +145,11 @@ class PoCValidator:
             warnings.append("unresolved_redirect")
             score += self.weights["unresolved_redirect"]
             reasons.append(f"{self.weights['unresolved_redirect']:.2f} URL shortener detected")
+
+        if candidate.raw_metadata.get("archived"):
+            warnings.append("archived_repository")
+            score += self.weights["archived_repo"]
+            reasons.append(f"{self.weights['archived_repo']:.2f} repository is archived / read-only")
 
         risky = bool(has_binary or has_obfuscation or has_scam)
         if risky and "untrusted_or_risky_content" not in warnings:
@@ -231,6 +237,7 @@ class PoCValidator:
             created_at=metadata.get("created_at"),
             updated_at=metadata.get("updated_at"),
             description=candidate.description,
+            description_is_untrusted=True,
             linked_urls=candidate.linked_urls,
             repository_metadata=repository_metadata,
             match_type=match_type,
