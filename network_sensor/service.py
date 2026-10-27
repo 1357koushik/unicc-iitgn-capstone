@@ -5,6 +5,7 @@ that file only needs two short endpoints).
   read_connections(file_bytes) - turns an uploaded file into a table, or refuses it
   sensor.scan(table)           - checks every connection and returns ranked alerts, each
                                  with its likely attack type, priority and next step
+  sensor.alerts_csv(table)     - every alert as a CSV table, for download
   sensor.status()              - is the sensor trained, and how well did it score?
   live                         - live replays (see live.py)
 
@@ -128,6 +129,53 @@ def dataset_of(connections: pd.DataFrame) -> str:
     return dataset_of_columns(connections.columns)
 
 
+def seriousness(alert: dict):
+    """For sorting, most serious first: highest priority, then alerts all three models
+    agree on, then by Random Forest score (then by row, so the order is always the same)."""
+    return (priority_rank(alert), -sum(alert["votes"].values()), -alert["random_forest_score"], alert["row"])
+
+
+# The columns of the downloadable alerts table, in order.
+CSV_COLUMNS = ["Row", "Priority", "Kind", "Likely type", "Type model votes (%)", "Raised by",
+               "Random Forest score (%)", "Certainty", "Reasons", "Where", "Next step"]
+CSV_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_text(value) -> str:
+    """A cell of text. Text from an uploaded file (labels, addresses) could start with "="
+    and would then run as a formula when the CSV is opened in Excel ("CSV injection"), so
+    such text starts with an apostrophe, which makes Excel show it as plain text."""
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(CSV_FORMULA_START) else text
+
+
+def alerts_to_csv(alerts, has_labels: bool) -> str:
+    """The alerts as CSV text (one row per alert, most serious first), for Excel."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(CSV_COLUMNS + (["Label in file"] if has_labels else []))
+    for a in alerts:
+        attack_type = a.get("attack_type") or {}
+        row = [
+            a["row"],
+            _csv_text(a.get("priority", "")),
+            "Known pattern" if a["votes"]["random_forest"] == 1 else "Possible new attack",
+            _csv_text(attack_type.get("likely", "")),
+            round(100 * attack_type["confidence"], 1) if "confidence" in attack_type else "",
+            _csv_text("; ".join(a["flagged_by"])),
+            round(100 * a["random_forest_score"], 1),
+            _csv_text(a.get("certainty", "")),
+            _csv_text(" | ".join(r["text"] for r in a["reasons"])),
+            _csv_text(", ".join(f"{k} {v}" for k, v in a.get("where", {}).items())),
+            _csv_text(a.get("next_step", "")),
+        ]
+        if has_labels:
+            row.append(_csv_text(a.get("label_in_file", "")))
+        writer.writerow(row)
+    # The byte-order mark at the start tells Excel the file is UTF-8.
+    return "\ufeff" + out.getvalue()
+
+
 class SensorService:
     """Keeps the trained sensors (one per dataset) in memory and runs scans, one at a time."""
 
@@ -188,7 +236,9 @@ class SensorService:
             main["max_connections"] = MAX_CONNECTIONS
         return {**main, "datasets": datasets}
 
-    def scan(self, connections: pd.DataFrame) -> dict:
+    def _all_alerts(self, connections: pd.DataFrame):
+        """Check every connection. Returns (dataset, spec, model, explanations, alerts):
+        every alert, most serious first."""
         dataset = dataset_of(connections)
         spec = get_spec(dataset)
         model = self._get_model(dataset)
@@ -214,15 +264,14 @@ class SensorService:
             if has_labels:
                 alert["label_in_file"] = connections["label"].iat[i]
             alerts.append(alert)
-        # Most serious first: highest priority, then alerts all three models agree on,
-        # then by Random Forest score.
-        def seriousness(a):
-            return (priority_rank(a), -sum(a["votes"].values()), -a["random_forest_score"], a["row"])
+        return dataset, spec, model, explanations, sorted(alerts, key=seriousness)
 
+    def scan(self, connections: pd.DataFrame) -> dict:
+        dataset, spec, model, explanations, alerts = self._all_alerts(connections)
         known = [a for a in alerts if a["votes"]["random_forest"] == 1]
         new = [a for a in alerts if a["votes"]["random_forest"] == 0]
         groups = {}
-        for a in sorted(alerts, key=seriousness):
+        for a in alerts:
             groups.setdefault((a["votes"]["random_forest"], a.get("priority")), []).append(a)
         shown = sorted((a for group in groups.values() for a in group[:MAX_ALERTS_PER_FILTER]), key=seriousness)
 
@@ -241,7 +290,7 @@ class SensorService:
             "model": {"trained_at": model.training_info.get("trained_at"),
                       "decision_rule": model.training_info.get("decision_rule")},
         }
-        if has_labels:
+        if "label" in connections.columns:
             truth = (connections["label"] != spec.normal_label).astype(int)
             verdicts = [1 if e["verdict"] == "attack" else 0 for e in explanations]
             result["label_check"] = {
@@ -250,6 +299,14 @@ class SensorService:
                 "unknown_labels": sorted({lab for lab in connections["label"] if spec.family_of(lab) == "unknown"})[:20],
             }
         return result
+
+    def alerts_csv(self, connections: pd.DataFrame):
+        """EVERY alert in the file as a CSV table (the dashboard shows only the most serious).
+        Returns (CSV text, facts for the audit log)."""
+        dataset, _, model, _, alerts = self._all_alerts(connections)
+        text = alerts_to_csv(alerts, has_labels="label" in connections.columns)
+        return text, {"dataset": dataset, "connections": len(connections), "alerts": len(alerts),
+                      "model_trained_at": model.training_info.get("trained_at")}
 
 
 # The one shared sensor, and the live replays, that the web app uses.

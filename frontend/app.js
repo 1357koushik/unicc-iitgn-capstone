@@ -889,6 +889,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const scanBtn = document.getElementById("scan-file-btn");
     let lastScanAlerts = [];             // the alerts sent back (the most serious of each group)
     let lastScanTotals = null;           // how many alerts the WHOLE file has, for each filter
+    let lastScanFile = null;             // the scanned file, kept in this page only (for the CSV download)
 
     const pct = (x) => `${(100 * x).toFixed(1)}%`;
     const localTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { timeZoneName: "short" }) : "unknown";
@@ -968,6 +969,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById("scan-file-name").textContent = data.filename;
+                lastScanFile = file;
                 renderScan(data);
                 showToast(`Scan complete: ${data.alerts_total.toLocaleString()} alert(s)`, "success");
             } else if (res.status !== 401) {  // 401 is already handled by api()
@@ -1159,6 +1161,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.getElementById("alert-filter").addEventListener("change", renderAlerts);
+
+    // "Download all alerts (CSV)": the page shows only the most serious alerts, so the
+    // same file is sent again and the server returns EVERY alert as a CSV table. The file
+    // stays in this page only; the server does not keep it.
+    const downloadBtn = document.getElementById("download-alerts-btn");
+    downloadBtn.addEventListener("click", async () => {
+        if (!lastScanFile) return;
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = "Preparing the download...";
+        const formData = new FormData();
+        formData.append("file", lastScanFile);
+        try {
+            const res = await api("/api/v1/network/scan/alerts.csv", { method: "POST", body: formData });
+            if (res.ok) {
+                const disposition = res.headers.get("Content-Disposition") || "";
+                const match = disposition.match(/filename="([^"]+)"/);
+                saveFile(await res.blob(), match ? match[1] : "alerts.csv");
+            } else if (res.status !== 401) {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || "The alerts could not be downloaded", "error");
+            }
+        } catch (error) {
+            showToast("Network error while preparing the download", "error");
+        } finally {
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = "Download all alerts (CSV)";
+        }
+    });
+
+    // Hand a file to the browser's normal download.
+    function saveFile(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
 
     // ------------------------------------------------------------------
     // Live mode: the server replays a file as if its connections were arriving
@@ -1361,6 +1403,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resetLivePanel();
         lastScanAlerts = [];
         lastScanTotals = null;
+        lastScanFile = null;
         document.getElementById("scan-file-name").textContent = SCAN_HINT;
         showInBox("scan-summary", textElement("p", "No file scanned yet.", "placeholder-text"));
         document.getElementById("alert-filter-row").hidden = true;

@@ -1,6 +1,6 @@
 """
 Automatic checks for the network sensor's web endpoints (Task 5.0):
-    POST /api/v1/network/scan     GET /api/v1/network/status
+    POST /api/v1/network/scan     POST /api/v1/network/scan/alerts.csv     GET /api/v1/network/status
 
 They run the real app with a throwaway in-memory database and a small sensor trained
 on made-up data, so they never touch your real database, model or dataset.
@@ -13,6 +13,7 @@ import os
 os.environ["LOAD_DOTENV"] = "0"                  # ignore your personal .env settings
 os.environ["DATABASE_URL"] = "sqlite://"         # in-memory database (never the real app.db)
 
+import csv                                        # noqa: E402
 import io                                         # noqa: E402
 import json                                       # noqa: E402
 import sys                                        # noqa: E402
@@ -40,6 +41,7 @@ engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, p
 TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 PASSWORD = "network-sensor-test-password"
 SCAN = "/api/v1/network/scan"
+ALERTS_CSV = "/api/v1/network/scan/alerts.csv"
 STATUS = "/api/v1/network/status"
 
 
@@ -101,10 +103,14 @@ class NetworkSensorApiTests(unittest.TestCase):
         files = {"file": (filename, io.BytesIO(content), "text/csv")}
         return self.clients[role].post(SCAN, files=files)
 
-    def last_audit(self) -> dict:
+    def download(self, content: bytes, filename="connections.csv", role="investigator"):
+        files = {"file": (filename, io.BytesIO(content), "text/csv")}
+        return self.clients[role].post(ALERTS_CSV, files=files)
+
+    def last_audit(self, action="network_scan") -> dict:
         db = TestingSession()
         try:
-            entry = db.query(AuditLog).filter(AuditLog.action == "network_scan").order_by(AuditLog.id.desc()).first()
+            entry = db.query(AuditLog).filter(AuditLog.action == action).order_by(AuditLog.id.desc()).first()
             return {"user": entry.user, "correlation_id": entry.correlation_id, **json.loads(entry.details)}
         finally:
             db.close()
@@ -160,6 +166,38 @@ class NetworkSensorApiTests(unittest.TestCase):
         self.assertEqual(kinds.count(0), min(2, len(new_rows)))      # and the possible new attacks
         self.assertEqual(body["alerts_shown"], len(body["alerts"]))
         self.assertEqual(body["known_pattern_alerts"] + body["possible_new_attacks"], body["alerts_total"])
+
+    def test_download_gives_every_alert_as_csv(self):
+        content = csv_with_header(self.connections)
+        with mock.patch.object(service, "MAX_ALERTS_PER_FILTER", 2):     # the page gets only a few...
+            page = self.scan(content).json()
+            res = self.download(content, filename="day 1 <test>.csv")
+        self.assertLess(page["alerts_shown"], page["alerts_total"])
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertTrue(res.headers["content-type"].startswith("text/csv"))
+        self.assertEqual(res.headers["content-disposition"], 'attachment; filename="alerts-day_1__test_.csv"')
+        self.assertEqual(res.headers.get("cache-control"), "no-store")
+        text = res.content.decode("utf-8")
+        self.assertTrue(text.startswith("\ufeff"))                       # so Excel reads it as UTF-8
+        rows = list(csv.DictReader(io.StringIO(text[1:])))
+        self.assertEqual(len(rows), page["alerts_total"])                 # ...the download has them all
+        self.assertEqual({int(r["Row"]) for r in rows}, self.flagged_rows)
+        self.assertEqual(int(rows[0]["Row"]), page["alerts"][0]["row"])  # same order: most serious first
+        for r in rows:
+            expected_label = "neptune" if int(r["Row"]) in self.attack_rows else "normal"
+            self.assertEqual(r["Label in file"], expected_label)
+            self.assertTrue(r["Raised by"] and r["Certainty"] and r["Next step"])
+
+        audit = self.last_audit("network_alerts_download")
+        self.assertEqual((audit["outcome"], audit["user"]), ("success", "t_investigator"))
+        self.assertEqual(audit["alerts"], len(rows))
+        self.assertEqual(audit["file_sha256"], main._sha256(content))
+
+    def test_download_follows_the_same_rules_as_a_scan(self):
+        content = csv_with_header(self.connections)
+        self.assertEqual(self.download(content, role="auditor").status_code, 403)
+        self.assertEqual(self.download(content, filename="connections.exe").status_code, 415)
+        self.assertEqual(self.last_audit("network_alerts_download")["outcome"], "failure")
 
     def test_admin_can_scan_a_raw_nsl_kdd_file(self):
         res = self.scan(raw_nsl_kdd(self.connections), filename="KDDTest+.txt", role="admin")

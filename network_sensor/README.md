@@ -138,6 +138,7 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 |---|---|
 | `GET /api/v1/network/status` | Is the sensor trained? When? Latest evaluation score. |
 | `POST /api/v1/network/scan` | Upload a file of connections (form field `file`); get back the alerts, highest priority first, each with its explanation, likely attack type, priority, certainty and next step, plus counts of all alerts by priority and by type. |
+| `POST /api/v1/network/scan/alerts.csv` | The same upload, but the answer is **every** alert as a CSV table for Excel (the dashboard's "Download all alerts (CSV)" button). Text from the file that could act as a spreadsheet formula is made harmless. |
 | `POST /api/v1/network/live/start?speed=100` | Start a live replay of an uploaded file at 10, 100 or 1,000 connections per second. |
 | `POST /api/v1/network/live/{id}/next` | Check what has "arrived" since the last call (the dashboard calls this once a second). |
 | `POST /api/v1/network/live/{id}/stop` | Stop a live replay early. |
@@ -151,9 +152,11 @@ Train the sensor first (above), then start the app as usual. Investigators and a
 - **Limits:** 5 MB and 25,000 connections per file; one scan at a time (others get "try again").
   The dashboard can show all alerts, only known attack patterns, only possible new attacks
   (raised only by the anomaly models), or one priority; each of these shows its 300 most
-  serious alerts, and says how many the whole file has. The totals are always given.
-- **Audit log:** every scan, including refused files, is recorded with the file's name,
-  size and SHA-256 fingerprint and the number of alerts. The file itself is not kept.
+  serious alerts, and says how many the whole file has. The totals are always given, and
+  "Download all alerts (CSV)" gives every alert.
+- **Audit log:** every scan and every alerts download, including refused files, is recorded
+  with the file's name, size and SHA-256 fingerprint and the number of alerts. The file itself
+  is not kept (for the download, the browser sends it again).
 - If scikit-learn is not installed on the server, the rest of the app still works and
   these endpoints say how to install the sensor.
 - Retraining is picked up automatically, without restarting the app.

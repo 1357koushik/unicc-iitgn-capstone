@@ -12,6 +12,7 @@ import os
 os.environ["LOAD_DOTENV"] = "0"                  # ignore your personal .env settings
 os.environ["DATABASE_URL"] = "sqlite://"         # in-memory database (never the real app.db)
 
+import csv                                        # noqa: E402
 import io                                         # noqa: E402
 import re                                         # noqa: E402
 import tempfile                                   # noqa: E402
@@ -117,6 +118,21 @@ class RuleTests(unittest.TestCase):
                                             {"name": "Low", "alerts": 0}])
         self.assertEqual(s["by_type"], [{"name": "DoS", "alerts": 2}, {"name": "Possible new attack", "alerts": 1},
                                         {"name": "R2L", "alerts": 1}])
+
+    def test_the_csv_download_cannot_carry_spreadsheet_formulas(self):
+        # Text from an uploaded file could start with "=" and run as a formula in Excel.
+        alert = {"row": 7, "priority": "High", "votes": VOTES_RF, "flagged_by": ["Random Forest"],
+                 "random_forest_score": 0.9, "certainty": "Medium: the Random Forest flagged it",
+                 "reasons": [], "next_step": "Check it.", "attack_type": {"likely": "DoS", "confidence": 0.75},
+                 "where": {"Source IP": "10.0.0.1"}, "label_in_file": '=HYPERLINK("http://x.example","click")'}
+        rows = list(csv.DictReader(io.StringIO(service.alerts_to_csv([alert], has_labels=True)[1:])))
+        self.assertEqual(rows[0]["Label in file"], '\'=HYPERLINK("http://x.example","click")')
+        for start in ("+1", "-1", "@SUM(A1)"):
+            alert["label_in_file"] = start
+            row = list(csv.DictReader(io.StringIO(service.alerts_to_csv([alert], has_labels=True)[1:])))[0]
+            self.assertEqual(row["Label in file"], "'" + start)
+        self.assertEqual((row["Row"], row["Type model votes (%)"], row["Random Forest score (%)"]), ("7", "75.0", "90.0"))
+        self.assertEqual(row["Where"], "Source IP 10.0.0.1")
 
     def test_where_shows_only_identity_columns_the_file_has(self):
         df = pd.DataFrame({"Source IP": [" 192.168.10.5 "], "Destination Port": ["80"], "Flow Duration": ["5"]})
@@ -364,13 +380,14 @@ class DashboardTests(unittest.TestCase):
         tab = html[start:end]
         self.assertNotRegex(tab, r"\sstyle\s*=")
         self.assertNotRegex(tab, r"\son[a-z]+\s*=")
-        for element_id in ("live-chart", "live-chart-box", "alert-filter", "alert-filter-note"):
+        for element_id in ("live-chart", "live-chart-box", "alert-filter", "alert-filter-note",
+                           "download-alerts-btn"):
             self.assertIn(f'id="{element_id}"', tab)
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
         html = Path("frontend/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="app\.js\?v=9"')
-        self.assertRegex(html, r'href="style\.css\?v=9"')
+        self.assertRegex(html, r'src="app\.js\?v=10"')
+        self.assertRegex(html, r'href="style\.css\?v=10"')
         script = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
 
