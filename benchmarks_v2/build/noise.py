@@ -131,7 +131,7 @@ def build_t6(parents: list[Item], gate, seed: int, target: int) -> tuple[list[It
     # interleave slices so T0 and T2 are represented, then T3 fills
     order = sorted(elig, key=lambda p: ({"T0": 0, "T2": 1, "T3": 2}[p.slice], stable_key(seed, "t6", p.qid)))
     by_slice = {s: [p for p in order if p.slice == s] for s in ("T0", "T2", "T3")}
-    want = {"T0": len(by_slice["T0"]), "T2": min(len(by_slice["T2"]), target * 35 // 100)}
+    want = {"T0": min(len(by_slice["T0"]), target * 30 // 100), "T2": min(len(by_slice["T2"]), target * 30 // 100)}
     want["T3"] = target - want["T0"] - want["T2"]
     items: list[Item] = []
     for sl in ("T0", "T2", "T3"):

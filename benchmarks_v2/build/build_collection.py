@@ -20,7 +20,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     __package__ = "benchmarks_v2.build"
 
-from benchmarks_v2.build import noise, sealed, slice_products, slice_t0, slice_t2, slice_t9, slices_ids, slices_rules  # noqa: E402
+from benchmarks_v2.build import (noise, sealed, slice_products, slice_t0, slice_t0_advisory, slice_t2,  # noqa: E402
+                                 slice_t9, slices_ids, slices_rules)
 from benchmarks_v2.build.attack import load_attack  # noqa: E402
 from benchmarks_v2.build.common import (BUILDER_VERSION, DEFAULT_SEED, REPO_ROOT, SLICES, SPLITS,  # noqa: E402
                                         TARGET_SIZES, default_benchmark_dir, default_feeds_dir,
@@ -33,8 +34,10 @@ from benchmarks_v2.build.sources import Sources  # noqa: E402
 from benchmarks_v2.build.universe import cvelist_version, env_workers, load_universe  # noqa: E402
 
 SHORTFALL_REASONS = {
-    "T0": "T0 narratives are written by package B2a (not yet delivered); only Team 3's own cases are in this "
-          "build. Re-run the build after B2a writes <benchmark>/inputs/t0_narratives/*.jsonl.",
+    "T0": "T0 is built from real ACSC and NCSC UK advisory excerpts (at most 3 per advisory, each needing a grade-2 "
+          "target and passing the overlap and copy checks), Team 3's cases, and B2a narratives only once B2b "
+          "verification has passed (none had passed at build time). The 600 target is not reachable from the "
+          "available advisories; the agreed floor is 250.",
     "T2": "names are kept only when corroborated by the CVE's own NVD/CVE List text or references or by a "
           "query-side source; uncorroborated names and template variants that exceed the 60% overlap rule or "
           "collide with an expansion-source record are dropped (quality over count).",
@@ -107,9 +110,11 @@ def build(args) -> Path:
     items = []
 
     t0_items, stats["T0_team3"] = slice_t0.build_team3(u, kb, gate, Path(args.team3_file))
+    adv_items, stats["T0_advisory"] = slice_t0_advisory.build_advisory_excerpts(u, kb, srcs, gate, seed)
     b2a_items, stats["T0_b2a"], b2a_inputs = slice_t0.build_b2a(u, kb, srcs, gate, args.t0_narratives)
-    items += t0_items + b2a_items
-    log(f"T0: {len(t0_items)} Team 3 + {len(b2a_items)} B2a", t0)
+    items += t0_items + adv_items + b2a_items
+    stats["T0_by_kind"] = {"advisory_excerpt": len(adv_items), "narrative": len(b2a_items), "team3_case": len(t0_items)}
+    log(f"T0: {len(adv_items)} advisory excerpts + {len(b2a_items)} B2a narratives + {len(t0_items)} Team 3", t0)
     for name, fn in (
         ("T1", lambda: slices_ids.build_t1(u, gate, seed)),
         ("T2", lambda: slice_t2.build_t2(u, srcs, gate, seed, TARGET_SIZES["T2"])),

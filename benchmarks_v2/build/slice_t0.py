@@ -95,7 +95,7 @@ def build_team3(u, kb, gate, path: Path = TEAM3_FILE) -> tuple[list[Item], dict]
             if aid and f"attack:{aid}" not in {q["doc_id"] for q in qrels}:
                 qrels.append(qrel(f"attack:{aid}", ent_grade, "authoring"))
                 named.append({"name": nm, "doc_id": f"attack:{aid}"})
-        meta = {"origin": "team3_benchmark_data", "case_description": c.get("description", ""),
+        meta = {"t0_kind": "team3_case", "origin": "team3_benchmark_data", "case_description": c.get("description", ""),
                 "cves_not_in_corpus": missing, "attack_entities": named,
                 "cve_ids_unrelated_to_case_product": mismatched,
                 "entity_grade_rule": "named ATT&CK group/software = grade 1 when the case has CVE targets, else 2"}
@@ -177,8 +177,8 @@ def build_b2a(u, kb, srcs, gate, narratives_dir: Path | None) -> tuple[list[Item
                 stats["target_not_in_corpus"] += 1
                 continue
             src = {"name": sname, "id": str(rec["source"].get("id", "")),
-                   "licence": str(rec["source"].get("licence", ""))}
-            meta = {"origin": "b2a", "narrative_id": rec["narrative_id"], "source_url": rec["source"].get("url", ""),
+                   "licence": str(rec["source"].get("licence", "")), "url": str(rec["source"].get("url", ""))}
+            meta = {"t0_kind": "narrative", "origin": "b2a", "narrative_id": rec["narrative_id"], "source_url": rec["source"].get("url", ""),
                     "author": rec.get("author") or {}, "verification": {k: v.get(k) for k in ("model", "passed")},
                     **(rec.get("meta") or {})}
             it = Item(slice="T0", text=rec["text"], qrels=qrels, source=src, meta=meta)
