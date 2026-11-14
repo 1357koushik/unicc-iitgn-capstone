@@ -269,3 +269,16 @@ def test_server_side_modules_need_only_stdlib_and_yaml(tmp_path):
     r = subprocess.run([sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert load_run(tmp_path / "o.jsonl").records["T1-1"].variant == "rf"
+
+
+def test_pause_after_error_waits_but_still_records(fake, tmp_path):
+    import time
+    qs = [Query(f"T1-{i}", "T1", "dev", t, True, False, {"name": "generated"}, {})
+          for i, t in enumerate(["slow", "log4j", "slow"], 1)]
+    out = tmp_path / "run.jsonl"
+    t0 = time.perf_counter()
+    s = run_variant("v1_match", v1_match(fake), qs, out, progress=lambda m: None, pause_after_error_s=0.5)
+    # one pause after T1-1; none after the last query
+    assert 0.5 <= time.perf_counter() - t0 < 0.95
+    assert s["errors"] == 2 and s["pause_after_error_s"] == 0.5
+    assert load_run(out).records["T1-3"].error.startswith("http_504")

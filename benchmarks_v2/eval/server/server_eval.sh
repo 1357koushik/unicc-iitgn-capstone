@@ -3,7 +3,7 @@
 # Usage: server_eval.sh <v1|v2> <name> <harness_commit> <variant> [<variant>...]
 # Starts the service, runs each variant over ~/team2/eval/in/<name>.queries.jsonl with the harness in
 # ~/team2/eval/pkg (append-only, resumable run files in ~/team2/eval/out/<name>-<variant>.jsonl), and always
-# stops the service on exit. CPU only (CUDA_VISIBLE_DEVICES is empty). Nothing is written under ~/data.
+# stops the service on exit. Extra `run` arguments come from $RUN_ARGS (e.g. --pause-after-error 30). CPU only (CUDA_VISIBLE_DEVICES is empty). Nothing is written under ~/data.
 set -u
 SERVICE="$1"; NAME="$2"; COMMIT="$3"; shift 3
 E="$HOME/team2/eval"
@@ -76,7 +76,7 @@ for V in "$@"; do
   OUT="$E/out/$NAME-$V.jsonl"
   echo "[server_eval] $(date '+%F %T') variant $V -> $OUT"
   ( cd "$E/pkg" && env CUDA_VISIBLE_DEVICES= PYTHONPATH="$E/pkg" TRE_HARNESS_COMMIT="$COMMIT" \
-      "$PY" -m benchmarks_v2.eval run --variant "$V" --queries "$QUERIES" --out "$OUT" )
+      "$PY" -m benchmarks_v2.eval run --variant "$V" --queries "$QUERIES" --out "$OUT" ${RUN_ARGS:-} )
   r=$?
   echo "[server_eval] variant $V exit $r"
   [ $r -ne 0 ] && rc=$r

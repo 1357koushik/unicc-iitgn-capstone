@@ -125,7 +125,7 @@ def cmd_run(args) -> int:
     print(f"[run] variant {args.variant} ({cfg['adapter']}), {len(qs)} queries, out {out}", flush=True)
     session = run_variant(args.variant, adapter, qs, Path(out), concurrency=args.concurrency,
                           max_queries=args.max_queries, harness_commit=args.harness_commit,
-                          progress=lambda m: print(m, flush=True))
+                          progress=lambda m: print(m, flush=True), pause_after_error_s=args.pause_after_error)
     print(f"[run] {session['status']}: sent {session['sent']}, errors {session['errors']}, "
           f"{session['already_done'] + session['sent']}/{len(qs)} done", flush=True)
     return 0
@@ -273,6 +273,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, help="override the variant's timeout_s")
     p.add_argument("--runfile", help="override the runfile adapter's path")
     p.add_argument("--concurrency", type=int, default=1)
+    p.add_argument("--pause-after-error", type=float, default=0.0,
+                   help="seconds to wait after a recorded error before the next query (sequential runs only)")
     p.add_argument("--max-queries", type=int, help="send at most this many new queries in this session")
     p.add_argument("--harness-commit", help="commit recorded in the run metadata (default $TRE_HARNESS_COMMIT)")
     p.set_defaults(func=cmd_run)

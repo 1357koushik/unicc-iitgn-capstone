@@ -8,7 +8,7 @@
 # Runs are resumable: invoking again with the same <name> continues the server-side run files.
 # The remote job is detached (nohup) and polled, so a dropped SSH connection does not stop it.
 # Query files with test-split queries are refused unless TRE_OPEN_SEALED=E1 (passed on to the server).
-# Environment: TRE_SSH_TARGET, TRE_SSH_PORT.
+# Environment: TRE_SSH_TARGET, TRE_SSH_PORT; RUN_ARGS = extra `run` arguments (e.g. "--pause-after-error 30").
 set -uo pipefail
 SERVICE="${1:-}"; QFILE="${2:-}"; NAME="${3:-}"
 [ $# -ge 4 ] || { echo "usage: $0 <v1|v2> <queries.jsonl> <name> <variant> [<variant>...]" >&2; exit 2; }
@@ -48,7 +48,8 @@ RDONE="\$HOME/team2/eval/out/$NAME.exit"
 SEALED_ENV=""
 [ "${TRE_OPEN_SEALED:-}" = "E1" ] && SEALED_ENV="TRE_OPEN_SEALED=E1"
 echo "== starting $SERVICE run $NAME: $*"
-rs "rm -f $RDONE; nohup env $SEALED_ENV bash -c '\$HOME/team2/eval/server_lock.sh \$HOME/team2/eval/server_eval.sh $SERVICE $NAME $COMMIT $*; echo \$? > $RDONE' > $RLOG 2>&1 < /dev/null &"
+RUN_ARGS_ENV="RUN_ARGS='${RUN_ARGS:-}'"
+rs "rm -f $RDONE; nohup env $SEALED_ENV $RUN_ARGS_ENV bash -c '\$HOME/team2/eval/server_lock.sh \$HOME/team2/eval/server_eval.sh $SERVICE $NAME $COMMIT $*; echo \$? > $RDONE' > $RLOG 2>&1 < /dev/null &"
 
 printed=0
 while true; do

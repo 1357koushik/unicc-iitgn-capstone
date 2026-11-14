@@ -93,8 +93,13 @@ def update_meta(meta_path: Path, variant: str, describe: dict, session: dict) ->
 
 
 def run_variant(variant: str, adapter, queries: list[Query], out_path: Path, concurrency: int = 1,
-                max_queries: int | None = None, harness_commit: str | None = None, progress=print) -> dict:
-    """Run ``queries`` through ``adapter`` and append to ``out_path``. Returns the session summary."""
+                max_queries: int | None = None, harness_commit: str | None = None, progress=print,
+                pause_after_error_s: float = 0.0) -> dict:
+    """Run ``queries`` through ``adapter`` and append to ``out_path``. Returns the session summary.
+
+    ``pause_after_error_s``: after a recorded error (e.g. HTTP 504) wait this long before the next query, so
+    work the service keeps running after a timeout (plan 1.3 item 3) does not spill into the next query's
+    measurement. The error itself is still recorded and counted as a miss."""
     sealed.check_query_splits({q.split for q in queries}, "running test-split queries")
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,7 +114,7 @@ def run_variant(variant: str, adapter, queries: list[Query], out_path: Path, con
         "harness_version": HARNESS_VERSION,
         "harness_commit": harness_commit or os.environ.get("TRE_HARNESS_COMMIT"),
         "load_average_start": load_average(), "load_average_end": None,
-        "concurrency": concurrency, "already_done": len(done), "selected": len(queries),
+        "concurrency": concurrency, "pause_after_error_s": pause_after_error_s, "already_done": len(done), "selected": len(queries),
         "sent": 0, "errors": 0, "status": "running", "abort_reason": None,
         "service_info": adapter.service_info(),
     }
@@ -146,8 +151,11 @@ def run_variant(variant: str, adapter, queries: list[Query], out_path: Path, con
 
     try:
         if concurrency <= 1:
-            for q in pending:
-                write(one(q))
+            for i, q in enumerate(pending):
+                rec = one(q)
+                write(rec)
+                if rec["error"] and pause_after_error_s > 0 and i + 1 < len(pending):
+                    time.sleep(pause_after_error_s)
         else:
             with ThreadPoolExecutor(max_workers=concurrency) as ex:
                 it = iter(pending)
