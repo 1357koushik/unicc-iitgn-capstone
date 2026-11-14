@@ -10,8 +10,8 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 ## Build
 
 - Version `v2.0`, build date **2026-11-14**, seed `20261114`
-- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `2b4623c7492035d54b252b26f0dd18ccad70ae83`, code sha256 `880b9207ea559a15d689e45864463e2ac0c42bfa08abdcd809feccfd3cce6700`
-- 4554 queries, 9287 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
+- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `0e304745d7690ab281af831b14065befa2187bac`, code sha256 `74ae75fd3e00a336a5d61718ff17efc101efa5edbb6e7b7558bf9190d86de830`
+- 4554 queries, 9268 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
 
 ## Slices and sizes
 
@@ -22,10 +22,10 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 | T2 | Nickname | 250 | 0 | 100 | 150 | 250 | 0 | 378 |
 | T3 | Advisory wording | 1500 | 600 | 300 | 600 | 1500 | 26 | 1500 |
 | T4 | Detection-rule wording | 800 | 320 | 160 | 320 | 800 | 7 | 900 |
-| T5 | Product and version | 300 | 0 | 120 | 180 | 300 | 49 | 1253 |
-| T6 | Noisy | 400 | 0 | 156 | 244 | 400 | 8 | 503 |
+| T5 | Product and version | 300 | 0 | 120 | 180 | 300 | 51 | 1212 |
+| T6 | Noisy | 400 | 0 | 156 | 244 | 400 | 8 | 475 |
 | T7 | Unanswerable | 400 | 0 | 160 | 240 | 400 | 0 | 0 |
-| T8 | Confusable siblings | 300 | 0 | 120 | 180 | 300 | 30 | 2199 |
+| T8 | Confusable siblings | 300 | 0 | 120 | 180 | 300 | 47 | 2249 |
 | T9 | Actor, software, technique | 300 | 0 | 120 | 180 | 300 | 0 | 2179 |
 | all | | 5150 | 920 | 1390 | 2244 | 4554 | | |
 
@@ -40,17 +40,17 @@ Temporal holdout: a grade-2 CVE target published in the 90 days before the build
 
 - **T0 Observation narratives.** Team 3's own cases (`raw_text`) form the fixed subset, pinned to dev because they are public in the repository. CVE targets are known from the case (grade 2, origin `authoring`) unless the ID collides with an unrelated real record (the CVE's corpus text does not name the case's affected product): then it is a grade-0 known non-relevant document. Named ATT&CK groups/software resolved by exact name or alias are grade 1 (grade 2 when the case has no CVE target). B2a narratives are ingested from `<benchmark>/inputs/t0_narratives/*.jsonl` (schema in `benchmarks_v2/build/slice_t0.py` and `t0_narrative.schema.json`) when verified, from an `incident`-role source, with existing targets, and passing the overlap and expansion checks. Candidates examined: 4; rejected: none.
 - **T1 Identifier.** Generated from the CVE universe (seeded sample of searchable CVEs): canonical, lower and mixed case, IDs inside sentences, two or three IDs, and malformed-but-recoverable forms (spaces, underscores, en dash, missing hyphen, brackets, trailing punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers). Candidates examined: 307; rejected: expansion_text_collision 7.
-- **T2 Nickname.** Names compiled from general knowledge in `benchmarks_v2/build/nicknames.py`, independently of any expansion source and of the alias table. A (name, CVE) pair is kept only when the name occurs in that CVE's NVD description or references, its CVE List text or references, or a query-side record (GHSA, ET Open, Sigma) for that CVE; the evidence is stored per item in `meta.corroboration`. Queries are the name in up to three of ten written templates, round-robin over names. Candidates examined: 293; rejected: expansion_text_collision 13, overlap_gt_0.6 30.
+- **T2 Nickname.** Names compiled from general knowledge in `benchmarks_v2/build/nicknames.py`, independently of any expansion source and of the alias table. A (name, CVE) pair is kept only when the name occurs in that CVE's NVD description or references, its CVE List text or references, or a query-side record (GHSA, ET Open, Sigma) for that CVE, or by an advisory chain (a query-side record attached to one of the name's candidate CVEs names the nickname with a Microsoft bulletin ID, e.g. ETERNALBLUE with MS17-010, and this CVE's NVD references cite that bulletin); the evidence is stored per item in `meta.corroboration`. Queries are the name in up to three of ten written templates, round-robin over names. Candidates examined: 293; rejected: expansion_text_collision 13, overlap_gt_0.6 30.
 - **T3 Advisory wording.** Reviewed GHSA advisories (not withdrawn) with a CVE alias, seeded order, at most two per package. Query = summary with CVE IDs stripped (summary + first sentence of details when the summary has fewer than three content tokens). Target = the alias CVE; an alias rejected as a duplicate maps to its canonical CVE (origin `equivalence`). Candidates examined: 10964; rejected: expansion_text_collision 33, no_searchable_target 88, overlap_gt_0.6 9343.
 - **T4 Detection-rule wording.** Sigma rules first, then ET Open rules, each in seeded order; enabled and disabled rules both used. Rule-vendor prefixes (`ET <CATEGORY>`, `GPL <CATEGORY>`), CVE/CAN IDs (including bare continuation IDs) and ET variant markers (M1, M2...) are stripped and recorded in `meta.stripped`; a Sigma title left generic is replaced by the first description sentence. Texts with fewer than two informative tokens are dropped; at most two queries per target set. Candidates examined: 2784; rejected: expansion_text_collision 22, no_searchable_target 8, overlap_gt_0.6 1954.
-- **T5 Product and version.** From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query per product: '<vendor> <product> <version> <flaw type>' in six templates, with a concrete version the anchor CVE affects (preferring one not written in its description) and a phrasing of its CWE class. Qrels: every CVE of that product whose version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose applicability cannot be decided are left unjudged. Only CVEs with vendor, product, a parseable version and a mapped CWE are anchors. Candidates examined: 347; rejected: overlap_gt_0.6 47.
+- **T5 Product and version.** A CVE belongs to a CPE product only when that product is named in its own description or CNA `affected` block (NVD also lists distribution and platform CPEs, e.g. Red Hat Linux for a Chrome bug; those are skipped). Product and vendor names in the query are taken in the anchor CVE's own wording (description span or CNA name), never raw CPE slugs; trailing packaging words such as 'firmware' are dropped; every grade-2 target must name the queried product or vendor in its description, CVE List title or CNA affected block (`meta.product_label`, `meta.vendor_label`). From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query per product: '<vendor> <product> <version> <flaw type>' in six templates, with a concrete version the anchor CVE affects (preferring one not written in its description) and a phrasing of its CWE class. Qrels: every CVE of that product whose version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose applicability cannot be decided are left unjudged. Only CVEs with vendor, product, a parseable version and a mapped CWE are anchors. Candidates examined: 388; rejected: expansion_text_collision 2, overlap_gt_0.6 86.
 - **T6 Noisy.** Seeded perturbations of dev/test T0, T2 and T3 queries: typos (swap, deletion, keyboard neighbour, doubling), missing spaces, analyst abbreviations and pasted log-like fragments (private IPs only); one type per child in `meta.noise_type` (typo, spacing, abbreviation, log_fragment, rotated for balance), `meta.parent_qid`; qrels and split inherited; a perturbation that would lose a target to the overlap rule is not used. Candidates examined: 400; rejected: none.
 - **T7 Unanswerable.** Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels. Candidates examined: 400; rejected: none.
-- **T8 Confusable siblings.** Product groups (CPE or CNA namespace) with 3-400 CVEs. The target is discriminated either by a component named in its description and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator. Candidates examined: 480; rejected: overlap_gt_0.6 180.
+- **T8 Confusable siblings.** Product groups (CPE or CNA namespace) with 3-400 CVEs that name the product (same naming and display rules as T5; components containing underscores are not used, so the text reads like an analyst's). The target is discriminated either by a component named in its description and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator. Candidates examined: 566; rejected: expansion_text_collision 1, overlap_gt_0.6 265.
 - **T9 Actor, software, technique.** Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate subset, `meta.query_form` id / exact_name; everything else is `natural` - and relationship questions (techniques/software of a group, groups using software, software techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule. Candidates examined: 305; rejected: attack_description_copy 4, expansion_text_collision 1.
 
-T2 corroboration: 113 of 191 candidate name strings corroborated (144 uncorroborated name-CVE pairs dropped); 113 names have queries.
-Uncorroborated (dropped) names: AMNESIA:33, Act4Shell, BLASTPASS, Bad Neighbor, Bashdoor, Baton Drop, BootHole, Branch History Injection, Bronze Bit, CacheOut, CacheWarp, Certifried, Chain of Fools, Collide+Power, CrossTalk, DejaBlue, DogWalk, Dragonblood, Drammer, Drupalgeddon, Drupalgeddon3, EternalBlue, EternalChampion, EternalDarkness, EternalRed, EternalRomance, EternalSynergy, FORCEDENTRY, Fallout, Foreshadow, FragmentSmack, GameOver(lay), GameOverlay, Gather Data Sampling, Hertzbleed, ICMAD, IngressNightmare, KRACK, LogJam4j, Lucky13, MediaTek-su, Mutagen Astronomy, NAME:WRECK, NetCAT, PetitPotam, Platypus, Plundervolt, PrintDemon, ProxyOracle, QuadRooter, QualPwn, RIDL, RediShell, Reptar, Return Of Bleichenbacher's Oracle Threat, Rootpipe, SLOTH, SPOILER, SQUIP, SambaCry, Shitrix, Special Register Buffer Data Sampling, Spectre Variant 4, Spectre-BHB, SpookySSL, SpoolFool, StackRot, StrandHogg 2.0, SynLapse, TLStorm, Thrangrycat, Towelroot, ZombieLoad, ZombieLoad v2, checkm8, goto fail, noPac, sAMAccountName spoofing.
+T2 corroboration: 116 of 193 candidate name strings corroborated (144 uncorroborated name-CVE pairs dropped); 116 names have queries.
+Uncorroborated (dropped) names: AMNESIA:33, Act4Shell, BLASTPASS, Bad Neighbor, Bashdoor, Baton Drop, BootHole, Branch History Injection, Bronze Bit, CacheOut, CacheWarp, Certifried, Chain of Fools, Collide+Power, CrossTalk, DejaBlue, DogWalk, Dragonblood, Drammer, Drupalgeddon, Drupalgeddon3, EternalChampion, EternalDarkness, EternalRed, EternalRomance, EternalSynergy, FORCEDENTRY, Fallout, Foreshadow, FragmentSmack, GameOver(lay), GameOverlay, Gather Data Sampling, Hertzbleed, ICMAD, IngressNightmare, KRACK, LogJam4j, Lucky13, MediaTek-su, Mutagen Astronomy, NAME:WRECK, NetCAT, PetitPotam, Platypus, Plundervolt, PrintDemon, ProxyOracle, QuadRooter, QualPwn, RIDL, RediShell, Reptar, Return Of Bleichenbacher's Oracle Threat, Rootpipe, SLOTH, SPOILER, SQUIP, SambaCry, Shitrix, Special Register Buffer Data Sampling, Spectre Variant 4, Spectre-BHB, SpookySSL, SpoolFool, StackRot, StrandHogg 2.0, SynLapse, TLStorm, Thrangrycat, Towelroot, ZombieLoad, ZombieLoad v2, checkm8, goto fail, noPac, sAMAccountName spoofing.
 
 T3 ecosystems: GitHub Actions 1, Go 150, Hex 6, Maven 451, NuGet 53, Packagist 205, PyPI 249, RubyGems 81, SwiftURL 3, crates.io 79, npm 222.
 
@@ -64,13 +64,13 @@ A (query, target) pair is dropped when more than 60% of the query's content toke
 |---|---|---|---|
 | T0 | n=4, p50=0.104, p90=0.161, max=0.161, >0.6=0.0%, bins=[2, 2, 0, 0, 0, 0, 0, 0, 0, 0] | n=4, p50=0.104, p90=0.161, max=0.161, >0.6=0.0%, bins=[2, 2, 0, 0, 0, 0, 0, 0, 0, 0] | 0 |
 | T1 | exempt | exempt | - |
-| T2 | n=293, p50=0.25, p90=0.667, max=1.0, >0.6=12.3%, bins=[118, 4, 27, 65, 2, 30, 19, 4, 4, 20] | n=250, p50=0.2, p90=0.5, max=0.6, >0.6=0.0%, bins=[112, 4, 27, 65, 2, 29, 11, 0, 0, 0] | 37 |
+| T2 | n=293, p50=0.25, p90=0.667, max=1.0, >0.6=12.3%, bins=[120, 4, 28, 61, 3, 30, 19, 4, 4, 20] | n=250, p50=0.2, p90=0.5, max=0.6, >0.6=0.0%, bins=[114, 4, 28, 61, 3, 29, 11, 0, 0, 0] | 37 |
 | T3 | n=10876, p50=1.0, p90=1.0, max=1.0, >0.6=85.9%, bins=[28, 53, 276, 229, 282, 491, 620, 693, 1399, 6805] | n=1500, p50=0.429, p90=0.6, max=0.6, >0.6=0.0%, bins=[28, 52, 255, 226, 278, 487, 174, 0, 0, 0] | 9343 |
 | T4 | n=2776, p50=0.714, p90=0.833, max=1.0, >0.6=71.2%, bins=[111, 64, 116, 110, 127, 212, 336, 1066, 529, 105] | n=800, p50=0.375, p90=0.571, max=0.6, >0.6=0.0%, bins=[112, 64, 114, 112, 127, 215, 56, 0, 0, 0] | 2013 |
-| T5 | n=347, p50=0.429, p90=0.667, max=0.875, >0.6=17.6%, bins=[5, 25, 41, 59, 56, 88, 39, 26, 8, 0] | n=300, p50=0.4, p90=0.556, max=0.6, >0.6=0.0%, bins=[6, 26, 42, 62, 58, 92, 14, 0, 0, 0] | 90 |
-| T6 | n=400, p50=0.13, p90=0.4, max=0.6, >0.6=0.0%, bins=[171, 85, 57, 36, 25, 18, 8, 0, 0, 0] | n=400, p50=0.13, p90=0.4, max=0.6, >0.6=0.0%, bins=[171, 85, 57, 36, 25, 18, 8, 0, 0, 0] | 0 |
+| T5 | n=388, p50=0.5, p90=0.75, max=0.9, >0.6=27.8%, bins=[0, 14, 36, 49, 66, 100, 59, 37, 26, 1] | n=300, p50=0.429, p90=0.571, max=0.6, >0.6=0.0%, bins=[0, 14, 36, 54, 69, 108, 19, 0, 0, 0] | 151 |
+| T6 | n=400, p50=0.143, p90=0.4, max=0.6, >0.6=0.0%, bins=[166, 87, 64, 33, 19, 24, 7, 0, 0, 0] | n=400, p50=0.143, p90=0.4, max=0.6, >0.6=0.0%, bins=[166, 87, 64, 33, 19, 24, 7, 0, 0, 0] | 0 |
 | T7 | exempt | exempt | - |
-| T8 | n=480, p50=0.571, p90=0.8, max=1.0, >0.6=37.5%, bins=[18, 28, 48, 40, 50, 94, 91, 58, 47, 6] | n=300, p50=0.4, p90=0.571, max=0.6, >0.6=0.0%, bins=[18, 28, 48, 40, 50, 94, 22, 0, 0, 0] | 180 |
+| T8 | n=566, p50=0.6, p90=0.833, max=1.0, >0.6=46.8%, bins=[16, 18, 45, 36, 52, 107, 121, 77, 73, 21] | n=300, p50=0.429, p90=0.571, max=0.6, >0.6=0.0%, bins=[16, 18, 45, 36, 52, 106, 27, 0, 0, 0] | 265 |
 | T9 | exempt | exempt | - |
 
 T1 (identifiers), T7 (no targets) and T9 (ATT&CK names and IDs by design; it has its own no-copy rule) are exempt.
@@ -81,7 +81,7 @@ T1 (identifiers), T7 (no targets) and T9 (ATT&CK names and IDs by design; it has
 
 ### Splits
 
-Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3711 groups; largest [8, 8, 7, 7, 6]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
+Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3731 groups; largest [8, 8, 7, 6, 6]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
 
 ### Leakage tests (`tests/test_benchmark_leakage.py`)
 
@@ -140,7 +140,7 @@ Input snapshots (from the manifest):
 | nvd/2026.json |  | `ead35266e734570a26b0b525004f89fe2476daa1a81541945266e2029b5a40f8` |
 | kev/cisa_kev-2026-11-10.csv |  | `85f484aba48c592c113722cb3e17e768fb5bd2f8f8ee7c548a2ed471e44efb85` |
 | epss/epss_scores-2026-11-11.csv |  | `4fae613d38171259a481ac951b02ef48fa521029450131c26786152695467149` |
-| cvelistV5 | 0d7ce006349b591f81149835318e56fb55c7a806 | `6cac5f01d2a5ba3820d035d5abf52bfb9bfea08ef8d3fe440cf8f87bf631fbde` |
+| cvelistV5 | 0d7ce006349b591f81149835318e56fb55c7a806 | `ebea99eaec553294e362d810ee14136dc6c80db3c4804f477a73a588e3cd877d` |
 | source/attack_enterprise | 2026-11-14 | `de6c8b6a8b3b1a5a66ddbb474875c8fb491ff673c10996d77fbb2389310812d4` |
 | source/et_open_rules | 2026-11-14 | `623896ae3ad61292cad7e64880691691b5dd52b072deff2658e4932c0b2140db` |
 | source/exploitdb | 2026-11-14 | `9ebaa38d9e73ef6bd22ebf92077e5b29d12f502847c36be234db4108999ecc22` |
@@ -150,18 +150,19 @@ Input snapshots (from the manifest):
 | source/poc_in_github | 2026-11-14 | `b1658a861b70e7dd96d3f5242ca5c6f5b1b3649f7ec545b481e4b52fcbe5669a` |
 | source/sigma_rules | 2026-11-14 | `b771dd7b4ce6e11f3f2a0a56eef24adbe0926887ceb49652c4985a74299d4032` |
 | team3/benchmark_data.py |  | `ed4f40826b5ebf3362eaf6df9bc7df0987bb29fc9c7521c8e09e9b54ab91d982` |
+| t0_narratives/b2a_01.jsonl |  | `f06019f7c8fb6701e8fbb91b41e3614f018cb0fd4881018a0e6369463060696a` |
 
 ## Files
 
 | File | Count | sha256 |
 |---|---|---|
-| `build_report.json` | - | `09d8ca1b00a9268abf8dfbde205d45b3a344d3648ee1ef619298213b77f2fbc1` |
+| `build_report.json` | - | `b4fd1b955c83dd1f189edcc8fce63f1aa91cc1a57d98da72136bb373db774de3` |
 | `equivalence.jsonl` | 1346 | `50947bc90a41f860cd004b7db031574b2a8b9e5a53e7c9461b920d08a6e22f96` |
-| `qrels.jsonl` | 4101 | `5675136877cbc381348b7c34bc455d3abb07af9c7e85b4f4107b37a169dae73c` |
-| `queries.jsonl` | 2310 | `cde00fbe321090d00ccd54401c7cce5df22d1da1d9f26591c8648f6095584868` |
+| `qrels.jsonl` | 4048 | `d116eebae65ee69ed3f2d02355fa79d834009afdb77511347c3dc4431567f5e6` |
+| `queries.jsonl` | 2310 | `dc85c2aa17a5c90ffccf84dbf76a20cde03047d10f236c40739dd4eb1d4de4e6` |
 | `sealed/README.txt` | - | `9715b3971120942321df1b3e9606f6a451f1d1db9af688f9aa3d296ce9172c5c` |
-| `sealed/qrels.jsonl` | 5186 | `2bc362d2ff34b42b404c320186c147b840f7424b6aa9833243be8a529898eabc` |
-| `sealed/queries.jsonl` | 2244 | `8afde08f74fb648d1c94437e1dd7a158d1fa472f955e6511154ddced8916882d` |
+| `sealed/qrels.jsonl` | 5220 | `0e1c31652276662819c5a85414cbc0f5169e1e1155be4061971d757c4899840b` |
+| `sealed/queries.jsonl` | 2244 | `1abfce77400da6eb630227a512060909dbfa8caa57ff3e2dfc34571fdc056965` |
 
 `manifest.json` itself is not listed (it records the builder commit). Split hashes: `queries.jsonl`/`qrels.jsonl` hold train+dev, `sealed/*` hold test.
 
