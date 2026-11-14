@@ -266,3 +266,5 @@ data/benchmark/
 # B2 builder code lives in benchmarks_v2/build/ (re-included despite the generic build/ rule)
 !benchmarks_v2/build/
 !benchmarks_v2/build/**
+benchmarks_v2/build/**/__pycache__/
+benchmarks_v2/build/**/*.pyc
