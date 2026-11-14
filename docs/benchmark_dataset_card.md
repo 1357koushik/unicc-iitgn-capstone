@@ -10,7 +10,7 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 ## Build
 
 - Version `v2.0`, build date **2026-11-14**, seed `20261114`
-- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `643fb7745c2f51c26e6a137eafe2686ebd462e3e`, code sha256 `41685423456d35c3f52f8b476bbf26925a41934fb3213be97599c4385d5b4b5b`
+- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `2b4623c7492035d54b252b26f0dd18ccad70ae83`, code sha256 `880b9207ea559a15d689e45864463e2ac0c42bfa08abdcd809feccfd3cce6700`
 - 4554 queries, 9287 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
 
 ## Slices and sizes
