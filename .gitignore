@@ -257,3 +257,6 @@ data/sqlite/
 
 # Network sensor (Task 5.0): downloaded dataset, trained models and reports - never committed
 data/network_sensor/
+
+# B1 source collectors: downloaded upstream data, never committed
+data/sources/
