@@ -282,6 +282,13 @@ def main() -> int:
 
     ok, detail = stdlib_only()
     report(ok, "builder uses the standard library only", detail)
+    tracked = set(subprocess.run(["git", "ls-files", "benchmarks_v2", "tests"], cwd=REPO_ROOT, capture_output=True,
+                                 text=True).stdout.split())
+    need_files = [p.relative_to(REPO_ROOT).as_posix() for p in sorted((REPO_ROOT / "benchmarks_v2" / "build").glob("*.py"))]
+    need_files += ["tests/test_benchmark_leakage.py", "tests/test_benchmark_build.py"]
+    untracked = [f for f in need_files if f not in tracked]
+    report(not untracked, "builder, tests and card are committed (not git-ignored)",
+           ", ".join(untracked) or f"{len(need_files)} files tracked")
     if not a.skip_repo_tests:
         p = subprocess.run([sys.executable, "-m", "pytest", "verify", "tests", "-q"], cwd=REPO_ROOT,
                            capture_output=True, text=True, env={k: v for k, v in os.environ.items()
