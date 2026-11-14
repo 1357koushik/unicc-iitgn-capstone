@@ -233,7 +233,7 @@ def cmd_report(args) -> int:
     rep = _load_report(args.json)
     md = render_markdown(rep)
     out = args.md_out or Path(str(args.json)).with_suffix(".md")
-    Path(out).write_text(md, encoding="utf-8")
+    Path(out).write_text(md, encoding="utf-8", newline="\n")
     print(f"wrote {out}")
     if args.print:
         print(md)
@@ -248,7 +248,7 @@ def cmd_gates(args) -> int:
           + (" (PROVISIONAL: unjudged documents waived)" if g["provisional"] else ""))
     print("\n".join(gate_table_lines(g)))
     if args.out:
-        Path(args.out).write_text(json.dumps(g, indent=1), encoding="utf-8")
+        Path(args.out).write_text(json.dumps(g, indent=1), encoding="utf-8", newline="\n")
     return 0 if g["overall"] == "PASS" else 1
 
 

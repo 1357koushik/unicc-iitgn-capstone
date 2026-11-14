@@ -70,8 +70,9 @@ def default_paths(out_dir: Path, variant: str, split: str) -> tuple[Path, Path]:
 
 
 def write_report(rep: dict, json_path: Path, md_path: Path) -> None:
-    Path(json_path).write_text(json.dumps(rep, indent=1, sort_keys=False, default=_json_default) + "\n", encoding="utf-8")
-    Path(md_path).write_text(render_markdown(rep), encoding="utf-8")
+    Path(json_path).write_text(json.dumps(rep, indent=1, sort_keys=False, default=_json_default) + "\n",
+                               encoding="utf-8", newline="\n")
+    Path(md_path).write_text(render_markdown(rep), encoding="utf-8", newline="\n")
 
 
 def _json_default(o):
