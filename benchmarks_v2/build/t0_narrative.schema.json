@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "B2a T0 narrative record (one JSON object per line)",
+  "type": "object",
+  "required": [
+    "narrative_id",
+    "text",
+    "targets",
+    "source",
+    "author",
+    "verification"
+  ],
+  "properties": {
+    "narrative_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "doc_id",
+          "grade"
+        ],
+        "properties": {
+          "doc_id": {
+            "type": "string",
+            "pattern": "^(CVE-\\d{4}-\\d{4,}|attack:[GSMT]\\d{4}(\\.\\d{3})?)$"
+          },
+          "grade": {
+            "enum": [
+              1,
+              2
+            ]
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "name",
+        "id"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "licence": {
+          "type": "string"
+        }
+      }
+    },
+    "author": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "passed",
+        "identified"
+      ],
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "identified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object"
+    }
+  }
+}

@@ -260,3 +260,11 @@ data/network_sensor/
 
 # B1 source collectors: downloaded upstream data, never committed
 data/sources/
+
+# B2 benchmark collection: built data, never committed
+data/benchmark/
+# B2 builder code lives in benchmarks_v2/build/ (re-included despite the generic build/ rule)
+!benchmarks_v2/build/
+!benchmarks_v2/build/**
+benchmarks_v2/build/**/__pycache__/
+benchmarks_v2/build/**/*.pyc
