@@ -767,3 +767,7 @@ Findings from completed packages that later packages must act on.
 | A2 | Qdrant embedded mode takes a file lock, so v1 and v2 cannot run on the same `~/data/qdrant_storage` at once. A second process starts with dense search unavailable, yet `/health` reports `healthy` with no degraded components: a silent fallback | C3 (v2 dense search no longer uses Qdrant), C6 and D2 (health must report every unavailable component), D3 (side-by-side run needs separate data) |
 | A2 | Importing the package sets `OMP_NUM_THREADS` and related variables to 16 when unset. This also affects other teams' processes that import `threat_retrieval_engine` | C8: apply thread settings only when the service starts, not on import |
 | A2 | Each release has its own venv (about 2.5 minutes and several GB). Old releases `9df0aa19f` and `444444db1` are left on the server | D1: release pruning |
+| B5 | v1 under load: at 1 concurrent request p50 8.3 s, p95 11.4 s, 0.11 requests/s; at 4 concurrent every request returned HTTP 504 and the shared server's load average rose to about 76. Confirms the need for admission control | C6 |
+| B5 | v1 resident memory is about 28 GB steady and 40 GB peak; cold start takes 112 s to healthy | C6 and D2: record v2 memory and cold start against these |
+| B5 | The load harness repeats the same queries across repetitions, so a v2 response cache would make later repetitions look faster | C6: the response cache must be switchable off per request or by configuration for benchmarks; B5 harness gains a cache-off flag when C6 lands |
+
