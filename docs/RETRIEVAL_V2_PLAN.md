@@ -360,7 +360,7 @@ All of the following are produced by scripts, not by inspection:
 
 | Slice | Query source | Ground truth | Size |
 |---|---|---|---|
-| T0 Observation narratives (primary) | incident paragraphs in the style of Team 3's cases, written by a model from vendor and CISA incident write-ups (never from NVD text), then verified by a second model; Team 3's own benchmark cases are included as a fixed subset | the CVEs the write-up is about are known from authoring; further relevant documents are added by pooled judging | 600 |
+| T0 Observation narratives (primary) | mainly excerpts of real national-CERT incident advisories (ACSC, UK NCSC), with about 60% of CVE IDs masked so retrieval must work from products and behaviour; plus model-written narratives that passed verification, and Team 3's own benchmark cases as a fixed subset | the CVEs the write-up is about are known from authoring; further relevant documents are added by pooled judging | 600 |
 | T1 Identifier | generated: case variants, IDs in sentences, multiple IDs, malformed and non-existent IDs | the IDs | 300 |
 | T2 Nickname | named vulnerabilities compiled independently of the alias table | CVE set | 250 |
 | T3 Advisory wording | reviewed GitHub advisories only | the advisory's CVE | 1,500 |
@@ -775,4 +775,5 @@ Findings from completed packages that later packages must act on.
 | B4 | Ten gaps in the data format were found and decided by the coordinator; `docs/benchmark_format.md` updated (unanswerable queries, fixed meta keys, manifest layout, tier vocabulary, pool format, sealed round 3 inside E1) | B2, B3, E1 |
 | B4 | The root `.gitignore` line `build/` ignores `benchmarks_v2/build/`; B2 told to add a negation | B2 |
 | B2 review | Coordinator audit found T5/T8 queries naming a platform CPE instead of the vulnerable product (e.g. a Chrome bug queried as "redhat linux server") and raw CPE slugs in query text; T2 lacked EternalBlue. Sent back to B2 for a vulnerable-only CPE rule, a product-consistency filter, humanized names and wider nickname corroboration | B2 |
+| B2a | Model authoring of narratives stopped at 23: a safety check interrupted output twice (WatchGuard and MongoDB memory-corruption advisories) even with observation-only rules. Not worked around. T0 now comes mainly from deterministic excerpts of the real advisories (human-written, closer to real analyst text); the 23 narratives join after B2b verification | B2, B2b |
 
