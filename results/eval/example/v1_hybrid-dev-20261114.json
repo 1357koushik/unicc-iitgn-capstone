@@ -1,0 +1,2561 @@
+{
+ "schema": "tre-eval-report/1",
+ "created_at": "2026-11-14T17:03:45Z",
+ "harness": {
+  "version": "b4-1",
+  "commit": "2d7e24cbaabcd6a32ad0c335923a6fca795d03cc",
+  "branch": "team2/b4-eval-harness",
+  "harness_dirty": false,
+  "python": "3.12.10",
+  "numpy": "2.5.1"
+ },
+ "dataset": {
+  "root": "benchmarks_v2\\eval\\example\\dataset",
+  "version": "b4-example-1",
+  "manifest_sha256": "20a44f7d81b40a3478095efc7233eb17cb0922203ee5d834cf7b6adb16c52115",
+  "files": {
+   "queries": {
+    "path": "benchmarks_v2\\eval\\example\\dataset\\queries.jsonl",
+    "sha256": "7eb5049ebc6708da85da7344b3579a2f933cc5f4ad15e3aec34f28754a91517d"
+   },
+   "qrels": {
+    "path": "benchmarks_v2\\eval\\example\\dataset\\qrels.jsonl",
+    "sha256": "34cd609986bf26905aae88fc2035c3a35201bc1dbcdae22242413de85c174542"
+   },
+   "equivalence": {
+    "path": "benchmarks_v2\\eval\\example\\dataset\\equivalence.jsonl",
+    "sha256": "2010c31a80172bae4db73fe40fce2664ba835a69ecaf10121fb47a61c02af04a"
+   }
+  },
+  "manifest_verified": true,
+  "warnings": []
+ },
+ "variant": {
+  "name": "v1_hybrid",
+  "config": {
+   "adapter": "http_v1",
+   "base_url": "http://127.0.0.1:8765",
+   "endpoint": "/api/v1/search/hybrid",
+   "mapping": {
+    "abstain_when_empty": false,
+    "abstained": null,
+    "doc_id": "chunk_id",
+    "doc_id_resolver": {
+     "kind": "sqlite",
+     "path": "~/data/sqlite/corpus_store.db",
+     "sql": "select doc_id from corpus where chunk_id = ?"
+    },
+    "doc_id_transform": "cve_prefix",
+    "probability": null,
+    "results": "results",
+    "score": "rrf_score",
+    "tier": null
+   },
+   "request": {
+    "top_k": 10
+   },
+   "timeout_s": 120.0
+  },
+  "run_file": "results\\eval\\example\\b4-example-v1_hybrid.jsonl",
+  "run_sha256": "2ecb29a299e8f79d84fe6c85d03aefdea41e38b006d7c3b7cb4f3b616d425cc8",
+  "run_warnings": [],
+  "n_run_warnings": 0,
+  "server": {
+   "host": "localhost.localdomain",
+   "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+   "python": "3.12.16",
+   "service_info": {
+    "components": {
+     "bm25": "available",
+     "confidence_model": "available",
+     "embedder": "available",
+     "knowledge_graph": "starter_stub",
+     "qdrant": "available",
+     "reranker": "available",
+     "sqlite": "available"
+    },
+    "degraded_components": [],
+    "status": "healthy"
+   },
+   "load_average_start": [
+    17.49,
+    7.68,
+    3.04
+   ],
+   "load_average_end": [
+    9.49,
+    7.11,
+    3.1
+   ],
+   "harness_commit_at_run": "a9af96d6908b7b70e1c5db31e9a9434a105da1ab",
+   "sessions": 1
+  }
+ },
+ "split": "dev",
+ "slices": null,
+ "settings": {
+  "min_grade": 2,
+  "abstain_is_miss": true,
+  "calib_depth": 10,
+  "ece_bins": 10,
+  "false_accept_min_tier": "PARTIAL",
+  "bootstrap": 10000,
+  "seed": 20261114,
+  "ci": 0.95,
+  "ni_alpha": 0.025,
+  "ni_margin": 0.01,
+  "ni_metrics": [
+   "ndcg@10",
+   "success@1"
+  ]
+ },
+ "flags": {
+  "allow_unjudged": true,
+  "unjudged_positions": 67,
+  "judgement_complete": false,
+  "incomplete": false,
+  "allow_incomplete": false
+ },
+ "run_has_tiers": false,
+ "run_has_probabilities": false,
+ "n_selected": 10,
+ "n_evaluated": 10,
+ "missing_qids": [],
+ "equivalence_grade_conflicts": 0,
+ "populations": {
+  "T0": {
+   "n_queries": 1,
+   "n_answerable": 1,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.16666666666666666,
+     "ci": [
+      0.16666666666666666,
+      0.16666666666666666
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.2943107231069255,
+     "ci": [
+      0.2943107231069255,
+      0.2943107231069255
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@50": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@100": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 10,
+    "unjudged_positions": 9,
+    "rate": 0.9,
+    "rate_ci": [
+     0.9,
+     0.9
+    ],
+    "queries_with_unjudged": 1
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 1,
+    "mean": 10256.46772235632,
+    "max": 10256.46772235632,
+    "p50": {
+     "value": 10256.46772235632,
+     "ci": [
+      10256.46772235632,
+      10256.46772235632
+     ]
+    },
+    "p95": {
+     "value": 10256.46772235632,
+     "ci": [
+      10256.46772235632,
+      10256.46772235632
+     ]
+    },
+    "p99": {
+     "value": 10256.46772235632,
+     "ci": [
+      10256.46772235632,
+      10256.46772235632
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "T1": {
+   "n_queries": 2,
+   "n_answerable": 2,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 0.5,
+     "ci": [
+      0.0,
+      1.0
+     ],
+     "n": 2,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 2,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.75,
+     "ci": [
+      0.5,
+      1.0
+     ],
+     "n": 2,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.8154648767857288,
+     "ci": [
+      0.6309297535714575,
+      1.0
+     ],
+     "n": 2,
+     "if_unjudged_relevant": 1.0
+    },
+    "recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 2
+    },
+    "recall@50": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 2
+    },
+    "recall@100": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 2
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 19,
+    "unjudged_positions": 17,
+    "rate": 0.8947368421052632,
+    "rate_ci": [
+     0.8888888888888888,
+     0.9
+    ],
+    "queries_with_unjudged": 2
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 2
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 2,
+    "mean": 4744.397144764662,
+    "max": 5560.210071504116,
+    "p50": {
+     "value": 4744.397144764662,
+     "ci": [
+      3928.5842180252075,
+      5560.210071504116
+     ]
+    },
+    "p95": {
+     "value": 5478.628778830171,
+     "ci": [
+      3928.5842180252075,
+      5560.210071504116
+     ]
+    },
+    "p99": {
+     "value": 5543.893812969327,
+     "ci": [
+      3928.5842180252075,
+      5560.210071504116
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "T2": {
+   "n_queries": 3,
+   "n_answerable": 3,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 0.6666666666666666,
+     "ci": [
+      0.0,
+      1.0
+     ],
+     "n": 3,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 3,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.75,
+     "ci": [
+      0.25,
+      1.0
+     ],
+     "n": 3,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.7405434888180394,
+     "ci": [
+      0.43067655807339306,
+      1.0
+     ],
+     "n": 3,
+     "if_unjudged_relevant": 0.9922609507964522
+    },
+    "recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 3
+    },
+    "recall@50": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 3
+    },
+    "recall@100": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 3
+    },
+    "set_recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    }
+   },
+   "unjudged": {
+    "top10_positions": 28,
+    "unjudged_positions": 23,
+    "rate": 0.8214285714285714,
+    "rate_ci": [
+     0.6666666666666666,
+     0.9
+    ],
+    "queries_with_unjudged": 3
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 3
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 3,
+    "mean": 3420.7254772384963,
+    "max": 3656.8828001618385,
+    "p50": {
+     "value": 3404.3215587735176,
+     "ci": [
+      3200.9720727801323,
+      3656.8828001618385
+     ]
+    },
+    "p95": {
+     "value": 3631.6266760230064,
+     "ci": [
+      3200.9720727801323,
+      3656.8828001618385
+     ]
+    },
+    "p99": {
+     "value": 3651.831575334072,
+     "ci": [
+      3200.9720727801323,
+      3656.8828001618385
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "T3": {
+   "n_queries": 1,
+   "n_answerable": 1,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.9180385079206221,
+     "ci": [
+      0.9180385079206221,
+      0.9180385079206221
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 0.993216879066224
+    },
+    "recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@50": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@100": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 10,
+    "unjudged_positions": 8,
+    "rate": 0.8,
+    "rate_ci": [
+     0.8,
+     0.8
+    ],
+    "queries_with_unjudged": 1
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 1,
+    "mean": 7205.070242285728,
+    "max": 7205.070242285728,
+    "p50": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    },
+    "p95": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    },
+    "p99": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "T5": {
+   "n_queries": 1,
+   "n_answerable": 1,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "recall@10": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "recall@50": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "recall@100": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 10,
+    "unjudged_positions": 10,
+    "rate": 1.0,
+    "rate_ci": [
+     1.0,
+     1.0
+    ],
+    "queries_with_unjudged": 1
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 1,
+    "mean": 4156.810939311981,
+    "max": 4156.810939311981,
+    "p50": {
+     "value": 4156.810939311981,
+     "ci": [
+      4156.810939311981,
+      4156.810939311981
+     ]
+    },
+    "p95": {
+     "value": 4156.810939311981,
+     "ci": [
+      4156.810939311981,
+      4156.810939311981
+     ]
+    },
+    "p99": {
+     "value": 4156.810939311981,
+     "ci": [
+      4156.810939311981,
+      4156.810939311981
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "T7": {
+   "n_queries": 2,
+   "n_answerable": 0,
+   "n_unanswerable": 2,
+   "metrics": {
+    "success@1": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "success@5": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "mrr@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "ndcg@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "recall@50": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "recall@100": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 0,
+    "unjudged_positions": 0,
+    "rate": null,
+    "rate_ci": null,
+    "queries_with_unjudged": 0
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "wilson": [
+      0.0,
+      0.6576197724933468
+     ],
+     "n": 2,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "abstention_rate_unanswerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 2
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 2,
+    "mean": 3194.58394497633,
+    "max": 3264.958031475544,
+    "p50": {
+     "value": 3194.58394497633,
+     "ci": [
+      3124.2098584771156,
+      3264.958031475544
+     ]
+    },
+    "p95": {
+     "value": 3257.9206228256226,
+     "ci": [
+      3124.2098584771156,
+      3264.958031475544
+     ]
+    },
+    "p99": {
+     "value": 3263.5505497455597,
+     "ci": [
+      3124.2098584771156,
+      3264.958031475544
+     ]
+    }
+   },
+   "kind": "slice"
+  },
+  "overall": {
+   "n_queries": 10,
+   "n_answerable": 8,
+   "n_unanswerable": 2,
+   "metrics": {
+    "success@1": {
+     "value": 0.5,
+     "ci": [
+      0.14285714285714285,
+      0.8571428571428571
+     ],
+     "n": 8,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 0.75,
+     "ci": [
+      0.42857142857142855,
+      1.0
+     ],
+     "n": 8,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.6145833333333333,
+     "ci": [
+      0.3229166666666667,
+      0.8958333333333333
+     ],
+     "n": 8,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.6331136813816405,
+     "ci": [
+      0.38269788293423906,
+      0.8652326992006761
+     ],
+     "n": 8,
+     "if_unjudged_relevant": 0.9962499664319475
+    },
+    "recall@10": {
+     "value": 0.875,
+     "ci": [
+      0.6,
+      1.0
+     ],
+     "n": 8
+    },
+    "recall@50": {
+     "value": 0.875,
+     "ci": [
+      0.6,
+      1.0
+     ],
+     "n": 8
+    },
+    "recall@100": {
+     "value": 0.875,
+     "ci": [
+      0.6,
+      1.0
+     ],
+     "n": 8
+    },
+    "set_recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    }
+   },
+   "unjudged": {
+    "top10_positions": 77,
+    "unjudged_positions": 67,
+    "rate": 0.8701298701298701,
+    "rate_ci": [
+     0.8,
+     0.925
+    ],
+    "queries_with_unjudged": 8
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "wilson": [
+      0.0,
+      0.6576197724933468
+     ],
+     "n": 2,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 8
+    },
+    "abstention_rate_unanswerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 2
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 10,
+    "mean": 4775.84875151515,
+    "max": 10256.46772235632,
+    "p50": {
+     "value": 3792.733509093523,
+     "ci": [
+      3264.958031475544,
+      5680.940590798855
+     ]
+    },
+    "p95": {
+     "value": 8883.33885632455,
+     "ci": [
+      4156.810939311981,
+      10256.46772235632
+     ]
+    },
+    "p99": {
+     "value": 9981.841949149966,
+     "ci": [
+      4156.810939311981,
+      10256.46772235632
+     ]
+    }
+   },
+   "kind": "overall"
+  },
+  "T3+T4": {
+   "n_queries": 1,
+   "n_answerable": 1,
+   "n_unanswerable": 0,
+   "metrics": {
+    "success@1": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.9180385079206221,
+     "ci": [
+      0.9180385079206221,
+      0.9180385079206221
+     ],
+     "n": 1,
+     "if_unjudged_relevant": 0.993216879066224
+    },
+    "recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@50": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "recall@100": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "set_recall@10": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    }
+   },
+   "unjudged": {
+    "top10_positions": 10,
+    "unjudged_positions": 8,
+    "rate": 0.8,
+    "rate_ci": [
+     0.8,
+     0.8
+    ],
+    "queries_with_unjudged": 1
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": null,
+     "ci": null,
+     "wilson": null,
+     "n": 0,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 1
+    },
+    "abstention_rate_unanswerable": {
+     "value": null,
+     "ci": null,
+     "n": 0
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 1,
+    "mean": 7205.070242285728,
+    "max": 7205.070242285728,
+    "p50": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    },
+    "p95": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    },
+    "p99": {
+     "value": 7205.070242285728,
+     "ci": [
+      7205.070242285728,
+      7205.070242285728
+     ]
+    }
+   },
+   "kind": "group"
+  },
+  "free_text": {
+   "n_queries": 8,
+   "n_answerable": 6,
+   "n_unanswerable": 2,
+   "metrics": {
+    "success@1": {
+     "value": 0.5,
+     "ci": [
+      0.125,
+      0.875
+     ],
+     "n": 6,
+     "if_unjudged_relevant": 1.0
+    },
+    "success@5": {
+     "value": 0.6666666666666666,
+     "ci": [
+      0.25,
+      1.0
+     ],
+     "n": 6,
+     "if_unjudged_relevant": 1.0
+    },
+    "mrr@10": {
+     "value": 0.5694444444444445,
+     "ci": [
+      0.20833333333333334,
+      0.8928571428571429
+     ],
+     "n": 6,
+     "if_unjudged_relevant": 1.0
+    },
+    "ndcg@10": {
+     "value": 0.5723299495802777,
+     "ci": [
+      0.26477024103564184,
+      0.8571691712616313
+     ],
+     "n": 6,
+     "if_unjudged_relevant": 0.9949999552425967
+    },
+    "recall@10": {
+     "value": 0.8333333333333334,
+     "ci": [
+      0.5,
+      1.0
+     ],
+     "n": 6
+    },
+    "recall@50": {
+     "value": 0.8333333333333334,
+     "ci": [
+      0.5,
+      1.0
+     ],
+     "n": 6
+    },
+    "recall@100": {
+     "value": 0.8333333333333334,
+     "ci": [
+      0.5,
+      1.0
+     ],
+     "n": 6
+    },
+    "set_recall@10": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    }
+   },
+   "unjudged": {
+    "top10_positions": 58,
+    "unjudged_positions": 50,
+    "rate": 0.8620689655172413,
+    "rate_ci": [
+     0.7719298245614035,
+     0.9387755102040817
+    ],
+    "queries_with_unjudged": 6
+   },
+   "abstention": {
+    "false_accept_rate": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "wilson": [
+      0.0,
+      0.6576197724933468
+     ],
+     "n": 2,
+     "false_accepts": 0,
+     "tiers_available": false
+    },
+    "abstention_rate_answerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 6
+    },
+    "abstention_rate_unanswerable": {
+     "value": 0.0,
+     "ci": [
+      0.0,
+      0.0
+     ],
+     "n": 2
+    },
+    "risk_coverage": null
+   },
+   "errors": {
+    "count": 0,
+    "http_504": 0,
+    "rate": 0.0,
+    "rate_ci": [
+     0.0,
+     0.0
+    ]
+   },
+   "calibration": {
+    "n_pairs": 0,
+    "n_queries_with_pairs": 0,
+    "unjudged_excluded": 0,
+    "label": "grade >= 2",
+    "depth": 10,
+    "ece": {
+     "value": null,
+     "ci": null,
+     "bins_requested": 10,
+     "bins_effective": 0,
+     "binning": "equal-mass"
+    },
+    "brier": {
+     "value": null,
+     "ci": null
+    },
+    "reliability": [],
+    "tiers": {}
+   },
+   "latency_ms": {
+    "n": 8,
+    "mean": 4783.711653202772,
+    "max": 10256.46772235632,
+    "p50": {
+     "value": 3530.602179467678,
+     "ci": [
+      3200.9720727801323,
+      7205.070242285728
+     ]
+    },
+    "p95": {
+     "value": 9188.47860433161,
+     "ci": [
+      3893.4396561235185,
+      10256.46772235632
+     ]
+    },
+    "p99": {
+     "value": 10042.869898751378,
+     "ci": [
+      4104.136682674289,
+      10256.46772235632
+     ]
+    }
+   },
+   "kind": "group"
+  }
+ },
+ "macro": {
+  "success@1": {
+   "value": 0.4333333333333333,
+   "ci": [
+    0.26666666666666666,
+    0.6
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "success@5": {
+   "value": 0.6,
+   "ci": [
+    0.6,
+    0.6
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "mrr@10": {
+   "value": 0.5333333333333333,
+   "ci": [
+    0.4333333333333333,
+    0.6333333333333334
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "ndcg@10": {
+   "value": 0.5536715193262631,
+   "ci": [
+    0.47880959855496846,
+    0.6285334400975578
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "recall@10": {
+   "value": 0.8,
+   "ci": [
+    0.8,
+    0.8
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "recall@50": {
+   "value": 0.8,
+   "ci": [
+    0.8,
+    0.8
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "recall@100": {
+   "value": 0.8,
+   "ci": [
+    0.8,
+    0.8
+   ],
+   "slices": [
+    "T0",
+    "T1",
+    "T2",
+    "T3",
+    "T5"
+   ]
+  },
+  "set_recall@10": {
+   "value": 1.0,
+   "ci": [
+    1.0,
+    1.0
+   ],
+   "slices": [
+    "T2"
+   ]
+  }
+ },
+ "population_definitions": {
+  "T0": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T0"
+    ]
+   },
+   "n": 1
+  },
+  "T1": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T1"
+    ]
+   },
+   "n": 2
+  },
+  "T2": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T2"
+    ]
+   },
+   "n": 3
+  },
+  "T3": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T3"
+    ]
+   },
+   "n": 1
+  },
+  "T5": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T5"
+    ]
+   },
+   "n": 1
+  },
+  "T7": {
+   "kind": "slice",
+   "definition": {
+    "slices": [
+     "T7"
+    ]
+   },
+   "n": 2
+  },
+  "overall": {
+   "kind": "overall",
+   "definition": {
+    "all": true
+   },
+   "n": 10
+  },
+  "T3+T4": {
+   "kind": "group",
+   "definition": {
+    "slices": [
+     "T3",
+     "T4"
+    ]
+   },
+   "n": 1
+  },
+  "free_text": {
+   "kind": "group",
+   "definition": {
+    "exclude_slices": [
+     "T1"
+    ]
+   },
+   "n": 8
+  }
+ },
+ "parent_pairs": {
+  "T6_vs_clean": {
+   "slice": "T6",
+   "parent_key": "parent_qid",
+   "n_children": 0,
+   "n_pairs": 0,
+   "missing_parent": 0,
+   "metrics": {}
+  }
+ },
+ "comparisons": [],
+ "per_query": [
+  {
+   "qid": "T0-1",
+   "slice": "T0",
+   "answerable": true,
+   "metrics": {
+    "success@1": 0.0,
+    "success@5": 0.0,
+    "mrr@10": 0.16666666666666666,
+    "ndcg@10": 0.2943107231069255,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 9,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 10256.46772235632
+  },
+  {
+   "qid": "T1-1",
+   "slice": "T1",
+   "answerable": true,
+   "metrics": {
+    "success@1": 0.0,
+    "success@5": 1.0,
+    "mrr@10": 0.5,
+    "ndcg@10": 0.6309297535714575,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 9,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 5560.210071504116
+  },
+  {
+   "qid": "T1-2",
+   "slice": "T1",
+   "answerable": true,
+   "metrics": {
+    "success@1": 1.0,
+    "success@5": 1.0,
+    "mrr@10": 1.0,
+    "ndcg@10": 1.0,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 8,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 3928.5842180252075
+  },
+  {
+   "qid": "T2-1",
+   "slice": "T2",
+   "answerable": true,
+   "metrics": {
+    "success@1": 1.0,
+    "success@5": 1.0,
+    "mrr@10": 1.0,
+    "ndcg@10": 1.0,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 8,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 3200.9720727801323
+  },
+  {
+   "qid": "T2-2",
+   "slice": "T2",
+   "answerable": true,
+   "metrics": {
+    "success@1": 1.0,
+    "success@5": 1.0,
+    "mrr@10": 1.0,
+    "ndcg@10": 0.7909539083807252,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0,
+    "set_recall@10": 1.0
+   },
+   "unjudged_top10": 6,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 3656.8828001618385
+  },
+  {
+   "qid": "T2-3",
+   "slice": "T2",
+   "answerable": true,
+   "metrics": {
+    "success@1": 0.0,
+    "success@5": 1.0,
+    "mrr@10": 0.25,
+    "ndcg@10": 0.43067655807339306,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 9,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 3404.3215587735176
+  },
+  {
+   "qid": "T3-1",
+   "slice": "T3",
+   "answerable": true,
+   "metrics": {
+    "success@1": 1.0,
+    "success@5": 1.0,
+    "mrr@10": 1.0,
+    "ndcg@10": 0.9180385079206221,
+    "recall@10": 1.0,
+    "recall@50": 1.0,
+    "recall@100": 1.0
+   },
+   "unjudged_top10": 8,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 7205.070242285728
+  },
+  {
+   "qid": "T5-1",
+   "slice": "T5",
+   "answerable": true,
+   "metrics": {
+    "success@1": 0.0,
+    "success@5": 0.0,
+    "mrr@10": 0.0,
+    "ndcg@10": 0.0,
+    "recall@10": 0.0,
+    "recall@50": 0.0,
+    "recall@100": 0.0
+   },
+   "unjudged_top10": 10,
+   "abstained": false,
+   "error": null,
+   "false_accept": null,
+   "latency_ms": 4156.810939311981
+  },
+  {
+   "qid": "T7-1",
+   "slice": "T7",
+   "answerable": false,
+   "metrics": {},
+   "unjudged_top10": 0,
+   "abstained": false,
+   "error": null,
+   "false_accept": 0,
+   "latency_ms": 3124.2098584771156
+  },
+  {
+   "qid": "T7-2",
+   "slice": "T7",
+   "answerable": false,
+   "metrics": {},
+   "unjudged_top10": 0,
+   "abstained": false,
+   "error": null,
+   "false_accept": 0,
+   "latency_ms": 3264.958031475544
+  }
+ ],
+ "unjudged_pairs": [
+  [
+   "T0-1",
+   "CVE-2018-6811"
+  ],
+  [
+   "T0-1",
+   "CVE-2021-22919"
+  ],
+  [
+   "T0-1",
+   "CVE-2021-22920"
+  ],
+  [
+   "T0-1",
+   "CVE-2023-6548"
+  ],
+  [
+   "T0-1",
+   "CVE-2023-6549"
+  ],
+  [
+   "T0-1",
+   "CVE-2025-5777"
+  ],
+  [
+   "T0-1",
+   "CVE-2025-7775"
+  ],
+  [
+   "T0-1",
+   "CVE-2026-88773"
+  ],
+  [
+   "T0-1",
+   "CVE-2026-88774"
+  ],
+  [
+   "T1-1",
+   "CVE-2016-2144"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-0143"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-0146"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-1000049"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-1000184"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-1000441"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-1000446"
+  ],
+  [
+   "T1-1",
+   "CVE-2017-11544"
+  ],
+  [
+   "T1-1",
+   "CVE-2018-17094"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-3100"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-42258"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-42287"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-44103"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-44224"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-44231"
+  ],
+  [
+   "T1-2",
+   "CVE-2021-45456"
+  ],
+  [
+   "T1-2",
+   "CVE-2022-33915"
+  ],
+  [
+   "T2-1",
+   "CVE-2002-0655"
+  ],
+  [
+   "T2-1",
+   "CVE-2017-11144"
+  ],
+  [
+   "T2-1",
+   "CVE-2017-7992"
+  ],
+  [
+   "T2-1",
+   "CVE-2018-0734"
+  ],
+  [
+   "T2-1",
+   "CVE-2018-0735"
+  ],
+  [
+   "T2-1",
+   "CVE-2026-5504"
+  ],
+  [
+   "T2-1",
+   "CVE-2026-74873"
+  ],
+  [
+   "T2-1",
+   "CVE-2026-81704"
+  ],
+  [
+   "T2-2",
+   "CVE-1999-0408"
+  ],
+  [
+   "T2-2",
+   "CVE-2000-1134"
+  ],
+  [
+   "T2-2",
+   "CVE-2005-2977"
+  ],
+  [
+   "T2-2",
+   "CVE-2016-4755"
+  ],
+  [
+   "T2-2",
+   "CVE-2019-9924"
+  ],
+  [
+   "T2-2",
+   "CVE-2025-62064"
+  ],
+  [
+   "T2-3",
+   "CVE-2016-3300"
+  ],
+  [
+   "T2-3",
+   "CVE-2022-38023"
+  ],
+  [
+   "T2-3",
+   "CVE-2023-21526"
+  ],
+  [
+   "T2-3",
+   "CVE-2023-21728"
+  ],
+  [
+   "T2-3",
+   "CVE-2024-38124"
+  ],
+  [
+   "T2-3",
+   "CVE-2025-33070"
+  ],
+  [
+   "T2-3",
+   "CVE-2025-49716"
+  ],
+  [
+   "T2-3",
+   "CVE-2026-41089"
+  ],
+  [
+   "T2-3",
+   "CVE-2026-62759"
+  ],
+  [
+   "T3-1",
+   "CVE-2021-4104"
+  ],
+  [
+   "T3-1",
+   "CVE-2021-42392"
+  ],
+  [
+   "T3-1",
+   "CVE-2021-44832"
+  ],
+  [
+   "T3-1",
+   "CVE-2021-45105"
+  ],
+  [
+   "T3-1",
+   "CVE-2022-23302"
+  ],
+  [
+   "T3-1",
+   "CVE-2022-25167"
+  ],
+  [
+   "T3-1",
+   "CVE-2022-40145"
+  ],
+  [
+   "T3-1",
+   "CVE-2023-27866"
+  ],
+  [
+   "T5-1",
+   "CVE-2015-1764"
+  ],
+  [
+   "T5-1",
+   "CVE-2015-1771"
+  ],
+  [
+   "T5-1",
+   "CVE-2017-8621"
+  ],
+  [
+   "T5-1",
+   "CVE-2022-41040"
+  ],
+  [
+   "T5-1",
+   "CVE-2025-4375"
+  ],
+  [
+   "T5-1",
+   "CVE-2026-26137"
+  ],
+  [
+   "T5-1",
+   "CVE-2026-45501"
+  ],
+  [
+   "T5-1",
+   "CVE-2026-45502"
+  ],
+  [
+   "T5-1",
+   "CVE-2026-45504"
+  ],
+  [
+   "T5-1",
+   "CVE-2026-65801"
+  ]
+ ],
+ "gates": {
+  "overall": "FAIL",
+  "provisional": true,
+  "allow_unjudged": true,
+  "config": "D:\\Project Course\\unicc-iitgn-capstone\\.claude\\worktrees\\agent-a5f9849e2dc3a8a0f\\benchmarks_v2\\eval\\gates.yaml",
+  "config_status": "draft",
+  "frozen": {
+   "by": null,
+   "date": null,
+   "dataset_manifest_sha256": null
+  },
+  "counts": {
+   "PASS": 4,
+   "FAIL": 2,
+   "MISSING": 14,
+   "NOT_APPLICABLE": 5,
+   "WAIVED": 1
+  },
+  "results": [
+   {
+    "id": "judgement_completeness",
+    "description": "no top-10 document of the evaluated variant is unjudged (plan 6.4 step 3)",
+    "kind": "judgement_completeness",
+    "population": "overall",
+    "status": "WAIVED",
+    "observed": {
+     "unjudged_positions": 67,
+     "rate": 0.8701298701298701
+    },
+    "threshold": "<= 0",
+    "note": "waived with --allow-unjudged: every result is provisional"
+   },
+   {
+    "id": "T1_success1",
+    "description": "T1 Success@1 = 100%",
+    "kind": "metric",
+    "population": "T1",
+    "status": "FAIL",
+    "observed": {
+     "value": 0.5,
+     "ci": [
+      0.0,
+      1.0
+     ],
+     "n": 2
+    },
+    "threshold": ">= 1.0",
+    "note": ""
+   },
+   {
+    "id": "T9_id_name_success1",
+    "description": "T9 Success@1 for ID and exact-name queries = 100%",
+    "kind": "metric",
+    "population": "T9_id_name",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T9_id_name not in report"
+   },
+   {
+    "id": "T0_ndcg_vs_v1",
+    "description": "T0 nDCG@10 at least 15 points above v1; interval excludes zero gain",
+    "kind": "comparison",
+    "population": "T0",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "no comparison against v1_match in report (score --compare <v1_match run>)"
+   },
+   {
+    "id": "T2_success5",
+    "description": "T2 Success@5 at least 90%; lower bound at least 85%",
+    "kind": "metric",
+    "population": "T2",
+    "status": "PASS",
+    "observed": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 3
+    },
+    "threshold": ">= 0.9, lower >= 0.85",
+    "note": ""
+   },
+   {
+    "id": "T3T4_recall10",
+    "description": "T3 + T4 Recall@10 at least 90%",
+    "kind": "metric",
+    "population": "T3+T4",
+    "status": "PASS",
+    "observed": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "threshold": ">= 0.9",
+    "note": ""
+   },
+   {
+    "id": "T3T4_mrr10",
+    "description": "T3 + T4 MRR@10 at least 0.75",
+    "kind": "metric",
+    "population": "T3+T4",
+    "status": "PASS",
+    "observed": {
+     "value": 1.0,
+     "ci": [
+      1.0,
+      1.0
+     ],
+     "n": 1
+    },
+    "threshold": ">= 0.75",
+    "note": ""
+   },
+   {
+    "id": "T6_within5_ndcg",
+    "description": "T6 within 5 points of the clean versions (nDCG@10, paired with the parent query)",
+    "kind": "parent_pair",
+    "population": "T6_vs_clean",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "parent pair T6_vs_clean / ndcg@10 not in report"
+   },
+   {
+    "id": "T6_within5_success1",
+    "description": "T6 within 5 points of the clean versions (Success@1, paired with the parent query)",
+    "kind": "parent_pair",
+    "population": "T6_vs_clean",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "parent pair T6_vs_clean / success@1 not in report"
+   },
+   {
+    "id": "T8_success1",
+    "description": "T8 Success@1 at least 80%",
+    "kind": "metric",
+    "population": "T8",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T8 not in report"
+   },
+   {
+    "id": "T7_false_accept",
+    "description": "T7 false-accept rate at most 1%",
+    "kind": "abstention",
+    "population": "T7",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "variant returns no confidence tiers; false accepts cannot be judged"
+   },
+   {
+    "id": "reranker_vs_ceiling_ndcg",
+    "description": "serving reranker non-inferior to the ceiling within 1 nDCG@10 point (plan 4.6)",
+    "kind": "noninferiority",
+    "population": "overall",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "no comparison against reranker_ceiling in report (score --compare <reranker_ceiling run>)"
+   },
+   {
+    "id": "reranker_vs_ceiling_success1",
+    "description": "serving reranker non-inferior to the ceiling within 1 Success@1 point (plan 4.6)",
+    "kind": "noninferiority",
+    "population": "overall",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "no comparison against reranker_ceiling in report (score --compare <reranker_ceiling run>)"
+   },
+   {
+    "id": "strong_precision",
+    "description": "STRONG observed precision at least 95%; lower bound at least 90%",
+    "kind": "tier_precision",
+    "population": "overall",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "no STRONG results in overall"
+   },
+   {
+    "id": "ece_overall",
+    "description": "expected calibration error at most 0.05 overall",
+    "kind": "calibration",
+    "population": "overall",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in overall"
+   },
+   {
+    "id": "ece_per_slice[T0]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T0",
+    "status": "NOT_APPLICABLE",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in T0"
+   },
+   {
+    "id": "ece_per_slice[T1]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T1",
+    "status": "NOT_APPLICABLE",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in T1"
+   },
+   {
+    "id": "ece_per_slice[T2]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T2",
+    "status": "NOT_APPLICABLE",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in T2"
+   },
+   {
+    "id": "ece_per_slice[T3]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T3",
+    "status": "NOT_APPLICABLE",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in T3"
+   },
+   {
+    "id": "ece_per_slice[T4]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T4",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T4 not in report"
+   },
+   {
+    "id": "ece_per_slice[T6]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T6",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T6 not in report"
+   },
+   {
+    "id": "ece_per_slice[T7]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T7",
+    "status": "NOT_APPLICABLE",
+    "observed": null,
+    "threshold": "",
+    "note": "no probabilities in T7"
+   },
+   {
+    "id": "ece_per_slice[T8]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T8",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T8 not in report"
+   },
+   {
+    "id": "ece_per_slice[T9]",
+    "description": "expected calibration error at most 0.05 per gated slice",
+    "kind": "calibration",
+    "population": "T9",
+    "status": "MISSING",
+    "observed": null,
+    "threshold": "",
+    "note": "population T9 not in report"
+   },
+   {
+    "id": "latency_free_text_p95",
+    "description": "single-request free-text p95 within the 3.0 s hard limit; 1.0 s target reported",
+    "kind": "latency",
+    "population": "free_text",
+    "status": "FAIL",
+    "observed": {
+     "value": 9188.47860433161,
+     "ci": [
+      3893.4396561235185,
+      10256.46772235632
+     ]
+    },
+    "threshold": "<= 3000",
+    "note": "target 1000 ms not met"
+   },
+   {
+    "id": "no_http_504",
+    "description": "no HTTP 504 on the full suite",
+    "kind": "errors",
+    "population": "overall",
+    "status": "PASS",
+    "observed": {
+     "value": 0,
+     "errors": 0
+    },
+    "threshold": "<= 0",
+    "note": ""
+   }
+  ]
+ }
+}
