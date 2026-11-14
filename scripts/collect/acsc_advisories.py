@@ -18,7 +18,8 @@ import hashlib
 import re
 
 from collect_common import Context, SourceSpec, SourceUnavailable
-from web_common import (KEEP_RULE, PoliteFetcher, build_record, extract_page, parse_rss, safe_name)
+from web_common import (KEEP_RULE, PoliteFetcher, build_record, canonical_link, extract_page,
+                        page_identity_problem, parse_rss, safe_name)
 
 SITE = "https://www.cyber.gov.au"
 LISTINGS = [SITE + "/about-us/view-all-content/alerts-and-advisories", SITE + "/archived-alerts-and-advisories"]
@@ -112,22 +113,36 @@ def collect(ctx: Context):
 
         # ---- fetch articles
         failed, kept, skipped = [], [], 0
+        mismatched: list[dict] = []
         for i, c in enumerate(order, 1):
             url = SITE + c["path"] if c["path"].startswith("/") else c["path"]
             try:
-                html, raw = f.get_text(url)
+                html, final_url, raw = f.get_page(url)
             except PoliteFetcher.Gone as e:
                 failed.append({"url": url, "error": str(e)[:120]})
                 continue
             f.save_gz(f"pages/{safe_name(c['path'].rsplit('/', 1)[-1])}.html", raw)
-            rec = build_record(SPEC.name, doc_type_of(url), url, parse_article(html), c, ctx.cves)
+            art = parse_article(html)
+            problem = page_identity_problem(url, final_url, art["text"], canonical_link(html), art["title"])
+            if problem:  # one re-fetch rules out a transient mix-up; a repeat is dropped, never stored under this id
+                try:
+                    html, final_url, raw = f.get_page(url)
+                    art = parse_article(html)
+                    problem = page_identity_problem(url, final_url, art["text"], canonical_link(html), art["title"])
+                except PoliteFetcher.Gone:
+                    pass
+            if problem:
+                mismatched.append({"url": url, "final_url": final_url, "page_title": art["title"], "reason": problem})
+                ctx.log(f"DROPPED {url}: {problem}")
+                continue
+            rec = build_record(SPEC.name, doc_type_of(url), url, art, c, ctx.cves)
             if rec is None:
                 skipped += 1
             else:
                 kept.append(rec)
             if i % 25 == 0:
                 ctx.log(f"{i}/{len(order)} fetched, {len(kept)} kept")
-        ctx.extra.update({"listing_pages_unreachable": listing_failed, "pages_fetched": len(order) - len(failed), "pages_gone": failed,
+        ctx.extra.update({"listing_pages_unreachable": listing_failed, "pages_fetched": len(order) - len(failed), "pages_gone": failed, "pages_dropped_identity_mismatch": mismatched,
                           "pages_dropped_by_keep_rule": skipped, "http_requests": f.requests})
         if len(failed) > max(5, len(order) // 10):
             raise SourceUnavailable(f"{len(failed)} of {len(order)} advisory pages were not retrievable", "unavailable")

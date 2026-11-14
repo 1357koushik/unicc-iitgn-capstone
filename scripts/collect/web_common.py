@@ -342,15 +342,17 @@ class PoliteFetcher:
         return self.robots_info
 
     def get_text(self, url: str) -> tuple[str, bytes]:
+        text, _, raw = self.get_page(url)
+        return text, raw
+
+    def get_page(self, url: str) -> tuple[str, str, bytes]:
+        """-> (decoded text, final URL after redirects, raw bytes)."""
         r = self._get(url)
-        return self._decode(r), r.content
+        return self._decode(r), str(getattr(r, "url", url)), r.content
 
     @staticmethod
     def _decode(r) -> str:
-        try:
-            return r.content.decode("utf-8")
-        except UnicodeDecodeError:
-            return r.text
+        return decode_body(r.content, r.headers.get("content-type", ""))
 
     def save_gz(self, rel: str, content: bytes) -> dict[str, Any]:
         """Store a raw page gzip-compressed under raw/<rel>.gz; return {path, bytes, sha256 of the raw body}."""
@@ -359,6 +361,87 @@ class PoliteFetcher:
         with open(dest, "wb") as f:
             f.write(gzip.compress(content, 6, mtime=0))
         return {"path": rel + ".gz", "sha256": hashlib.sha256(content).hexdigest()}
+
+
+_META_CHARSET = re.compile(rb"""<meta[^>]+?charset\s*=\s*["']?\s*([A-Za-z0-9_.:-]+)""", re.IGNORECASE)
+_HDR_CHARSET = re.compile(r"charset\s*=\s*[\"']?([A-Za-z0-9_.:-]+)", re.IGNORECASE)
+
+
+def decode_body(content: bytes, content_type: str = "") -> str:
+    """Bytes -> text without ever producing U+FFFD from a mis-guessed charset.
+
+    Order: BOM, HTTP Content-Type charset, `<meta charset>` in the first 4 KiB, then UTF-8. A declared charset
+    that cannot decode the bytes falls back to UTF-8, then Windows-1252 (smart quotes), then per-byte Latin-1
+    for bytes cp1252 leaves undefined. Declared latin-1/ASCII is read as Windows-1252, as browsers do.
+    """
+    import codecs
+
+    if content.startswith(codecs.BOM_UTF8):
+        return content[3:].decode("utf-8", "replace")
+    declared = None
+    m = _HDR_CHARSET.search(content_type or "")
+    if m:
+        declared = m.group(1)
+    else:
+        m2 = _META_CHARSET.search(content[:4096])
+        if m2:
+            declared = m2.group(1).decode("ascii", "ignore")
+    candidates: list[str] = []
+    if declared:
+        d = declared.lower()
+        if d in ("iso-8859-1", "latin1", "latin-1", "us-ascii", "ascii", "windows-1252", "cp1252"):
+            d = "cp1252"
+        try:
+            codecs.lookup(d)
+            candidates.append(d)
+        except LookupError:
+            pass
+    candidates += ["utf-8", "cp1252"]
+    for enc in candidates:
+        try:
+            return content.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return "".join(_cp1252_byte(b) for b in content)
+
+
+def _cp1252_byte(b: int) -> str:
+    try:
+        return bytes([b]).decode("cp1252")
+    except UnicodeDecodeError:
+        return chr(b)
+
+
+def slug_of(url: str) -> str:
+    return url.split("#", 1)[0].split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+
+
+def page_identity_problem(listed_url: str, final_url: str, text: str, canonical: str = "", title: str = "") -> str | None:
+    """Reason string when a fetched page does not belong to the listed advisory, else None.
+
+    Checks (case-insensitive): the final URL's slug equals the listed slug (no redirect to another page); the
+    canonical link, when present, has the same slug; and a CVE id embedded in the slug appears in the page text.
+    """
+    want = slug_of(listed_url).lower()
+    got = slug_of(final_url).lower()
+    if got != want:
+        return f"redirected to a different page: listed slug {want!r}, final URL {final_url}"
+    if canonical and slug_of(canonical).lower() != want:
+        return f"canonical link {canonical} does not match listed slug {want!r}"
+    slug_cves = {c.upper() for c in re.findall(r"cve-\d{4}-\d{4,}", want)}
+    if slug_cves:
+        haystack = f"{title}\n{text or ''}"  # tolerate "CVE 2023-4966" and a CVE named only in the title
+        page_cves = {f"CVE-{y}-{n}" for y, n in re.findall(r"CVE[-\s](\d{4})-(\d{4,})", haystack, re.IGNORECASE)}
+        missing = sorted(slug_cves - page_cves)
+        if missing:
+            return (f"slug names {', '.join(missing)} but neither the page title nor text mentions it "
+                    "(page content belongs to another advisory)")
+    return None
+
+
+def canonical_link(html: str) -> str:
+    m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]*href=["\']([^"\']+)', html[:200000], re.IGNORECASE)
+    return m.group(1) if m else ""
 
 
 def safe_name(slug: str) -> str:

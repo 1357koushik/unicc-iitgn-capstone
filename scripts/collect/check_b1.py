@@ -104,13 +104,14 @@ def check_web_incident(name: str, d: Path, m: dict) -> None:
     report(bool(lv.get("page")) and bool(lv.get("statement")), f"{name}: licence verification page recorded", lv.get("page", ""))
     report(bool(ex.get("keep_rule")) and bool(ex.get("enumeration")), f"{name}: keep rule and enumeration method recorded",
            (ex.get("enumeration") or "")[:90])
-    n = with_cve = bad = 0
+    n = with_cve = bad = fffd = 0
     cves: set[str] = set()
     dates = []
     with open(d / "records.jsonl", encoding="utf-8") as f:
         for line in f:
             r = json.loads(line)
             n += 1
+            fffd += any("\ufffd" in str(v) for v in r.values())
             ok = all(r.get(k) for k in ("url", "title", "text", "advisory_id", "keep_reason", "published"))
             ok = ok and r["keep_reason"] in ("cve", "actor", "cve+actor") and bool(r["cve_ids"]) == ("cve" in r["keep_reason"])
             ok = ok and all(re.fullmatch(r"CVE-\d{4}-\d{4,}", c) for c in r["cve_ids"])
@@ -121,6 +122,7 @@ def check_web_incident(name: str, d: Path, m: dict) -> None:
             dates.append(r.get("published", ""))
     report(bad == 0, f"{name}: every record has url/title/date/text/keep_reason and consistent CVE ids",
            f"{bad} bad of {n}")
+    report(fffd == 0, f"{name}: no U+FFFD replacement characters in any record", f"{fffd} records affected")
     report(n > 0 and with_cve > 0 and dates == sorted(dates, reverse=True), f"{name}: newest first, CVE-bearing records exist",
            f"{n} records, {with_cve} with CVE, {len(cves)} distinct CVEs")
 
