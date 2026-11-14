@@ -776,4 +776,13 @@ Findings from completed packages that later packages must act on.
 | B4 | The root `.gitignore` line `build/` ignores `benchmarks_v2/build/`; B2 told to add a negation | B2 |
 | B2 review | Coordinator audit found T5/T8 queries naming a platform CPE instead of the vulnerable product (e.g. a Chrome bug queried as "redhat linux server") and raw CPE slugs in query text; T2 lacked EternalBlue. Sent back to B2 for a vulnerable-only CPE rule, a product-consistency filter, humanized names and wider nickname corroboration | B2 |
 | B2a | Model authoring of narratives stopped at 23: a safety check interrupted output twice (WatchGuard and MongoDB memory-corruption advisories) even with observation-only rules. Not worked around. T0 now comes mainly from deterministic excerpts of the real advisories (human-written, closer to real analyst text); the 23 narratives join after B2b verification | B2, B2b |
+| B2 | Merged. Benchmark v2.0: 4,782 queries over T0–T9 (T0 230: 226 advisory excerpts + 4 Team 3 cases). T0 is below its floor of 250 (test 138 of 150) until B2b verifies the 23 B2a narratives. ATT&CK documents may be targets in both dev and test (grouping is by question subject); tuning is global, so this is accepted and stated in the card | B2b, then rebuild |
+| B2 | Collector defects to fix: one ACSC record (`remote-code-execution-vulnerability-windows-dns-cve-2020-1350`) carries another advisory's text; some ACSC text has a mis-decoded apostrophe (U+FFFD) | B1c |
+
+### Next steps (resume point)
+
+1. B2b (Sonnet, medium): verify the 23 B2a narratives against their decoys; rebuild v2.0 with the passing ones; T0 must reach 250 with at least 150 in test.
+2. B1c (Sonnet, low): fix the two collector defects above, re-collect ACSC, rebuild.
+3. B6 (Sonnet, low): run v1 (`v1_match` and `v1_hybrid`) over train and dev on the server with the B4 harness (resumable, several hours unattended); test stays sealed.
+4. Then C1 (Opus, high), the CVE document store.
 
