@@ -212,3 +212,25 @@ def test_end_to_end_build_is_byte_identical(tmp_path, capsys):
     for o in outs:
         sealed.unprotect_tree(o)
     os.environ.pop("TRE_OPEN_SEALED", None)
+
+
+def test_product_naming_excludes_platform_cpes():
+    from benchmarks_v2.build.slice_products import ProductIndex, find_span, slug_tokens
+
+    class U:
+        nvd = {"CVE-2018-6116": {"st": "Analyzed", "desc": "A nullptr dereference in WebAssembly in Google Chrome prior "
+                                 "to 66.0.3359.117 allowed a remote attacker ...", "cwe": ["CWE-476"], "cpe_trunc": False,
+                                 "aff": [{"v": "Google", "p": "Chrome", "ver": [], "dflt": ""}],
+                                 "cpe": {"a:google:chrome": [["*", "", "", "", "66.0.3359.117"]],
+                                         "o:redhat:linux_server": [["6.0", "", "", "", ""]],
+                                         "o:debian:debian_linux": [["9.0", "", "", "", ""]]}}}
+
+        def cvelist(self, cid):
+            return None
+
+    p = ProductIndex(U())
+    assert dict(p.cpe) == {"a:google:chrome": ["CVE-2018-6116"]}
+    assert p.display("a:google:chrome", "CVE-2018-6116")[0] == "Google Chrome"
+    assert slug_tokens("nxal-100_firmware") == ["nxal", "100"]
+    assert find_span(["e", "studio", "6525"], "Toshiba e-STUDIO6525 printers") == "e-STUDIO6525"
+    assert find_span(["red", "hat"], "Google Chrome on Linux") is None

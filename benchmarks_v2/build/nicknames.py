@@ -14,7 +14,7 @@ CANDIDATES: list[tuple[str, list[str], list[str]]] = [
     ("Log4Shell", ["CVE-2021-44228"], ["LogJam4j"]),
     ("Heartbleed", ["CVE-2014-0160"], []),
     ("Shellshock", ["CVE-2014-6271", "CVE-2014-7169"], ["Bashdoor"]),
-    ("EternalBlue", ["CVE-2017-0144"], []),
+    ("EternalBlue", ["CVE-2017-0144", "CVE-2017-0143"], []),
     ("EternalRomance", ["CVE-2017-0145"], []),
     ("EternalChampion", ["CVE-2017-0146"], []),
     ("EternalSynergy", ["CVE-2017-0143"], []),
@@ -186,4 +186,5 @@ CANDIDATES: list[tuple[str, list[str], list[str]]] = [
     ("EFAIL", ["CVE-2017-17688", "CVE-2017-17689"], []),
     ("Rowhammer", ["CVE-2015-0565"], []),
     ("Drammer", ["CVE-2016-6728"], []),
+    ("MOVEit", ["CVE-2023-34362"], ["MOVEit Transfer"]),
 ]

@@ -97,13 +97,41 @@ def _vstr(v: tuple) -> str:
     return ".".join(str(x) for x in (v if len(v) > 1 else v + (0,)))
 
 
-def humanize_cpe(key: str) -> str:
-    _, vendor, product = key.split(":", 2)
-    vendor = vendor.replace("\\", "").replace("_", " ").strip()
-    product = product.replace("\\", "").replace("_", " ").strip()
-    if product.lower().startswith(vendor.lower()):
-        return product
-    return f"{vendor} {product}"
+PACKAGING = {"firmware"}
+_WORD = re.compile(r"[A-Za-z0-9]+")
+
+
+def slug_tokens(slug: str) -> list[str]:
+    """Tokens of a CPE vendor/product slug, trailing packaging words (e.g. "firmware") dropped."""
+    toks = [t.lower() for t in _WORD.findall(slug.replace("\\", " ").replace("_", " "))]
+    while len(toks) > 1 and toks[-1] in PACKAGING:
+        toks.pop()
+    return toks
+
+
+def find_span(phrase: list[str], text: str) -> str | None:
+    """Original-case span of `text` whose alphanumeric tokens, joined, equal the joined phrase tokens
+    (so "e-studio 6525" matches "e-STUDIO6525"). None when the phrase is not named in the text."""
+    key = "".join(phrase)
+    if not key or not text:
+        return None
+    toks = [(m.group(0).lower(), m.start(), m.end()) for m in _WORD.finditer(text)]
+    n = len(toks)
+    for i in range(n):
+        if not key.startswith(toks[i][0]):
+            continue
+        acc = ""
+        for j in range(i, min(n, i + len(phrase) + 3)):
+            acc += toks[j][0]
+            if acc == key:
+                return text[toks[i][1]:toks[j][2]]
+            if len(acc) >= len(key) or not key.startswith(acc):
+                break
+    return None
+
+
+def _clean_display(s: str) -> str:
+    return re.sub(r"\s+", " ", s.replace("_", " ")).strip()
 
 
 def _norm_name(s: str) -> str:
@@ -111,15 +139,19 @@ def _norm_name(s: str) -> str:
 
 
 def humanize_cna(vendor: str, product: str) -> str:
-    v = re.sub(r"\s+", " ", vendor).strip()
-    p = re.sub(r"\s+", " ", product).strip()
+    v = _clean_display(vendor)
+    p = _clean_display(product)
     if p.lower().startswith(v.lower()) or v.lower() in _NA:
         return p
     return f"{v} {p}"
 
 
 class ProductIndex:
-    """product key -> searchable CVEs with usable product data."""
+    """product key -> searchable CVEs with usable product data.
+
+    A CVE joins a CPE product only when that product is *named* in its own description or CNA
+    `affected` vendor/product (distribution repackagings and platform CPEs listed by NVD, such as Red Hat
+    Linux for a Chrome bug, are not the vulnerable product and are skipped)."""
 
     def __init__(self, u):
         self.u = u
@@ -128,6 +160,7 @@ class ProductIndex:
         self.cna_entries: dict[tuple[str, str], list[dict]] = defaultdict(list)
         self.cna_label: dict[str, str] = {}
         self.cna_versions: dict[str, set] = defaultdict(set)
+        self.stats = defaultdict(int)
         for cid in sorted(u.nvd):
             r = u.nvd[cid]
             if r["st"] == "Rejected" or not r["desc"]:
@@ -136,8 +169,13 @@ class ProductIndex:
                 if r["cpe_trunc"]:
                     continue
                 for key in r["cpe"]:
-                    if key[:2] in ("a:", "o:"):
+                    if key[:2] not in ("a:", "o:"):
+                        continue
+                    if self.product_named(key, cid):
                         self.cpe[key].append(cid)
+                        self.stats["cpe_pairs_named"] += 1
+                    else:
+                        self.stats["cpe_pairs_not_named_skipped"] += 1
             else:
                 for e in r["aff"]:
                     if _norm_name(e["v"]) in _NA or _norm_name(e["p"]) in _NA:
@@ -153,11 +191,46 @@ class ProductIndex:
                             if pv is not None and pv != (0,):
                                 self.cna_versions[key].add(pv)
 
+    def _texts(self, cid: str) -> list[str]:
+        r = self.u.nvd[cid]
+        return [r["desc"]] + [f"{a['v']} {a['p']}" for a in r["aff"]] + [a["p"] for a in r["aff"]]
+
+    def product_named(self, key: str, cid: str) -> bool:
+        prod = slug_tokens(key.split(":", 2)[2])
+        return any(find_span(prod, t) for t in self._texts(cid))
+
     def classes(self, cid: str) -> list[str]:
         return classes_of(self.u.nvd[cid]["cwe"])
 
-    def label(self, key: str) -> str:
-        return self.cna_label[key] if key.startswith("cna:") else humanize_cpe(key)
+    def display(self, key: str, anchor: str) -> tuple[str, str, str | None]:
+        """(query label, product display, vendor display or None) in the anchor CVE's own wording."""
+        if key.startswith("cna:"):
+            e = self.cna_entries[(key, anchor)][0]
+            vend = _clean_display(e["v"]) if _norm_name(e["v"]) not in _NA else None
+            prod = _clean_display(e["p"])
+        else:
+            _, vslug, pslug = key.split(":", 2)
+            texts = self._texts(anchor)
+            prod = next((x for x in (find_span(slug_tokens(pslug), t) for t in texts) if x), None)
+            prod = _clean_display(prod) if prod else " ".join(slug_tokens(pslug))
+            vend = next((x for x in (find_span(slug_tokens(vslug), t) for t in texts) if x), None)
+            vend = _clean_display(vend) if vend else None
+        if vend is None or prod.lower().startswith(vend.lower()) or vend.lower() in prod.lower():
+            return prod, prod, vend
+        return f"{vend} {prod}", prod, vend
+
+    def label(self, key: str, anchor: str) -> str:
+        return self.display(key, anchor)[0]
+
+    def consistent(self, cid: str, prod: str, vend: str | None) -> bool:
+        """Product-consistency rule: the product (or vendor) named in the query occurs in the CVE's
+        description, CVE List title or CNA affected vendor/product."""
+        texts = self._texts(cid)
+        cl = self.u.cvelist(cid)
+        if cl and cl.get("title"):
+            texts.append(cl["title"])
+        names = [prod] + ([vend] if vend else [])
+        return any(find_span([t.lower() for t in _WORD.findall(n)], x) for n in names for x in texts)
 
     def members(self, key: str) -> list[str]:
         return self.cna[key] if key.startswith("cna:") else self.cpe[key]
@@ -251,16 +324,23 @@ def _t5_for_product(u, pidx, key, seed, stats) -> Item | None:
                 g1.append(c)
             else:
                 unk += 1
-        if not (1 <= len(g2) <= 10) or len(g1) > 40:
+        label, prod, vend = pidx.display(key, t)
+        # product-consistency rule: the product/vendor named in the query must occur in each target's text
+        bad = [c for c in g2 if not pidx.consistent(c, prod, vend)]
+        if bad:
+            stats["grade2_pairs_dropped_product_inconsistent"] += len(bad)
+            g2 = [c for c in g2 if c not in bad]
+        g1 = [c for c in g1 if pidx.consistent(c, prod, vend)]
+        if t not in g2 or not (1 <= len(g2) <= 10) or len(g1) > 40:
             stats["set_size_out_of_range"] += 1
             continue
         phrase = _pick_phrase(cls, ttok, r)
-        text = r.choice(T5_TEMPLATES).format(p=pidx.label(key), v=_vstr(v), f=phrase)
+        text = r.choice(T5_TEMPLATES).format(p=label, v=_vstr(v), f=phrase)
         qrels = [qrel(c, 2, "known_item") for c in sorted(g2)] + [qrel(c, 1, "known_item") for c in sorted(g1)]
         return Item(slice="T5", text=text, qrels=qrels,
                     source={"name": "generated", "id": key, "licence": "derived from NVD/CVE List structured data"},
                     meta={"product_key": key, "namespace": "cna" if key.startswith("cna:") else "cpe",
-                          "version": _vstr(v), "flaw_class": cls, "anchor_cve": t,
+                          "product_label": prod, "vendor_label": vend, "version": _vstr(v), "flaw_class": cls, "anchor_cve": t,
                           "grade2": len(g2), "grade1": len(g1), "unjudged_unknown_applicability": unk,
                           "version_in_target_text": _vstr(v) in ttok})
     stats["no_target_found"] += 1
@@ -322,7 +402,12 @@ def _t8_for_product(u, pidx, key, seed, stats, used, max_siblings) -> Item | Non
             continue
         sibs = [c for c in cves if c != t]
         cls_t = pidx.classes(t)
-        comps = [c for c in components(descs[t]) if not any(c.lower() in low[s] for s in sibs)]
+        label, prod, vend = pidx.display(key, t)
+        if not pidx.consistent(t, prod, vend):
+            stats["target_product_inconsistent"] += 1
+            continue
+        # analyst-readable text: no identifiers with underscores
+        comps = [c for c in components(descs[t]) if "_" not in c and not any(c.lower() in low[s] for s in sibs)]
         ttok = token_set(u.corpus_text(t))
         fam = None
         if comps:
@@ -337,7 +422,6 @@ def _t8_for_product(u, pidx, key, seed, stats, used, max_siblings) -> Item | Non
                 cls = r.choice(uniq)
         if fam is None:
             continue
-        label = pidx.label(key)
         if fam == "component":
             if cls_t:
                 cls = r.choice(cls_t)
@@ -354,6 +438,7 @@ def _t8_for_product(u, pidx, key, seed, stats, used, max_siblings) -> Item | Non
         chosen = (same + rest)[:max_siblings]
         qrels = [qrel(t, 2, "known_item")] + [qrel(s, 0, "authoring") for s in sorted(chosen)]
         meta = {"product_key": key, "namespace": "cna" if key.startswith("cna:") else "cpe", "discriminator": fam,
+                "product_label": prod, "vendor_label": vend,
                 "flaw_class": cls, "siblings_in_product": len(sibs), "siblings_listed": len(chosen),
                 "siblings_same_flaw_class": sum(1 for s in chosen if s in same)}
         if fam == "component":

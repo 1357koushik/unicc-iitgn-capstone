@@ -130,10 +130,8 @@ def validate_format(queries: list[dict], qrels: list[dict], eq: list[dict], wher
     return errs
 
 
-def check_overlap(all_q: list[dict], all_qrels: list[dict]) -> tuple[bool, str]:
+def check_overlap(u, all_q: list[dict], all_qrels: list[dict]) -> tuple[bool, str]:
     from benchmarks_v2.build.text import overlap, token_set
-    from benchmarks_v2.build.universe import load_universe
-    u = load_universe(default_feeds_dir(), workers=6)
     qtext = {q["qid"]: (q["slice"], q["text"]) for q in all_q}
     worst = defaultdict(float)
     bad = 0
@@ -153,6 +151,43 @@ def check_overlap(all_q: list[dict], all_qrels: list[dict]) -> tuple[bool, str]:
             bad += 1
     detail = f"{n} target pairs re-scored; max per slice " + ", ".join(f"{k}={v:.2f}" for k, v in sorted(worst.items()))
     return bad == 0, detail + (f"; {bad} pairs above 0.6" if bad else "")
+
+
+def check_products(u, all_q: list[dict], all_qrels: list[dict]) -> tuple[bool, str, bool, str]:
+    """T5/T8: (1) the product or vendor named in the query occurs in every grade-2 target's description,
+    CVE List title or CNA affected vendor/product, and is part of the query text; (2) no underscores."""
+    from benchmarks_v2.build.slice_products import find_span
+    words = lambda s: re.findall(r"[a-z0-9]+", (s or "").lower())  # noqa: E731
+    g2 = defaultdict(list)
+    for r in all_qrels:
+        if r["grade"] == 2:
+            g2[r["qid"]].append(r["doc_id"])
+    bad, n, desc_only_miss, under = 0, 0, 0, []
+    per = defaultdict(lambda: [0, 0])
+    for q in all_q:
+        if q["slice"] not in ("T5", "T8"):
+            continue
+        if "_" in q["text"]:
+            under.append(q["qid"])
+        prod, vend = q["meta"].get("product_label"), q["meta"].get("vendor_label")
+        names = [x for x in (prod, vend) if x]
+        in_text = any(find_span(words(x), q["text"]) for x in names)
+        for d in g2[q["qid"]]:
+            n += 1
+            r = u.nvd.get(d) or {"desc": u.description(d), "aff": []}
+            cl = u.cvelist(d)
+            texts = [r["desc"]] + [f"{a['v']} {a['p']}" for a in r.get("aff", [])] + ([cl["title"]] if cl and cl.get("title") else [])
+            ok = in_text and any(find_span(words(x), t) for x in names for t in texts)
+            if not ok:
+                bad += 1
+            per[q["slice"]][0] += 1
+            if not any(find_span(words(x), r["desc"]) for x in names):
+                per[q["slice"]][1] += 1
+                desc_only_miss += 1
+    info = "; ".join(f"{k}: {v[1]} of {v[0]} target pairs name the product only in the CNA affected block or title"
+                     for k, v in sorted(per.items()))
+    return bad == 0, f"{n} grade-2 pairs checked, {bad} inconsistent; {info}", not under, \
+        (f"{len(under)} T5/T8 queries contain '_'" if under else "no underscores in T5/T8 query text")
 
 
 def stdlib_only() -> tuple[bool, str]:
@@ -233,8 +268,13 @@ def main() -> int:
             detail += f"; shortfall {TARGET_SIZES[sl] - n} explained in build_report.json"
         report(n > 0 and explained and {k: v for k, v in c.items() if v} == {k: v for k, v in entry.get("by_split", {}).items() if v},
                f"slice {sl} present, counts match report, shortfall explained", detail)
-    ok, detail = check_overlap(all_q, all_qr)
+    from benchmarks_v2.build.universe import load_universe
+    u = load_universe(default_feeds_dir(), workers=6)
+    ok, detail = check_overlap(u, all_q, all_qr)
     report(ok, "overlap rule holds (independent re-computation, <= 60% per target pair)", detail)
+    ok1, d1, ok2, d2 = check_products(u, all_q, all_qr)
+    report(ok1, "T5/T8 product consistency (query product/vendor named in every target's text)", d1)
+    report(ok2, "T5/T8 query text reads like analyst text (no CPE slugs with underscores)", d2)
     for sl in SLICES:
         o = rep["slices"][sl]["overlap"]
         if not o["exempt"]:

@@ -1,6 +1,7 @@
 """T2 nickname slice: corroborated name -> CVE mappings, queries written from templates."""
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 
 from .common import rng
@@ -73,6 +74,30 @@ def corroborate(name: str, cid: str, u, qside) -> list[dict]:
     return ev
 
 
+_BULLETIN = re.compile(r"\bMS\d{2}-\d{3}\b", re.I)
+
+
+def advisory_chain(name: str, cid: str, candidate_cves: list[str], u, qside) -> list[dict]:
+    """Second-hop corroboration: a query-side record (ET Open msg, Sigma title/description, GHSA) attached
+    to one of this name's candidate CVEs names the nickname together with a Microsoft bulletin ID
+    (e.g. "ETERNALBLUE ... MS17-010"), and this CVE's own NVD references cite that bulletin. Only CVEs
+    already on the candidate list can be corroborated this way."""
+    r = u.nvd.get(cid)
+    if r is None:
+        return []
+    refs = [x.lower() for x in r.get("refs", []) or []]
+    for c in candidate_cves:
+        for src, rid, text in qside.get(c, []):
+            if not contains_name(name, raw_tokens(text)):
+                continue
+            for b in sorted({m.group(0).lower() for m in _BULLETIN.finditer(text)}):
+                hit = next((x for x in refs if b in x), None)
+                if hit:
+                    return [{"source": "advisory_chain", "value": f"{src}:{rid} names the nickname with {b.upper()}; "
+                                                                   f"NVD reference {hit}"}]
+    return []
+
+
 def build_t2(u, srcs, gate, seed: int, target: int) -> tuple[list[Item], dict]:
     qside = query_side_texts(srcs)
     stats = defaultdict(int)
@@ -87,7 +112,7 @@ def build_t2(u, srcs, gate, seed: int, target: int) -> tuple[list[Item], dict]:
                 if not u.exists(c):
                     stats["pair_cve_missing"] += 1
                     continue
-                ev = corroborate(nm, c, u, qside)
+                ev = corroborate(nm, c, u, qside) or advisory_chain(nm, c, cves, u, qside)
                 if not ev:
                     stats["pair_uncorroborated"] += 1
                     continue

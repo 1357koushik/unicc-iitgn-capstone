@@ -48,7 +48,9 @@ METHOD = {
           "punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers).",
     "T2": "Names compiled from general knowledge in `benchmarks_v2/build/nicknames.py`, independently of any expansion source and of the alias "
           "table. A (name, CVE) pair is kept only when the name occurs in that CVE's NVD description or references, its CVE List text or "
-          "references, or a query-side record (GHSA, ET Open, Sigma) for that CVE; the evidence is stored per item in `meta.corroboration`. "
+          "references, or a query-side record (GHSA, ET Open, Sigma) for that CVE, or by an advisory chain (a query-side record "
+          "attached to one of the name's candidate CVEs names the nickname with a Microsoft bulletin ID, e.g. ETERNALBLUE with "
+          "MS17-010, and this CVE's NVD references cite that bulletin); the evidence is stored per item in `meta.corroboration`. "
           "Queries are the name in up to three of ten written templates, round-robin over names.",
     "T3": "Reviewed GHSA advisories (not withdrawn) with a CVE alias, seeded order, at most two per package. Query = summary with CVE IDs "
           "stripped (summary + first sentence of details when the summary has fewer than three content tokens). Target = the alias CVE; an "
@@ -57,7 +59,11 @@ METHOD = {
           "(`ET <CATEGORY>`, `GPL <CATEGORY>`), CVE/CAN IDs (including bare continuation IDs) and ET variant markers (M1, M2...) are stripped "
           "and recorded in `meta.stripped`; a Sigma title left generic is replaced by the first description sentence. Texts with fewer than "
           "two informative tokens are dropped; at most two queries per target set.",
-    "T5": "From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query "
+    "T5": "A CVE belongs to a CPE product only when that product is named in its own description or CNA `affected` block "
+          "(NVD also lists distribution and platform CPEs, e.g. Red Hat Linux for a Chrome bug; those are skipped). Product and "
+          "vendor names in the query are taken in the anchor CVE's own wording (description span or CNA name), never raw CPE slugs; "
+          "trailing packaging words such as 'firmware' are dropped; every grade-2 target must name the queried product or vendor in "
+          "its description, CVE List title or CNA affected block (`meta.product_label`, `meta.vendor_label`). From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query "
           "per product: '<vendor> <product> <version> <flaw type>' in six templates, with a concrete version the anchor CVE affects "
           "(preferring one not written in its description) and a phrasing of its CWE class. Qrels: every CVE of that product whose "
           "version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose "
@@ -68,7 +74,8 @@ METHOD = {
     "T7": "Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, "
           "compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions "
           "and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels.",
-    "T8": "Product groups (CPE or CNA namespace) with 3-400 CVEs. The target is discriminated either by a component named in its description "
+    "T8": "Product groups (CPE or CNA namespace) with 3-400 CVEs that name the product (same naming and display rules as T5; "
+          "components containing underscores are not used, so the text reads like an analyst's). The target is discriminated either by a component named in its description "
           "and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to "
           "ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator.",
     "T9": "Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate "
