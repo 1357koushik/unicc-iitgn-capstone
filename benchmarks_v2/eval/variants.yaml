@@ -80,4 +80,4 @@ variants:
   example_v1_match:
     adapter: runfile
     description: committed example run of v1_match on the synthetic demonstration queries
-    path: results/eval/example/v1_match-example.jsonl
+    path: results/eval/example/b4-example-v1_match.jsonl
