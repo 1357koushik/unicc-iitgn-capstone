@@ -29,6 +29,7 @@ MASK_SHARE = 0.6
 SINGLE_MIN_WORDS = 20   # fallback: one long factual sentence, only for advisories with no 2+ sentence excerpt
 REMOVED = "\x00removed"
 _CVE = re.compile(r"CVE-\d{4}-\d{4,}", re.I)
+_TABLE = re.compile(r"T\d{4}(?:\.\d{3})?[A-Z][a-z]|[a-z]{2}[A-Z]{4,}")
 _TECH = re.compile(r"(?<![A-Za-z0-9])(T\d{4}(?:\.\d{3})?)(?![\d.])")
 _BULLET = re.compile(r"^\s*(?:[-*•–]|\d+[.)]|[a-z][.)])\s+")
 _DATE_LINE = re.compile(r"^\s*\d{1,2} [A-Z][a-z]+ \d{4}\s*$")
@@ -90,6 +91,9 @@ def runs_of_prose(text: str) -> list[list[str]]:
             continue
         flat = " ".join(lines)
         words = flat.split()
+        if _TABLE.search(flat) or len(_TECH.findall(flat)) >= 3:
+            close()          # flattened table (e.g. ATT&CK technique rows glued to their names)
+            continue
         if not re.search(r"[.!]$", flat) or len(words) < 8 or flat.endswith("?"):
             close()          # heading, label line, version line or question heading
             continue
