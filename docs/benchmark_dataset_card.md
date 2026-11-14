@@ -10,7 +10,7 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 ## Build
 
 - Version `v2.0`, build date **2026-11-14**, seed `20261114`
-- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `fd51ed87011b664306919db5ccb2553274a28764`, code sha256 `8abcb09af58dd4ecdedcdd0a2ea175e7739db4e45be2e9ee7a3f5c0fb0500af9`
+- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `643fb7745c2f51c26e6a137eafe2686ebd462e3e`, code sha256 `41685423456d35c3f52f8b476bbf26925a41934fb3213be97599c4385d5b4b5b`
 - 4554 queries, 9287 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
 
 ## Slices and sizes
@@ -29,6 +29,7 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 | T9 | Actor, software, technique | 300 | 0 | 120 | 180 | 300 | 0 | 2179 |
 | all | | 5150 | 920 | 1390 | 2244 | 4554 | | |
 
+Binary relevance threshold: grade >= 2. Unanswerable (T7) queries have no qrels: every document is implicitly grade 0.
 Temporal holdout: a grade-2 CVE target published in the 90 days before the build date; such groups never go to train.
 
 ### Shortfalls
@@ -43,10 +44,10 @@ Temporal holdout: a grade-2 CVE target published in the 90 days before the build
 - **T3 Advisory wording.** Reviewed GHSA advisories (not withdrawn) with a CVE alias, seeded order, at most two per package. Query = summary with CVE IDs stripped (summary + first sentence of details when the summary has fewer than three content tokens). Target = the alias CVE; an alias rejected as a duplicate maps to its canonical CVE (origin `equivalence`). Candidates examined: 10964; rejected: expansion_text_collision 33, no_searchable_target 88, overlap_gt_0.6 9343.
 - **T4 Detection-rule wording.** Sigma rules first, then ET Open rules, each in seeded order; enabled and disabled rules both used. Rule-vendor prefixes (`ET <CATEGORY>`, `GPL <CATEGORY>`), CVE/CAN IDs (including bare continuation IDs) and ET variant markers (M1, M2...) are stripped and recorded in `meta.stripped`; a Sigma title left generic is replaced by the first description sentence. Texts with fewer than two informative tokens are dropped; at most two queries per target set. Candidates examined: 2784; rejected: expansion_text_collision 22, no_searchable_target 8, overlap_gt_0.6 1954.
 - **T5 Product and version.** From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query per product: '<vendor> <product> <version> <flaw type>' in six templates, with a concrete version the anchor CVE affects (preferring one not written in its description) and a phrasing of its CWE class. Qrels: every CVE of that product whose version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose applicability cannot be decided are left unjudged. Only CVEs with vendor, product, a parseable version and a mapped CWE are anchors. Candidates examined: 347; rejected: overlap_gt_0.6 47.
-- **T6 Noisy.** Seeded perturbations of dev/test T0, T2 and T3 queries: typos (swap, deletion, keyboard neighbour, doubling), missing spaces, analyst abbreviations, pasted log-like fragments (private IPs only) and combinations. `meta.parent_qid`; qrels and split inherited; a perturbation that would lose a target to the overlap rule is not used. Candidates examined: 400; rejected: none.
+- **T6 Noisy.** Seeded perturbations of dev/test T0, T2 and T3 queries: typos (swap, deletion, keyboard neighbour, doubling), missing spaces, analyst abbreviations and pasted log-like fragments (private IPs only); one type per child in `meta.noise_type` (typo, spacing, abbreviation, log_fragment, rotated for balance), `meta.parent_qid`; qrels and split inherited; a perturbation that would lose a target to the overlap rule is not used. Candidates examined: 400; rejected: none.
 - **T7 Unanswerable.** Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels. Candidates examined: 400; rejected: none.
 - **T8 Confusable siblings.** Product groups (CPE or CNA namespace) with 3-400 CVEs. The target is discriminated either by a component named in its description and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator. Candidates examined: 480; rejected: overlap_gt_0.6 180.
-- **T9 Actor, software, technique.** Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate subset, `meta.gate_exact` - and relationship questions (techniques/software of a group, groups using software, software techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule. Candidates examined: 305; rejected: attack_description_copy 4, expansion_text_collision 1.
+- **T9 Actor, software, technique.** Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate subset, `meta.query_form` id / exact_name; everything else is `natural` - and relationship questions (techniques/software of a group, groups using software, software techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule. Candidates examined: 305; rejected: attack_description_copy 4, expansion_text_collision 1.
 
 T2 corroboration: 113 of 191 candidate name strings corroborated (144 uncorroborated name-CVE pairs dropped); 113 names have queries.
 Uncorroborated (dropped) names: AMNESIA:33, Act4Shell, BLASTPASS, Bad Neighbor, Bashdoor, Baton Drop, BootHole, Branch History Injection, Bronze Bit, CacheOut, CacheWarp, Certifried, Chain of Fools, Collide+Power, CrossTalk, DejaBlue, DogWalk, Dragonblood, Drammer, Drupalgeddon, Drupalgeddon3, EternalBlue, EternalChampion, EternalDarkness, EternalRed, EternalRomance, EternalSynergy, FORCEDENTRY, Fallout, Foreshadow, FragmentSmack, GameOver(lay), GameOverlay, Gather Data Sampling, Hertzbleed, ICMAD, IngressNightmare, KRACK, LogJam4j, Lucky13, MediaTek-su, Mutagen Astronomy, NAME:WRECK, NetCAT, PetitPotam, Platypus, Plundervolt, PrintDemon, ProxyOracle, QuadRooter, QualPwn, RIDL, RediShell, Reptar, Return Of Bleichenbacher's Oracle Threat, Rootpipe, SLOTH, SPOILER, SQUIP, SambaCry, Shitrix, Special Register Buffer Data Sampling, Spectre Variant 4, Spectre-BHB, SpookySSL, SpoolFool, StackRot, StrandHogg 2.0, SynLapse, TLStorm, Thrangrycat, Towelroot, ZombieLoad, ZombieLoad v2, checkm8, goto fail, noPac, sAMAccountName spoofing.
@@ -67,7 +68,7 @@ A (query, target) pair is dropped when more than 60% of the query's content toke
 | T3 | n=10876, p50=1.0, p90=1.0, max=1.0, >0.6=85.9%, bins=[28, 53, 276, 229, 282, 491, 620, 693, 1399, 6805] | n=1500, p50=0.429, p90=0.6, max=0.6, >0.6=0.0%, bins=[28, 52, 255, 226, 278, 487, 174, 0, 0, 0] | 9343 |
 | T4 | n=2776, p50=0.714, p90=0.833, max=1.0, >0.6=71.2%, bins=[111, 64, 116, 110, 127, 212, 336, 1066, 529, 105] | n=800, p50=0.375, p90=0.571, max=0.6, >0.6=0.0%, bins=[112, 64, 114, 112, 127, 215, 56, 0, 0, 0] | 2013 |
 | T5 | n=347, p50=0.429, p90=0.667, max=0.875, >0.6=17.6%, bins=[5, 25, 41, 59, 56, 88, 39, 26, 8, 0] | n=300, p50=0.4, p90=0.556, max=0.6, >0.6=0.0%, bins=[6, 26, 42, 62, 58, 92, 14, 0, 0, 0] | 90 |
-| T6 | n=400, p50=0.15, p90=0.412, max=0.6, >0.6=0.0%, bins=[158, 69, 62, 48, 36, 21, 6, 0, 0, 0] | n=400, p50=0.15, p90=0.412, max=0.6, >0.6=0.0%, bins=[158, 69, 62, 48, 36, 21, 6, 0, 0, 0] | 0 |
+| T6 | n=400, p50=0.13, p90=0.4, max=0.6, >0.6=0.0%, bins=[171, 85, 57, 36, 25, 18, 8, 0, 0, 0] | n=400, p50=0.13, p90=0.4, max=0.6, >0.6=0.0%, bins=[171, 85, 57, 36, 25, 18, 8, 0, 0, 0] | 0 |
 | T7 | exempt | exempt | - |
 | T8 | n=480, p50=0.571, p90=0.8, max=1.0, >0.6=37.5%, bins=[18, 28, 48, 40, 50, 94, 91, 58, 47, 6] | n=300, p50=0.4, p90=0.571, max=0.6, >0.6=0.0%, bins=[18, 28, 48, 40, 50, 94, 22, 0, 0, 0] | 180 |
 | T9 | exempt | exempt | - |
@@ -152,15 +153,15 @@ Input snapshots (from the manifest):
 
 ## Files
 
-| File | Rows | Bytes | sha256 |
-|---|---|---|---|
-| `build_report.json` | - | 18319 | `22af64aa2d69dc1ac388c3d423c4f9a2e127b40864de33446d23191e33069e47` |
-| `equivalence.jsonl` | 1346 | 226707 | `50947bc90a41f860cd004b7db031574b2a8b9e5a53e7c9461b920d08a6e22f96` |
-| `qrels.jsonl` | 4101 | 309635 | `5675136877cbc381348b7c34bc455d3abb07af9c7e85b4f4107b37a169dae73c` |
-| `queries.jsonl` | 2310 | 857146 | `17c1ff4100628f1a7d88e09908391bb3391895271cbf42bd20580c65d69dab59` |
-| `sealed/README.txt` | - | 356 | `9715b3971120942321df1b3e9606f6a451f1d1db9af688f9aa3d296ce9172c5c` |
-| `sealed/qrels.jsonl` | 5186 | 391246 | `2bc362d2ff34b42b404c320186c147b840f7424b6aa9833243be8a529898eabc` |
-| `sealed/queries.jsonl` | 2244 | 862209 | `6a5aa59c719f78c14a9086172c60a83ec9d1998df955a3c92bf55faeccd50490` |
+| File | Count | sha256 |
+|---|---|---|
+| `build_report.json` | - | `09d8ca1b00a9268abf8dfbde205d45b3a344d3648ee1ef619298213b77f2fbc1` |
+| `equivalence.jsonl` | 1346 | `50947bc90a41f860cd004b7db031574b2a8b9e5a53e7c9461b920d08a6e22f96` |
+| `qrels.jsonl` | 4101 | `5675136877cbc381348b7c34bc455d3abb07af9c7e85b4f4107b37a169dae73c` |
+| `queries.jsonl` | 2310 | `cde00fbe321090d00ccd54401c7cce5df22d1da1d9f26591c8648f6095584868` |
+| `sealed/README.txt` | - | `9715b3971120942321df1b3e9606f6a451f1d1db9af688f9aa3d296ce9172c5c` |
+| `sealed/qrels.jsonl` | 5186 | `2bc362d2ff34b42b404c320186c147b840f7424b6aa9833243be8a529898eabc` |
+| `sealed/queries.jsonl` | 2244 | `8afde08f74fb648d1c94437e1dd7a158d1fa472f955e6511154ddced8916882d` |
 
 `manifest.json` itself is not listed (it records the builder commit). Split hashes: `queries.jsonl`/`qrels.jsonl` hold train+dev, `sealed/*` hold test.
 
