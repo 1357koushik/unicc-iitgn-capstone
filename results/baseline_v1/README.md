@@ -35,3 +35,9 @@ Example `pipeline_profile` (run1, first call): `{"exact_match_ms": 0.1, "vector_
 - Run order: run1 then run2, each with a freshly started server (run_baseline.sh). Load averages in `manifest.json`.
 - A first attempt of the pair was discarded: a bug in run_baseline.sh left run1's uvicorn alive, so run2 reused it (port in use). Fixed and re-run.
 - Full per-query data: `quality_run*.json`; per-stage data: `stage_timings_run*.json`.
+
+## Latency reference
+
+Run 1 overlapped with package A2's installs on the server from 17:56 to 18:01 (inside run 1, 17:55-18:07).
+Retrieval ranks are deterministic and identical in both runs, so the quality numbers are unaffected.
+Use **run 2** as the latency reference for v1.

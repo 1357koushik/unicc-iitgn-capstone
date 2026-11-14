@@ -754,3 +754,16 @@ These remain true after the fixes and are stated so nobody is surprised.
 3. The server runs an operating system that no longer receives security patches.
 4. Live PoC lookup works only while the portal login is active, until IT grants an exemption.
 5. The latency target may be missed if full reranker quality needs more time. In that case quality is kept and the measured latency is reported.
+
+---
+
+## 12. Implementation log
+
+Findings from completed packages that later packages must act on.
+
+| From | Finding | Owner |
+|---|---|---|
+| A1 | v1 baseline reproduced exactly (hit@1 11/29, hit@10 19/29, MRR 0.474; identical ranks in two runs). Run 1 latency was disturbed by A2; run 2 is the v1 latency reference | B6 |
+| A2 | Qdrant embedded mode takes a file lock, so v1 and v2 cannot run on the same `~/data/qdrant_storage` at once. A second process starts with dense search unavailable, yet `/health` reports `healthy` with no degraded components: a silent fallback | C3 (v2 dense search no longer uses Qdrant), C6 and D2 (health must report every unavailable component), D3 (side-by-side run needs separate data) |
+| A2 | Importing the package sets `OMP_NUM_THREADS` and related variables to 16 when unset. This also affects other teams' processes that import `threat_retrieval_engine` | C8: apply thread settings only when the service starts, not on import |
+| A2 | Each release has its own venv (about 2.5 minutes and several GB). Old releases `9df0aa19f` and `444444db1` are left on the server | D1: release pruning |
