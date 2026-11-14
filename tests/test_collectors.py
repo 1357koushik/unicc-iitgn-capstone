@@ -412,3 +412,47 @@ def test_run_source_writes_manifest_and_is_rerunnable(tmp_path):
 def test_run_source_unavailable_manifest(tmp_path):
     m = cc.run_source(_UnavailMod, tmp_path, "2026-01-01")
     assert m["status"] == "unavailable" and m["reason"] == "blocked" and m["record_count"] == 0
+
+
+# ---- B1c: decoding and page-identity guard -------------------------------------------------------------
+def test_decode_body_respects_charsets_and_never_yields_fffd():
+    want = "the router’s “default”"
+    utf8 = want.encode("utf-8")
+    assert wc.decode_body(utf8, "text/html; charset=utf-8") == want
+    assert wc.decode_body(utf8, "text/html") == want  # no charset: UTF-8
+    assert wc.decode_body(b'<meta charset="utf-8">' + utf8, "text/html").endswith("“default”")
+    cp = want.encode("cp1252")  # not valid UTF-8 -> Windows-1252 smart quotes
+    assert wc.decode_body(cp, "text/html") == want
+    assert wc.decode_body(b'<meta charset="windows-1252">' + cp).endswith("“default”")
+    assert wc.decode_body(cp, "text/html; charset=iso-8859-1") == want
+    assert wc.decode_body(b"\xef\xbb\xbfhi") == "hi"
+    assert "�" not in wc.decode_body(b"abc\x81\x8d\xff", "text/html; charset=utf-8")  # undefined cp1252 bytes
+
+
+def test_fetcher_get_page_decodes_declared_charset(tmp_path, monkeypatch):
+    class R:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=utf-8"}
+        content = "router’s".encode("utf-8")
+        url = "https://x.test/a"
+        text = "router�s"  # what a guessing decoder would have produced
+
+    f = wc.PoliteFetcher("https://x.test", tmp_path, min_interval=0)
+    monkeypatch.setattr(f, "_get", lambda url, check_robots=True: R())
+    text, final, raw = f.get_page("https://x.test/a")
+    assert text == "router’s" and final == "https://x.test/a" and raw == R.content
+
+
+def test_page_identity_guard():
+    ok = wc.page_identity_problem
+    base = "https://www.cyber.gov.au/alert/remote-code-execution-vulnerability-windows-dns-cve-2020-1350"
+    # CVE named in the slug but absent from the page: the page is another advisory (the vm2 alert case)
+    assert "CVE-2020-1350" in ok(base, base, "A flaw (CVE-2022-36067) in vm2 sandbox")
+    assert ok(base, base, "Windows DNS server flaw CVE-2020-1350 details") is None
+    assert ok(base + "?ref=search", base, "cve-2020-1350") is None
+    assert "redirected" in ok(base, "https://www.cyber.gov.au/alert/other", "CVE-2020-1350")
+    assert "canonical" in ok(base, base, "CVE-2020-1350", "https://www.cyber.gov.au/alert/other")
+    assert ok(base, base, "no id in text", title="Windows DNS flaw (CVE-2020-1350)") is None
+    assert ok(base, base, "exploits CVE 2020-1350 here") is None
+    assert ok("https://x/alert/plain-title", "https://x/alert/plain-title/", "text") is None
+    assert wc.canonical_link('<link rel="canonical" href="https://x/alert/a" />') == "https://x/alert/a"
