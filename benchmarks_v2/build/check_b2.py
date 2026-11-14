@@ -79,6 +79,12 @@ def validate_format(queries: list[dict], qrels: list[dict], eq: list[dict], wher
         if q["slice"] == "T6" and (not q["meta"].get("parent_qid") or
                                    q["meta"].get("noise_type") not in ("typo", "spacing", "abbreviation", "log_fragment")):
             errs.append(f"{where} {tag}: T6 meta.parent_qid / meta.noise_type")
+        if q["slice"] == "T0":
+            k = q["meta"].get("t0_kind")
+            if k not in ("advisory_excerpt", "narrative", "team3_case"):
+                errs.append(f"{where} {tag}: T0 meta.t0_kind")
+            elif k != "team3_case" and not (q["source"].get("url") and q["source"].get("licence")):
+                errs.append(f"{where} {tag}: T0 source url/licence")
         if q["slice"] == "T9" and q["meta"].get("query_form") not in ("id", "exact_name", "natural"):
             errs.append(f"{where} {tag}: T9 meta.query_form")
         if q["qid"] in qids:
@@ -272,6 +278,17 @@ def main() -> int:
     u = load_universe(default_feeds_dir(), workers=6)
     ok, detail = check_overlap(u, all_q, all_qr)
     report(ok, "overlap rule holds (independent re-computation, <= 60% per target pair)", detail)
+    kinds = defaultdict(int)
+    adv_split = defaultdict(set)
+    for q in all_q:
+        if q["slice"] == "T0":
+            kinds[q["meta"].get("t0_kind")] += 1
+            if q["meta"].get("t0_kind") == "advisory_excerpt":
+                adv_split[(q["source"]["name"], q["source"]["id"])].add(q["split"])
+    split_bad = sum(1 for v in adv_split.values() if len(v) > 1)
+    t0_test = sum(1 for q in sq if q["slice"] == "T0")
+    report(split_bad == 0, "T0 excerpts of one advisory share a split",
+           f"{len(adv_split)} advisories; by kind {dict(sorted(kinds.items()))}; T0 test queries {t0_test}")
     ok1, d1, ok2, d2 = check_products(u, all_q, all_qr)
     report(ok1, "T5/T8 product consistency (query product/vendor named in every target's text)", d1)
     report(ok2, "T5/T8 query text reads like analyst text (no CPE slugs with underscores)", d2)

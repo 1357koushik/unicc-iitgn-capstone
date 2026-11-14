@@ -234,3 +234,20 @@ def test_product_naming_excludes_platform_cpes():
     assert slug_tokens("nxal-100_firmware") == ["nxal", "100"]
     assert find_span(["e", "studio", "6525"], "Toshiba e-STUDIO6525 printers") == "e-STUDIO6525"
     assert find_span(["red", "hat"], "Google Chrome on Linux") is None
+
+
+def test_advisory_excerpt_segmentation_and_masking():
+    from benchmarks_v2.build.slice_t0_advisory import chunks, mask_ids, runs_of_prose, split_chunk
+    text = ("What has happened?\n\n9 October 2026\n\nAttackers have exploited CVE-2026-1111 in Acme Gateway "
+            "appliances since early September. Organisations should apply the patch immediately. The actor deployed "
+            "a web shell on compromised devices and stole session tokens.\n\n- Patch now\n- Report incidents\n\n"
+            "Contact us on 1300 CYBER1 for help with this incident please.")
+    runs = runs_of_prose(text)
+    assert len(runs) == 1
+    ch = chunks(runs[0])
+    assert len(ch) == 1
+    t, kept, removed = split_chunk(ch[0])
+    assert kept == 2 and removed == 1 and "should" not in t
+    m, ids = mask_ids("Exploitation of CVE-2026-1111 and CVE-2026-2222 (CVE-2026-3333) was observed.")
+    assert "CVE" not in m and ids == ["CVE-2026-1111", "CVE-2026-2222", "CVE-2026-3333"]
+    assert m == "Exploitation of a vulnerability and another vulnerability was observed."

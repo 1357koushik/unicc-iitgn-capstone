@@ -37,7 +37,8 @@ SHORTFALL_REASONS = {
     "T0": "T0 is built from real ACSC and NCSC UK advisory excerpts (at most 3 per advisory, each needing a grade-2 "
           "target and passing the overlap and copy checks), Team 3's cases, and B2a narratives only once B2b "
           "verification has passed (none had passed at build time). The 600 target is not reachable from the "
-          "available advisories; the agreed floor is 250.",
+          "available advisories (most advisories without an excerpt are policy news, assessments or speeches that name "
+          "no CVE, product, actor or technique); the agreed floor of 250 is met once the B2a narratives pass B2b.",
     "T2": "names are kept only when corroborated by the CVE's own NVD/CVE List text or references or by a "
           "query-side source; uncorroborated names and template variants that exceed the 60% overlap rule or "
           "collide with an expansion-source record are dropped (quality over count).",

@@ -33,16 +33,28 @@ ATTRIBUTION = [
      "Expansion sources: read only to prove no query copies them (GPL-2.0 index / BSD-3-Clause / MIT / CC0-1.0)."),
     ("NVD CVE feeds, CVE List V5, CISA KEV, FIRST EPSS", "corpus universe, targets, T5/T8 structured data, overlap text",
      "NVD data is public domain (NIST); CVE List © The MITRE Corporation, CVE Terms of Use; CISA KEV is a US-government public catalogue; EPSS by FIRST.org (used for the universe only)."),
+    ("acsc_advisories", "T0 advisory excerpts (query text)",
+     "Australian Signals Directorate's Australian Cyber Security Centre (ASD's ACSC), cyber.gov.au, CC BY 4.0 "
+     "(https://creativecommons.org/licenses/by/4.0/). Excerpts are shortened and IDs may be masked (changes indicated in `meta`)."),
+    ("ncsc_uk_advisories", "T0 advisory excerpts (query text)",
+     "National Cyber Security Centre (NCSC), ncsc.gov.uk. Contains public sector information licensed under the Open "
+     "Government Licence v3.0 (https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)."),
     ("Team 3 `llm/evaluation/benchmark_data.py`", "T0 fixed subset", "Repository content."),
 ]
 
 METHOD = {
-    "T0": "Team 3's own cases (`raw_text`) form the fixed subset, pinned to dev because they are public in the repository. "
-          "CVE targets are known from the case (grade 2, origin `authoring`) unless the ID collides with an unrelated real record "
-          "(the CVE's corpus text does not name the case's affected product): then it is a grade-0 known non-relevant document. "
-          "Named ATT&CK groups/software resolved by exact name or alias are grade 1 (grade 2 when the case has no CVE target). "
-          "B2a narratives are ingested from `<benchmark>/inputs/t0_narratives/*.jsonl` (schema in `benchmarks_v2/build/slice_t0.py` "
-          "and `t0_narrative.schema.json`) when verified, from an `incident`-role source, with existing targets, and passing the overlap and expansion checks.",
+    "T0": "Three kinds (`meta.t0_kind`). (1) `advisory_excerpt` (primary): deterministic excerpts of real ACSC and NCSC UK "
+          "advisories (B1b, role `incident`). Paragraphs are split into sentences; headings, dates, lists, navigation, "
+          "recommendation, contact and link sentences are removed; 2-8 consecutive prose sentences, at most 1,200 characters, "
+          "at most 3 non-overlapping excerpts per advisory, strongest activity signal first (a single sentence of 20+ words "
+          "only when an advisory has no longer excerpt, `meta.single_sentence_fallback`). Targets: grade 2 for CVEs named in "
+          "the excerpt, advisory CVEs whose product is named in the excerpt and vendor in the excerpt or title (more than 10 "
+          "such matches is too generic: grade 1), ATT&CK groups/software named by exact name or alias, and ATT&CK techniques "
+          "cited by ID; grade 1 for the advisory's other CVEs (at most 30). In about 60% of excerpts with CVE IDs each ID is "
+          "replaced by 'a vulnerability' (`meta.id_masked`). Excerpts of one advisory share a split. (2) `narrative`: B2a "
+          "model-written narratives, ingested only when B2b verification passed. (3) `team3_case`: Team 3's cases, pinned "
+          "to dev because they are public; a case CVE ID that collides with an unrelated real record is grade 0. Every "
+          "advisory query keeps `source` = {name, id, licence, url}.",
     "T1": "Generated from the CVE universe (seeded sample of searchable CVEs): canonical, lower and mixed case, IDs inside sentences, "
           "two or three IDs, and malformed-but-recoverable forms (spaces, underscores, en dash, missing hyphen, brackets, trailing "
           "punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers).",
@@ -144,6 +156,14 @@ def render(b: Path) -> str:
         w(f"- **{sl} {NAMES[sl]}.** {METHOD[sl]} Candidates examined: {g['examined']}; rejected: "
           + (", ".join(f"{k} {v}" for k, v in g["rejected"].items()) or "none") + ".")
     st = rep["slice_stats"]
+    if "T0_advisory" in st:
+        a = st["T0_advisory"]
+        w("")
+        w(f"T0 by kind: {st.get('T0_by_kind')}. Advisories: ACSC {a.get('acsc_advisories_advisories')} "
+          f"({a.get('acsc_advisories_advisories_without_excerpt', 0)} yielded nothing), NCSC UK "
+          f"{a.get('ncsc_uk_advisories_advisories')} ({a.get('ncsc_uk_advisories_advisories_without_excerpt', 0)} yielded "
+          f"nothing); {a.get('excerpts_id_masked', 0)} excerpts ID-masked; {a.get('single_sentence_fallback', 0)} single-sentence "
+          f"fallbacks. B2a narratives: {st.get('T0_b2a')}.")
     if "T2" in st:
         w("")
         w(f"T2 corroboration: {st['T2'].get('names_corroborated')} of {st['T2'].get('name_strings')} candidate name strings corroborated "
@@ -204,7 +224,9 @@ def render(b: Path) -> str:
     w("## Known biases and limitations")
     w("")
     w("- **T3 over-represents open-source packages** (GHSA covers package ecosystems: Maven, PyPI, npm, Packagist, Go...); T0 and T4 balance it.")
-    w("- T0 is small until B2a narratives land; model-written narratives will be cleaner than analyst text (T6 offsets part of this).")
+    w("- T0 is mostly government advisory prose (ACSC, NCSC UK): formal, English, Five-Eyes perspective, skewed to "
+      "widely exploited edge devices and named state actors; it is cleaner than an analyst's log-laden observation (T6 "
+      "offsets part of this). Model-written narratives join only after B2b verification.")
     w("- The 60% rule removes the most lexical pairs, so the remaining T3/T4 queries are harder than raw advisory/rule wording; the "
       "before-filter distributions above show how much of the raw wording copies corpus text (most GHSA summaries do).")
     w("- T2 contains only names whose mapping could be corroborated in NVD/CVE List or query-side data; famous names without such "
