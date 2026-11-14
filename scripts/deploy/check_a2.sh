@@ -155,7 +155,7 @@ else
     H="$(rs 'curl -s -m 30 -o /dev/null -w %{http_code} http://127.0.0.1:8765/api/v1/health')"
     [ "$H" = "200" ] && pass "(e) v1 was already running on 8765 and answers health (left running, not started by this check)" || fail "(e) v1 on 8765 answers $H"
   else
-    rs 'cd ~ && CUDA_VISIBLE_DEVICES= PYTHONPATH=$HOME/threat_retrieval_engine/search_engine HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 setsid nohup ~/py312/bin/python3 -m uvicorn threat_retrieval_engine.api.main:app --host 127.0.0.1 --port 8765 > $HOME/team2/run/v1-check.log 2>&1 < /dev/null & echo $! > $HOME/team2/run/v1-check.pid'
+    rs 'cd ~; CUDA_VISIBLE_DEVICES= PYTHONPATH=$HOME/threat_retrieval_engine/search_engine HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 setsid nohup ~/py312/bin/python3 -m uvicorn threat_retrieval_engine.api.main:app --host 127.0.0.1 --port 8765 > $HOME/team2/run/v1-check.log 2>&1 < /dev/null & echo $! > $HOME/team2/run/v1-check.pid'
     H=000
     for _ in $(seq 1 120); do
       H="$(rs 'curl -s -m 5 -o /dev/null -w %{http_code} http://127.0.0.1:8765/api/v1/health')"
