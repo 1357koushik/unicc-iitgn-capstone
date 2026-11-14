@@ -1,0 +1,83 @@
+# Variant registry for the evaluation harness (work package B4).
+#
+# adapter: http_v1 | http_v2 | runfile
+# HTTP adapters POST {"query": <text>, **request} to base_url + endpoint and map the JSON response with
+# `mapping` (dotted field paths; integer parts index lists):
+#   results            list of result objects in the response
+#   doc_id             path inside a result to the document identifier
+#   doc_id_resolver    optional read-only lookup {kind: sqlite, path, sql} applied to the raw identifier
+#   doc_id_transform   identity | upper | cve_prefix (CVE ID before any "_EPSS", "_KEV", ... suffix)
+#   score              path to the ranking score (number)
+#   tier, probability  paths, or null when the variant does not provide them
+#   abstained          path to a boolean abstention flag in the response, or null
+#   abstain_when_empty an empty result list counts as abstention
+# Results are de-duplicated after mapping, keeping the first occurrence. A response that does not have the
+# configured shape stops the run (it is a configuration error, never recorded as a miss).
+# Non-200 responses (including 504) and timeouts are recorded as errors with an empty ranking.
+
+schema: tre-eval-variants/1
+variants:
+  v1_match:
+    adapter: http_v1
+    description: frozen v1 service, full pipeline (/api/v1/threats/match)
+    service: v1
+    base_url: http://127.0.0.1:8765
+    endpoint: /api/v1/threats/match
+    health_path: /api/v1/health
+    request: {top_k: 10}
+    timeout_s: 120
+    mapping:
+      results: top_matches
+      doc_id: citations.0.doc_id
+      doc_id_transform: cve_prefix
+      score: composite_score
+      tier: confidence_tier
+      probability: composite_score
+      abstained: null
+      abstain_when_empty: true
+
+  v1_hybrid:
+    adapter: http_v1
+    description: frozen v1 service, hybrid retrieval only (/api/v1/search/hybrid); returns chunk ids, which are
+      resolved to corpus doc_ids read-only from the v1 corpus database (server path)
+    service: v1
+    base_url: http://127.0.0.1:8765
+    endpoint: /api/v1/search/hybrid
+    health_path: /api/v1/health
+    request: {top_k: 10}
+    timeout_s: 120
+    mapping:
+      results: results
+      doc_id: chunk_id
+      doc_id_resolver: {kind: sqlite, path: ~/data/sqlite/corpus_store.db,
+                        sql: "select doc_id from corpus where chunk_id = ?"}
+      doc_id_transform: cve_prefix
+      score: rrf_score
+      tier: null
+      probability: null
+      abstained: null
+      abstain_when_empty: false
+
+  v2_match:
+    adapter: http_v2
+    description: v2 service on port 8766; the mapping follows the v1 contract until C6/C8 fix the v2 fields
+    service: v2
+    base_url: http://127.0.0.1:8766
+    endpoint: /api/v1/threats/match
+    health_path: /api/v1/health
+    request: {top_k: 10}
+    timeout_s: 120
+    mapping:
+      results: top_matches
+      doc_id: citations.0.doc_id
+      doc_id_transform: identity
+      score: composite_score
+      tier: confidence_tier
+      probability: composite_score
+      abstained: null
+      abstain_when_empty: true
+
+  example_v1_match:
+    adapter: runfile
+    description: committed example run of v1_match on the synthetic demonstration queries
+    path: results/eval/example/b4-example-v1_match.jsonl

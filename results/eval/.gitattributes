@@ -1,0 +1,4 @@
+# Run files and reports are hashed (their sha256 is recorded in reports): keep LF on every platform.
+*.jsonl text eol=lf
+*.json text eol=lf
+*.md text eol=lf
