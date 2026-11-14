@@ -133,8 +133,8 @@ def evaluate_one(report: dict, cfg: dict, g: dict, pop: str, allow_unjudged: boo
                 "threshold": f"lower >= -{g['margin']}", "note": ""}
 
     P = pops.get(pop)
-    if P is None:
-        return {**base, **_missing(g, pop, f"population {pop} not in report"), "id": base["id"]}
+    if P is None:  # absent data is always MISSING; allow_not_applicable covers only a present but undefined metric
+        return {**base, "status": MISSING, "observed": None, "threshold": "", "note": f"population {pop} not in report"}
     if kind == "judgement_completeness":
         u = P["unjudged"]["unjudged_positions"]
         ok = u <= g.get("max", 0)
