@@ -260,3 +260,6 @@ data/network_sensor/
 
 # B1 source collectors: downloaded upstream data, never committed
 data/sources/
+
+# B2 benchmark collection: built data, never committed
+data/benchmark/
