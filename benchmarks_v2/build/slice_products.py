@@ -161,6 +161,7 @@ class ProductIndex:
         self.cna_label: dict[str, str] = {}
         self.cna_versions: dict[str, set] = defaultdict(set)
         self.stats = defaultdict(int)
+        self.vtext: dict[tuple[str, tuple], str] = {}
         for cid in sorted(u.nvd):
             r = u.nvd[cid]
             if r["st"] == "Rejected" or not r["desc"]:
@@ -190,6 +191,17 @@ class ProductIndex:
                             pv = vparse(ver)
                             if pv is not None and pv != (0,):
                                 self.cna_versions[key].add(pv)
+                                self._note_version(key, pv, ver)
+
+    def _note_version(self, key: str, pv: tuple, raw: str) -> None:
+        """Remember how a version is written in the data (shortest, then lexically first spelling)."""
+        raw = raw.strip()
+        cur = self.vtext.get((key, pv))
+        if cur is None or (len(raw), raw) < (len(cur), cur):
+            self.vtext[(key, pv)] = raw
+
+    def vdisplay(self, key: str, v: tuple) -> str:
+        return self.vtext.get((key, v)) or ".".join(str(x) for x in v)
 
     def _texts(self, cid: str) -> list[str]:
         r = self.u.nvd[cid]
@@ -250,6 +262,7 @@ class ProductIndex:
                     pv = vparse(x) if x not in ("*", "-") else None
                     if pv is not None and pv != (0,):
                         vs.add(pv)
+                        self._note_version(key, pv, x)
         return sorted(vs)
 
 
@@ -307,7 +320,7 @@ def _t5_for_product(u, pidx, key, seed, stats) -> Item | None:
         if not vs:
             continue
         ttok = token_set(u.corpus_text(t))
-        prefer = [v for v in vs if _vstr(v) not in ttok and ".".join(map(str, v)) not in ttok]
+        prefer = [v for v in vs if pidx.vdisplay(key, v).lower() not in ttok and ".".join(map(str, v)) not in ttok]
         v = r.choice(prefer or vs)
         g2, g1, unk = [], [], 0
         for c in cves:
@@ -335,14 +348,15 @@ def _t5_for_product(u, pidx, key, seed, stats) -> Item | None:
             stats["set_size_out_of_range"] += 1
             continue
         phrase = _pick_phrase(cls, ttok, r)
-        text = r.choice(T5_TEMPLATES).format(p=label, v=_vstr(v), f=phrase)
+        vtxt = pidx.vdisplay(key, v)
+        text = r.choice(T5_TEMPLATES).format(p=label, v=vtxt, f=phrase)
         qrels = [qrel(c, 2, "known_item") for c in sorted(g2)] + [qrel(c, 1, "known_item") for c in sorted(g1)]
         return Item(slice="T5", text=text, qrels=qrels,
                     source={"name": "generated", "id": key, "licence": "derived from NVD/CVE List structured data"},
                     meta={"product_key": key, "namespace": "cna" if key.startswith("cna:") else "cpe",
-                          "product_label": prod, "vendor_label": vend, "version": _vstr(v), "flaw_class": cls, "anchor_cve": t,
+                          "product_label": prod, "vendor_label": vend, "version": vtxt, "flaw_class": cls, "anchor_cve": t,
                           "grade2": len(g2), "grade1": len(g1), "unjudged_unknown_applicability": unk,
-                          "version_in_target_text": _vstr(v) in ttok})
+                          "version_in_target_text": vtxt.lower() in ttok})
     stats["no_target_found"] += 1
     return None
 
