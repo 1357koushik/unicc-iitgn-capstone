@@ -42,7 +42,7 @@ git push --quiet "$REMOTE" "$SHA:refs/releases/$SHORT"
 echo "[deploy] building release on the server"
 ssh -o BatchMode=yes -p "$PORT" "$TARGET" bash -s -- "$SHA" "$SHORT" "$WAIT_FILE" <<'REMOTE'
 set -euo pipefail
-SHA="$1"; SHORT="$2"; WAIT_FILE="$3"
+SHA="$1"; SHORT="$2"; WAIT_FILE="${3:-}"
 WAIT_FILE="${WAIT_FILE/#\$HOME/$HOME}"   # allow a literal $HOME prefix
 T="$HOME/team2"
 REL="$T/releases/$SHORT"
