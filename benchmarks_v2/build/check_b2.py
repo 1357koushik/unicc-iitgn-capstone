@@ -76,8 +76,11 @@ def validate_format(queries: list[dict], qrels: list[dict], eq: list[dict], wher
             errs.append(f"{where} {tag}: source id/licence")
         if not isinstance(q["meta"], dict):
             errs.append(f"{where} {tag}: meta")
-        if q["slice"] == "T6" and not q["meta"].get("parent_qid"):
-            errs.append(f"{where} {tag}: T6 parent_qid")
+        if q["slice"] == "T6" and (not q["meta"].get("parent_qid") or
+                                   q["meta"].get("noise_type") not in ("typo", "spacing", "abbreviation", "log_fragment")):
+            errs.append(f"{where} {tag}: T6 meta.parent_qid / meta.noise_type")
+        if q["slice"] == "T9" and q["meta"].get("query_form") not in ("id", "exact_name", "natural"):
+            errs.append(f"{where} {tag}: T9 meta.query_form")
         if q["qid"] in qids:
             errs.append(f"{where} {tag}: duplicate qid")
         qids[q["qid"]] = q
@@ -186,6 +189,8 @@ def main() -> int:
                                                                               for i in m["inputs"]),
            "manifest has version, build date, builder commit, input hashes, file hashes, counts",
            f"commit {m['builder'].get('commit', '')[:12]}, {len(m['inputs'])} inputs")
+    report(all(set(f) == {"sha256", "count"} for f in m["files"].values()),
+           "manifest files map path -> {sha256, count}", ", ".join(sorted(m["files"])))
     bad_hash = [rel for rel, f in m["files"].items() if sha256_file(b / rel) != f["sha256"]]
     report(not bad_hash, "every file's sha256 matches the manifest", ", ".join(bad_hash) or f"{len(m['files'])} files")
 

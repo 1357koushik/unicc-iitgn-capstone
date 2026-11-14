@@ -52,7 +52,7 @@ def build_t9(kb, gate, seed: int, target: int) -> tuple[list[Item], dict]:
     items: list[Item] = []
 
     def mk(text, qrels, qtype, subject, extra=None):
-        meta = {"query_type": qtype, "subject": f"attack:{subject}", "gate_exact": qtype in ("id", "exact_name"),
+        meta = {"query_type": qtype, "subject": f"attack:{subject}", "query_form": qtype if qtype in ("id", "exact_name") else "natural",
                 "attack_version": src_ver, **(extra or {})}
         return Item(slice="T9", text=text, qrels=qrels, overlap_exempt=True, link_keys={f"attack:{subject}"},
                     source={"name": "attack_enterprise", "id": subject, "licence": lic}, meta=meta)

@@ -74,8 +74,10 @@ def test_leakage_index_detects_copies_and_skips_ids():
 
 
 def test_perturb_deterministic():
-    a = perturb("remote code execution in the Windows server", "abbreviations+typos", rng(1, "x"))
-    b = perturb("remote code execution in the Windows server", "abbreviations+typos", rng(1, "x"))
+    a = perturb("remote code execution in the Windows server", "abbreviation", rng(1, "x"))
+    b = perturb("remote code execution in the Windows server", "abbreviation", rng(1, "x"))
+    for kind in ("typo", "spacing", "log_fragment"):
+        assert perturb("remote code execution in the Windows server", kind, rng(2, kind)) ==             perturb("remote code execution in the Windows server", kind, rng(2, kind))
     assert a == b and a != "remote code execution in the Windows server"
 
 

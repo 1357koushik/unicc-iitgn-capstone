@@ -63,7 +63,7 @@ METHOD = {
           "version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose "
           "applicability cannot be decided are left unjudged. Only CVEs with vendor, product, a parseable version and a mapped CWE are anchors.",
     "T6": "Seeded perturbations of dev/test T0, T2 and T3 queries: typos (swap, deletion, keyboard neighbour, doubling), missing spaces, "
-          "analyst abbreviations, pasted log-like fragments (private IPs only) and combinations. `meta.parent_qid`; qrels and split inherited; "
+          "analyst abbreviations and pasted log-like fragments (private IPs only); one type per child in `meta.noise_type` (typo, spacing, abbreviation, log_fragment, rotated for balance), `meta.parent_qid`; qrels and split inherited; "
           "a perturbation that would lose a target to the overlap rule is not used.",
     "T7": "Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, "
           "compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions "
@@ -72,7 +72,7 @@ METHOD = {
           "and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to "
           "ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator.",
     "T9": "Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate "
-          "subset, `meta.gate_exact` - and relationship questions (techniques/software of a group, groups using software, software "
+          "subset, `meta.query_form` id / exact_name; everything else is `natural` - and relationship questions (techniques/software of a group, groups using software, software "
           "techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between "
           "active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule.",
 }
@@ -120,6 +120,7 @@ def render(b: Path) -> str:
         w(f"| {sl} | {NAMES[sl]} | {TARGET_SIZES[sl]} | {c['train']} | {c['dev']} | {c['test']} | {e['actual']} | {e['temporal_holdout']} | {e['qrels']} |")
     w(f"| all | | {sum(TARGET_SIZES.values())} | {tot['train']} | {tot['dev']} | {tot['test']} | {sum(tot.values())} | | |")
     w("")
+    w("Binary relevance threshold: grade >= 2. Unanswerable (T7) queries have no qrels: every document is implicitly grade 0.")
     w("Temporal holdout: a grade-2 CVE target published in the 90 days before the build date; such groups never go to train.")
     w("")
     short = [sl for sl in SLICES if S[sl].get("shortfall")]
@@ -224,10 +225,10 @@ def render(b: Path) -> str:
     w("")
     w("## Files")
     w("")
-    w("| File | Rows | Bytes | sha256 |")
-    w("|---|---|---|---|")
+    w("| File | Count | sha256 |")
+    w("|---|---|---|")
     for rel, f in sorted(m["files"].items()):
-        w(f"| `{rel}` | {f['rows'] if f['rows'] is not None else '-'} | {f['bytes']} | `{f['sha256']}` |")
+        w(f"| `{rel}` | {f['count'] if f['count'] is not None else '-'} | `{f['sha256']}` |")
     w("")
     w("`manifest.json` itself is not listed (it records the builder commit). Split hashes: `queries.jsonl`/`qrels.jsonl` hold train+dev, "
       "`sealed/*` hold test.")

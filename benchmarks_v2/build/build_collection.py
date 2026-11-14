@@ -165,7 +165,7 @@ def build(args) -> Path:
 
     def w(rel: str, rows: list[dict]) -> None:
         n = write_jsonl(tmp / rel, rows)
-        files[rel] = {"rows": n}
+        files[rel] = {"count": n}
 
     w("queries.jsonl", [i.to_query() for i in open_q])
     w("qrels.jsonl", [r for i in open_q for r in i.to_qrels()])
@@ -173,16 +173,15 @@ def build(args) -> Path:
     w(f"{sealed.SEALED_DIR}/queries.jsonl", [i.to_query() for i in test_q])
     w(f"{sealed.SEALED_DIR}/qrels.jsonl", [r for i in test_q for r in i.to_qrels()])
     (tmp / sealed.SEALED_DIR / "README.txt").write_bytes(sealed.README.encode("utf-8"))
-    files[f"{sealed.SEALED_DIR}/README.txt"] = {"rows": None}
+    files[f"{sealed.SEALED_DIR}/README.txt"] = {"count": None}
 
     counts = summarize(items)
     report = make_report(items, stats, gate, eq_stats, split_stats, counts, build_date)
     write_json(tmp / "build_report.json", report)
-    files["build_report.json"] = {"rows": None}
+    files["build_report.json"] = {"count": None}
     for rel in files:
         p = tmp / rel
         files[rel]["sha256"] = sha256_file(p)
-        files[rel]["bytes"] = p.stat().st_size
 
     inputs = list(u.inputs)
     reads = sorted(u.cvelist_reads.items())

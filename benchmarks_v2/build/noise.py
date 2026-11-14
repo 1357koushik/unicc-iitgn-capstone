@@ -86,27 +86,40 @@ def abbreviate(text: str, r) -> tuple[str, int]:
     return text, count
 
 
-NOISE_TYPES = ["typos", "missing_spaces", "abbreviations", "log_fragment", "typos+missing_spaces",
-               "abbreviations+typos", "lowercase+typos", "log_fragment+typos"]
+# Contract (docs/benchmark_format.md): meta.noise_type is one of these four.
+NOISE_TYPES = ["typo", "spacing", "abbreviation", "log_fragment"]
+
+
+def perturb_detail(text: str, kind: str, r) -> tuple[str | None, str]:
+    """One noise type per child. Returns (text or None when unchanged, detail)."""
+    detail = ""
+    if kind == "typo":
+        t = typo(text, r, 1 if len(text) < 25 else 2)
+        if r.random() < 0.35:
+            t = t.lower()
+            detail = "typos, lower-cased"
+        else:
+            detail = "typos"
+    elif kind == "spacing":
+        t = drop_spaces(text, r, 2 if len(text) > 30 else 1)
+        detail = "spaces removed"
+    elif kind == "abbreviation":
+        t, k = abbreviate(text, r)
+        if k == 0:
+            return None, ""
+        detail = f"{k} abbreviations"
+    elif kind == "log_fragment":
+        frag = log_fragment(r)
+        before = r.random() < 0.5
+        t = f"{frag} {text}" if before else f"{text}\n{frag}"
+        detail = "log line prepended" if before else "log line appended"
+    else:
+        raise ValueError(kind)
+    return (t if t != text else None), detail
 
 
 def perturb(text: str, kind: str, r) -> str | None:
-    t = text
-    for part in kind.split("+"):
-        if part == "typos":
-            t = typo(t, r, 1 if len(t) < 25 else 2)
-        elif part == "missing_spaces":
-            t = drop_spaces(t, r)
-        elif part == "abbreviations":
-            t, k = abbreviate(t, r)
-            if k == 0:
-                return None
-        elif part == "lowercase":
-            t = t.lower()
-        elif part == "log_fragment":
-            frag = log_fragment(r)
-            t = f"{frag} {t}" if r.random() < 0.5 else f"{t}\n{frag}"
-    return t if t != text else None
+    return perturb_detail(text, kind, r)[0]
 
 
 def build_t6(parents: list[Item], gate, seed: int, target: int) -> tuple[list[Item], dict]:
@@ -127,15 +140,16 @@ def build_t6(parents: list[Item], gate, seed: int, target: int) -> tuple[list[It
             if got >= want[sl] or len(items) >= target:
                 break
             r = rng(seed, "t6", p.qid)
-            kinds = NOISE_TYPES[:]
-            r.shuffle(kinds)
+            k0 = len(items) % len(NOISE_TYPES)          # rotate so the four noise types stay balanced
+            kinds = NOISE_TYPES[k0:] + NOISE_TYPES[:k0]
             child = None
             for kind in kinds:
-                t = perturb(p.text, kind, r)
+                t, detail = perturb_detail(p.text, kind, r)
                 if t is None:
                     continue
                 child = Item(slice="T6", text=t, qrels=[dict(q) for q in p.qrels], source=dict(p.source),
-                             meta={"parent_qid": p.qid, "parent_slice": p.slice, "noise": kind},
+                             meta={"parent_qid": p.qid, "parent_slice": p.slice, "noise_type": kind,
+                                   "noise_detail": detail},
                              link_keys=set(p.link_keys) | {f"parent:{p.qid}"})
                 child.split = p.split
                 child.forced_split = p.split
@@ -153,4 +167,5 @@ def build_t6(parents: list[Item], gate, seed: int, target: int) -> tuple[list[It
             got += 1
         stats[f"from_{sl}"] = got
     stats["accepted"] = len(items)
+    stats["by_noise_type"] = {k: sum(1 for i in items if i.meta["noise_type"] == k) for k in NOISE_TYPES}
     return items, stats
