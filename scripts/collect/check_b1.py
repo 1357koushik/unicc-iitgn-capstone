@@ -1,6 +1,6 @@
 """B1 acceptance check: prints PASS/FAIL per item, exit 1 if any FAIL.
 
-    python scripts/collect/check_b1.py [--out DIR]
+    python scripts/collect/check_b1.py [--root DIR]   (--out is an alias)
 """
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ from collect_common import ROLES, default_out_dir  # noqa: E402
 REQUIRED = ["source", "role", "status", "upstream_urls", "upstream_version", "retrieved_at_utc", "license",
             "record_count", "records_sha256", "collector_version", "malformed_cve_ids_dropped"]
 EXPECTED_ROLE = {"ghsa_reviewed": "query", "et_open_rules": "query", "sigma_rules": "query",
-                 "cisa_advisories": "incident", "exploitdb": "expansion", "metasploit_modules": "expansion",
+                 "cisa_advisories": "incident", "acsc_advisories": "incident",
+                 "ncsc_uk_advisories": "incident", "exploitdb": "expansion", "metasploit_modules": "expansion",
                  "nuclei_templates": "expansion", "poc_in_github": "expansion",
                  "attack_enterprise": "attack", "kev_attack_mappings": "attack"}
 fails = 0
@@ -84,8 +85,44 @@ def check_source(out: Path, name: str, roles_seen: dict[str, str]) -> None:
         report(False, f"{name}: records.jsonl parses", str(e)[:100])
     report(n == m.get("record_count") and n > 0, f"{name}: record count matches manifest", f"{n} vs {m.get('record_count')}")
     report(sha(rp) == m.get("records_sha256"), f"{name}: records sha256 matches manifest")
+    if name in WEB_INCIDENT:
+        check_web_incident(name, d, m)
     report(isinstance(m.get("malformed_cve_ids_dropped"), int), f"{name}: malformed CVE count recorded",
            str(m.get("malformed_cve_ids_dropped")))
+
+
+WEB_INCIDENT = ("acsc_advisories", "ncsc_uk_advisories")
+
+
+def check_web_incident(name: str, d: Path, m: dict) -> None:
+    """B1b: national-CERT advisory collectors record robots.txt, licence verification, rule and enumeration."""
+    ex = m.get("extra") or {}
+    rb = ex.get("robots_txt") or {}
+    report(bool(rb.get("url")) and rb.get("http_status") in (200, 404), f"{name}: robots.txt result recorded",
+           f"status {rb.get('http_status')}: {rb.get('result')}")
+    lv = ex.get("licence_verified") or {}
+    report(bool(lv.get("page")) and bool(lv.get("statement")), f"{name}: licence verification page recorded", lv.get("page", ""))
+    report(bool(ex.get("keep_rule")) and bool(ex.get("enumeration")), f"{name}: keep rule and enumeration method recorded",
+           (ex.get("enumeration") or "")[:90])
+    n = with_cve = bad = 0
+    cves: set[str] = set()
+    dates = []
+    with open(d / "records.jsonl", encoding="utf-8") as f:
+        for line in f:
+            r = json.loads(line)
+            n += 1
+            ok = all(r.get(k) for k in ("url", "title", "text", "advisory_id", "keep_reason", "published"))
+            ok = ok and r["keep_reason"] in ("cve", "actor", "cve+actor") and bool(r["cve_ids"]) == ("cve" in r["keep_reason"])
+            ok = ok and all(re.fullmatch(r"CVE-\d{4}-\d{4,}", c) for c in r["cve_ids"])
+            bad += (not ok)
+            if r["cve_ids"]:
+                with_cve += 1
+                cves.update(r["cve_ids"])
+            dates.append(r.get("published", ""))
+    report(bad == 0, f"{name}: every record has url/title/date/text/keep_reason and consistent CVE ids",
+           f"{bad} bad of {n}")
+    report(n > 0 and with_cve > 0 and dates == sorted(dates, reverse=True), f"{name}: newest first, CVE-bearing records exist",
+           f"{n} records, {with_cve} with CVE, {len(cves)} distinct CVEs")
 
 
 def check_tests() -> None:
@@ -98,7 +135,8 @@ def check_tests() -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=default_out_dir())
+    ap.add_argument("--root", "--out", dest="out", type=Path, default=default_out_dir(),
+                    help="sources directory holding <source>/LATEST (default data/sources)")
     ap.add_argument("--skip-tests", action="store_true")
     a = ap.parse_args()
     roles: dict[str, str] = {}

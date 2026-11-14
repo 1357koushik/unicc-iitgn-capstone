@@ -9,6 +9,7 @@ _COLLECT = Path(__file__).resolve().parent.parent / "scripts" / "collect"
 if str(_COLLECT) not in sys.path:
     sys.path.insert(0, str(_COLLECT))
 
+import acsc_advisories  # noqa: E402
 import attack_enterprise  # noqa: E402
 import cisa_advisories  # noqa: E402
 import collect_common as cc  # noqa: E402
@@ -17,9 +18,11 @@ import exploitdb  # noqa: E402
 import ghsa_reviewed  # noqa: E402
 import kev_attack_mappings  # noqa: E402
 import metasploit_modules  # noqa: E402
+import ncsc_uk_advisories  # noqa: E402
 import nuclei_templates  # noqa: E402
 import poc_in_github  # noqa: E402
 import sigma_rules  # noqa: E402
+import web_common as wc  # noqa: E402
 
 
 def norm(values):
@@ -58,13 +61,14 @@ def test_context_counts_malformed():
 
 
 def test_spec_roles_valid_and_unique_per_source():
-    mods = [attack_enterprise, cisa_advisories, et_open_rules, exploitdb, ghsa_reviewed, kev_attack_mappings,
+    mods = [acsc_advisories, ncsc_uk_advisories, attack_enterprise, cisa_advisories, et_open_rules, exploitdb, ghsa_reviewed, kev_attack_mappings,
             metasploit_modules, nuclei_templates, poc_in_github, sigma_rules]
     roles = {m.SPEC.name: m.SPEC.role for m in mods}
-    assert len(roles) == 10
+    assert len(roles) == 12
     assert set(roles.values()) <= set(cc.ROLES)
     assert roles["ghsa_reviewed"] == "query" and roles["exploitdb"] == "expansion"
     assert roles["cisa_advisories"] == "incident" and roles["attack_enterprise"] == "attack"
+    assert roles["acsc_advisories"] == roles["ncsc_uk_advisories"] == "incident"
 
 
 # ---------------------------------------------------------------- CSV (Exploit-DB)
@@ -224,6 +228,150 @@ def test_cisa_feed_and_html_parsers():
     assert len(items) == 1 and items[0]["advisory_id"] == "AA23-061A"
     text = cisa_advisories.html_to_text("<html><nav>menu</nav><p>Exploited CVE-2022-1234.</p><script>x()</script></html>")
     assert "menu" not in text and "x()" not in text and "CVE-2022-1234" in text
+
+
+# ---------------------------------------------------------------- B1b national-CERT advisories
+ACSC_ARTICLE = """<html><head><title>Alert X | CGA</title></head><body>
+<nav>Site menu</nav><main><div>Listen</div>
+<article class="node"><header class="page-header"><nav>Breadcrumb / Alerts</nav><h1>Active exploitation of Foo</h1>
+<time datetime="2026-10-23T12:00:00Z" class="datetime">23 Oct 2026</time></header>
+<div><p>Threat actors are exploiting cve-2025-1234 and CVE-2025-1234 in Foo gateways.</p>
+<p>Also CVE-2024-99999 and CVE-1998-0001 (invalid).</p><script>var x = 1;</script>
+<aside>Related items</aside><button>Share</button><svg><text>icon</text></svg>
+<ul><li>Apply patches</li></ul></div></article><footer>Footer</footer></main></body></html>"""
+
+NCSC_ARTICLE = """<html><head><title>Advisory | NCSC</title></head><body><main class="relative">
+<div><span>News</span><h1><span>Advisory: APT99 targets widgets</span></h1><p>Summary line.</p></div>
+<time datetime="2020-07-16T12:00:00Z"></time><time datetime="2026-09-17T12:00:00Z"></time>
+<div><p>APT99 is a state-sponsored espionage group.</p><p>It uses a custom implant.</p></div>
+<p>Was this article helpful?</p><p>Also see</p><p>Unrelated news item mentioning CVE-2020-0001</p></main></body></html>"""
+
+
+def test_acsc_listing_dedup_and_article_extraction():
+    html = ('<a href="/alert/foo?ref=search">x</a><a href="/Alert/Foo">dup</a><a href="/advisory/bar-baz#top">y</a>'
+            '<a href="/about-us/view-all-content">n</a><a href="/alert/Foo">dup2</a>')
+    assert acsc_advisories.parse_listing(html) == ["/alert/foo", "/advisory/bar-baz"]
+    assert acsc_advisories.doc_type_of("https://www.cyber.gov.au/advisory/x") == "advisory"
+    d = acsc_advisories.parse_article(ACSC_ARTICLE)
+    assert d["title"] == "Active exploitation of Foo" and d["published"] == "2026-10-23"
+    for gone in ("Site menu", "Breadcrumb", "var x", "Related items", "Share", "icon", "Footer", "Listen"):
+        assert gone not in d["text"]
+    assert "Apply patches" in d["text"] and "CVE-2024-99999" in d["text"]
+
+
+def test_ncsc_article_extraction_and_section_filter():
+    d = ncsc_uk_advisories.parse_article(NCSC_ARTICLE)
+    assert d["title"] == "Advisory: APT99 targets widgets" and d["published"] == "2020-07-16"
+    assert d["text"].startswith("Summary line.") and "custom implant" in d["text"]
+    assert "Unrelated news" not in d["text"] and "helpful" not in d["text"]
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/news/some-item") == "news"
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/report/r") == "report"
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/collection/c") is None
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/news/a/b") is None
+
+
+def test_keep_rule_cve_or_actor():
+    assert wc.keep_reason("Patch CVE-2024-1234 now", ["CVE-2024-1234"]) == "cve"
+    assert wc.keep_reason("Threat actors used a state-sponsored toolkit", []) == "actor"
+    assert wc.keep_reason("A threat actor appeared once", []) is None
+    assert wc.keep_reason("Nation-state espionage by APT29; CVE-2020-0688", ["CVE-2020-0688"]) == "cve+actor"
+    assert wc.keep_reason("Annual report on skills and diversity", []) is None
+
+
+def test_build_record_dedups_cves_and_applies_rule():
+    ex = acsc_advisories.parse_article(ACSC_ARTICLE)
+    ctx = cc.Context(spec=acsc_advisories.SPEC, raw_dir=Path("."))
+    rec = wc.build_record("acsc_advisories", "alert", "https://www.cyber.gov.au/alert/foo", ex, {}, ctx.cves)
+    assert rec["cve_ids"] == ["CVE-2024-99999", "CVE-2025-1234"]
+    assert rec["keep_reason"] == "cve" and rec["advisory_id"] == "foo" and rec["published"] == "2026-10-23"
+    boring = {"title": "t", "published": "2026-01-01", "text": "Nothing relevant here."}
+    assert wc.build_record("s", "news", "https://x/news/y", boring, {}, ctx.cves) is None
+
+
+def test_rss_and_sitemap_parsers():
+    rss = ('<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>'
+           '<item><title>Adv &amp; one</title><link>https://www.ncsc.gov.uk/news/a</link>'
+           '<description>Sum</description><pubDate>Tue, 03 Nov 2026 12:00:00 +0000</pubDate></item>'
+           '<item><title>No link</title></item></channel></rss>')
+    assert wc.parse_rss(rss) == [{"title": "Adv & one", "url": "https://www.ncsc.gov.uk/news/a",
+                                  "published": "2026-11-03", "summary": "Sum"}]
+    sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+          '<url><loc>https://x/news/a</loc><lastmod>2025-03-05T09:11:44+00:00</lastmod></url>'
+          '<url><loc>https://x/news/b</loc></url></urlset>')
+    assert wc.parse_sitemap(sm) == [("https://x/news/a", "2025-03-05T09:11:44+00:00"), ("https://x/news/b", "")]
+    idx = ('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+           '<sitemap><loc>https://x/sitemap.xml?page=1</loc></sitemap></sitemapindex>')
+    assert wc.parse_sitemap(idx) == [("https://x/sitemap.xml?page=1", "")]
+
+
+def test_challenge_detection():
+    assert wc.looks_like_challenge("<html><head><title>Access Denied</title></head></html>")
+    assert wc.looks_like_challenge("<html><title>Just a moment...</title></html>")
+    assert not wc.looks_like_challenge("<html><head><title>Alert | CGA</title></head><body>" + "x" * 5000 + "</body></html>")
+
+
+class _Resp:
+    def __init__(self, status, text="ok", headers=None):
+        self.status_code, self.text, self.content = status, text, text.encode()
+        self.headers = headers or {"content-type": "text/html"}
+
+
+class _Client:
+    def __init__(self, resp):
+        self.resp, self.calls = resp, 0
+
+    def get(self, url):
+        self.calls += 1
+        return self.resp(url) if callable(self.resp) else self.resp
+
+    def close(self):
+        pass
+
+
+def _fetcher(tmp_path, resp, min_interval=0):
+    f = wc.PoliteFetcher("https://example.org", tmp_path, retries=2, min_interval=min_interval)
+    f.client = _Client(resp)
+    return f
+
+
+def test_fetcher_block_is_unavailable_not_retried(tmp_path):
+    f = _fetcher(tmp_path, _Resp(403))
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/a")
+    assert f.client.calls == 1
+    f = _fetcher(tmp_path, _Resp(200, "<html><title>Access Denied</title></html>"))
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/a")
+
+
+def test_fetcher_gone_and_robots(tmp_path):
+    f = _fetcher(tmp_path, _Resp(404))
+    with pytest.raises(wc.PoliteFetcher.Gone):
+        f.get_text("https://example.org/a")
+    info = f.check_robots()
+    assert info["http_status"] == 404 and f.robots.can_fetch(cc.USER_AGENT, "https://example.org/x")
+    f = _fetcher(tmp_path, _Resp(200, "User-agent: *\nDisallow: /private/\n"))
+    info = f.check_robots()
+    assert info["http_status"] == 200 and info["disallow_rules"] == 1 and info["sha256"]
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/private/x")
+
+
+def test_fetcher_retries_server_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(wc.time, "sleep", lambda s: None)
+    seq = iter([_Resp(503), _Resp(200, "<html><title>ok</title></html>")])
+    f = _fetcher(tmp_path, lambda url: next(seq))
+    text, _raw = f.get_text("https://example.org/a")
+    assert "ok" in text and f.client.calls == 2
+
+
+def test_fetcher_rate_limit_spacing(tmp_path, monkeypatch):
+    slept = []
+    monkeypatch.setattr(wc.time, "sleep", lambda s: slept.append(s))
+    f = _fetcher(tmp_path, _Resp(200, "<html><title>ok</title></html>"), min_interval=1.0)
+    f.get_text("https://example.org/a")
+    f.get_text("https://example.org/b")
+    assert slept and 0 < slept[-1] <= 1.0
 
 
 # ---------------------------------------------------------------- runner behaviour
