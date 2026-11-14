@@ -26,34 +26,19 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-try:
-    from threat_retrieval_engine.search_engine.validator import (
-        ThreatChunk,
-        build_context,
-        parse_cisa_kev_csv,
-        parse_cvelist_directory,
-        parse_epss_csv,
-        parse_normalized_directory,
-        parse_normalized_jsonl,
-        parse_nvd_directory,
-    )
-    from threat_retrieval_engine.search_engine.duplicate_checker import DuplicateChecker
-    from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
-    from threat_retrieval_engine.search_engine.vector_database import setup_databases, store_chunks
-except ImportError:
-    from validator import (
-        ThreatChunk,
-        build_context,
-        parse_cisa_kev_csv,
-        parse_cvelist_directory,
-        parse_epss_csv,
-        parse_normalized_directory,
-        parse_normalized_jsonl,
-        parse_nvd_directory,
-    )
-    from duplicate_checker import DuplicateChecker
-    from vectorizer import BGEVectorizer
-    from vector_database import setup_databases, store_chunks
+from threat_retrieval_engine.search_engine.validator import (
+    ThreatChunk,
+    build_context,
+    parse_cisa_kev_csv,
+    parse_cvelist_directory,
+    parse_epss_csv,
+    parse_normalized_directory,
+    parse_normalized_jsonl,
+    parse_nvd_directory,
+)
+from threat_retrieval_engine.search_engine.duplicate_checker import DuplicateChecker
+from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
+from threat_retrieval_engine.search_engine.vector_database import setup_databases, store_chunks
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",

@@ -4,17 +4,11 @@ import asyncio
 import contextvars
 import hmac
 import logging
-import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-
-# Ensure repository root is on sys.path (C-4)
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 
 request_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="")
 
@@ -27,26 +21,16 @@ from fastapi import Depends, FastAPI, HTTPException, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-try:
-    from threat_retrieval_engine.config import get_config
-    from threat_retrieval_engine.api.pipeline import get_orchestrator
-    from threat_retrieval_engine.api.schemas import (
-        MatchRequest,
-        MatchResponse,
-        PoCFindRequest,
-        PoCFindResponse,
-    )
-    from threat_retrieval_engine.poc_intelligence import get_poc_finder
-except ImportError:
-    from config import get_config
-    from pipeline import get_orchestrator
-    from schemas import (
-        MatchRequest,
-        MatchResponse,
-        PoCFindRequest,
-        PoCFindResponse,
-    )
-    from poc_intelligence import get_poc_finder
+from threat_retrieval_engine.config import get_config
+from threat_retrieval_engine.api.pipeline import get_orchestrator
+from threat_retrieval_engine.api.schemas import (
+    MatchRequest,
+    MatchResponse,
+    PoCFindRequest,
+    PoCFindResponse,
+)
+from threat_retrieval_engine.poc_intelligence import get_poc_finder
+from threat_retrieval_engine.runtime import apply_torch_threads, effective_threads
 
 
 @asynccontextmanager
@@ -58,6 +42,9 @@ async def lifespan(app: FastAPI):
             "CRITICAL CONFIGURATION ERROR: SERVICE_AUTH_ENABLED is True but RETRIEVAL_API_KEY is empty! "
             "All incoming requests requiring authentication will fail with 401."
         )
+    threads = apply_torch_threads()
+    logger.info("CPU threads: TRE_NUM_THREADS=%d, effective=%s", threads, effective_threads())
+    logger.info("Config file: %s; data dir: %s", current_cfg.config_path, current_cfg.data_dir)
     orchestrator = get_orchestrator()
     orchestrator.initialize()
     yield

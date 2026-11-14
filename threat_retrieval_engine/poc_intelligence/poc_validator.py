@@ -11,12 +11,8 @@ import re
 from typing import Iterable
 from urllib.parse import urlparse
 
-try:
-    from threat_retrieval_engine.api.schemas import PoCResultSchema
-    from threat_retrieval_engine.poc_intelligence.sources.base import RawCandidate
-except ImportError:
-    from api.schemas import PoCResultSchema
-    from sources.base import RawCandidate
+from threat_retrieval_engine.api.schemas import PoCResultSchema
+from threat_retrieval_engine.poc_intelligence.sources.base import RawCandidate
 
 logger = logging.getLogger(__name__)
 

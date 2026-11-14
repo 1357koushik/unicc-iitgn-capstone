@@ -16,22 +16,13 @@ from typing import Any
 
 import httpx
 
-try:
-    from threat_retrieval_engine.poc_intelligence.sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-        sanitize_untrusted_text,
-    )
-except ImportError:  # pragma: no cover - permits running this module directly
-    from sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-        sanitize_untrusted_text,
-    )
+from threat_retrieval_engine.poc_intelligence.sources.base import (
+    BasePoCSource,
+    RawCandidate,
+    SearchConfig,
+    SourceSearchResponse,
+    sanitize_untrusted_text,
+)
 
 
 logger = logging.getLogger(__name__)

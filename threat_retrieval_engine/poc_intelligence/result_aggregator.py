@@ -4,14 +4,9 @@ import logging
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-try:
-    from threat_retrieval_engine.api.schemas import PoCResultSchema
-    from threat_retrieval_engine.poc_intelligence.poc_validator import PoCValidator
-    from threat_retrieval_engine.poc_intelligence.sources.base import RawCandidate
-except ImportError:
-    from api.schemas import PoCResultSchema
-    from poc_validator import PoCValidator
-    from sources.base import RawCandidate
+from threat_retrieval_engine.api.schemas import PoCResultSchema
+from threat_retrieval_engine.poc_intelligence.poc_validator import PoCValidator
+from threat_retrieval_engine.poc_intelligence.sources.base import RawCandidate
 
 logger = logging.getLogger(__name__)
 

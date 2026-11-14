@@ -15,22 +15,13 @@ try:
 except ImportError:
     BeautifulSoup = None  # type: ignore
 
-try:
-    from threat_retrieval_engine.poc_intelligence.sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-        sanitize_untrusted_text,
-    )
-except ImportError:
-    from sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-        sanitize_untrusted_text,
-    )
+from threat_retrieval_engine.poc_intelligence.sources.base import (
+    BasePoCSource,
+    RawCandidate,
+    SearchConfig,
+    SourceSearchResponse,
+    sanitize_untrusted_text,
+)
 
 logger = logging.getLogger(__name__)
 

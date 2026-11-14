@@ -4,90 +4,51 @@ import json
 import logging
 import re
 import sqlite3
-import sys
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-# Ensure repository root is on sys.path (C-4)
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
-try:
-    from threat_retrieval_engine.config import get_config
-    from threat_retrieval_engine.api.helpers import (
-        build_citation,
-        calculate_composite_score,
-        classify_confidence_tier,
-        extract_attribution,
-        jaccard_similarity,
-        parse_query_entities,
-        ParsedEntities,
-    )
-    from threat_retrieval_engine.api.schemas import (
-        AttributionSchema,
-        CitationSchema,
-        EvidenceBreakdownSchema,
-        MatchResponse,
-        PipelineProfileSchema,
-        PoCResultSchema,
-        TopMatchSchema,
-    )
-    from threat_retrieval_engine.api.confidence import (
-        QueryProfile,
-        parse_query_profile,
-        resolve_confidence,
-        get_confidence_model,
-        classify_evidence_record_class,
-    )
-    from threat_retrieval_engine.search_engine.exact_lookup import exact_lookup
-    from threat_retrieval_engine.search_engine.vector_database import (
-        fetch_chunk_metadata,
-        fetch_text,
-        setup_databases,
-    )
-except ImportError:
-    from config import get_config
-    from helpers import (
-        build_citation,
-        calculate_composite_score,
-        classify_confidence_tier,
-        extract_attribution,
-        jaccard_similarity,
-        parse_query_entities,
-        ParsedEntities,
-    )
-    from schemas import (
-        AttributionSchema,
-        CitationSchema,
-        EvidenceBreakdownSchema,
-        MatchResponse,
-        PipelineProfileSchema,
-        PoCResultSchema,
-        TopMatchSchema,
-    )
-    from confidence import (
-        QueryProfile,
-        parse_query_profile,
-        resolve_confidence,
-        get_confidence_model,
-        classify_evidence_record_class,
-    )
-    from exact_lookup import exact_lookup
-    from vector_database import fetch_chunk_metadata, fetch_text, setup_databases
+from threat_retrieval_engine.config import get_config
+from threat_retrieval_engine.api.helpers import (
+    build_citation,
+    calculate_composite_score,
+    classify_confidence_tier,
+    extract_attribution,
+    jaccard_similarity,
+    parse_query_entities,
+    ParsedEntities,
+)
+from threat_retrieval_engine.api.schemas import (
+    AttributionSchema,
+    CitationSchema,
+    EvidenceBreakdownSchema,
+    MatchResponse,
+    PipelineProfileSchema,
+    PoCResultSchema,
+    TopMatchSchema,
+)
+from threat_retrieval_engine.api.confidence import (
+    QueryProfile,
+    parse_query_profile,
+    resolve_confidence,
+    get_confidence_model,
+    classify_evidence_record_class,
+)
+from threat_retrieval_engine.search_engine.exact_lookup import exact_lookup
+from threat_retrieval_engine.search_engine.vector_database import (
+    fetch_chunk_metadata,
+    fetch_text,
+    setup_databases,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _build_starter_attack_graph():
     """Construct an in-memory starter ATT&CK graph if enterprise-attack.json is not present."""
-    try:
-        from threat_retrieval_engine.search_engine.mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
-    except ImportError:
-        from mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
+    from threat_retrieval_engine.search_engine.mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
 
     g = MitreAttackGraph()
     # Core Actors

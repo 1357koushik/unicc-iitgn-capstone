@@ -8,47 +8,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-try:
-    from threat_retrieval_engine.api.schemas import (
-        PoCFindRequest,
-        PoCFindResponse,
-        PoCResultSchema,
-        SourceStatusSchema,
-    )
-    from threat_retrieval_engine.poc_intelligence.poc_cache import PoCCache
-    from threat_retrieval_engine.poc_intelligence.poc_validator import PoCValidator
-    from threat_retrieval_engine.poc_intelligence.result_aggregator import ResultAggregator
-    from threat_retrieval_engine.poc_intelligence.sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-    )
-    from threat_retrieval_engine.poc_intelligence.sources.bluesky_scraper import BlueSkyPoCSource
-    from threat_retrieval_engine.poc_intelligence.sources.github_scraper import GitHubPoCSource
-    from threat_retrieval_engine.poc_intelligence.sources.mastodon_scraper import MastodonPoCSource
-    from threat_retrieval_engine.poc_intelligence.sources.x_scraper import XPoCSource
-    from threat_retrieval_engine.config import get_config
-except ImportError:
-    from api.schemas import (
-        PoCFindRequest,
-        PoCFindResponse,
-        PoCResultSchema,
-        SourceStatusSchema,
-    )
-    from poc_cache import PoCCache
-    from poc_validator import PoCValidator
-    from result_aggregator import ResultAggregator
-    from sources.base import (
-        BasePoCSource,
-        RawCandidate,
-        SearchConfig,
-        SourceSearchResponse,
-    )
-    from sources.bluesky_scraper import BlueSkyPoCSource
-    from sources.github_scraper import GitHubPoCSource
-    from sources.mastodon_scraper import MastodonPoCSource
-    from sources.x_scraper import XPoCSource
+from threat_retrieval_engine.api.schemas import (
+    PoCFindRequest,
+    PoCFindResponse,
+    PoCResultSchema,
+    SourceStatusSchema,
+)
+from threat_retrieval_engine.poc_intelligence.poc_cache import PoCCache
+from threat_retrieval_engine.poc_intelligence.poc_validator import PoCValidator
+from threat_retrieval_engine.poc_intelligence.result_aggregator import ResultAggregator
+from threat_retrieval_engine.poc_intelligence.sources.base import (
+    BasePoCSource,
+    RawCandidate,
+    SearchConfig,
+    SourceSearchResponse,
+)
+from threat_retrieval_engine.poc_intelligence.sources.bluesky_scraper import BlueSkyPoCSource
+from threat_retrieval_engine.poc_intelligence.sources.github_scraper import GitHubPoCSource
+from threat_retrieval_engine.poc_intelligence.sources.mastodon_scraper import MastodonPoCSource
+from threat_retrieval_engine.poc_intelligence.sources.x_scraper import XPoCSource
+from threat_retrieval_engine.config import get_config
 
 logger = logging.getLogger(__name__)
 
