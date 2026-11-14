@@ -1,0 +1,60 @@
+{"query": "Apache Struts remote code execution", "route": "short_text"}
+{"query": "Exchange Server ProxyShell", "route": "short_text"}
+{"query": "Spring4Shell Spring Framework RCE", "route": "short_text"}
+{"query": "Zerologon Netlogon privilege escalation", "route": "short_text"}
+{"query": "PrintNightmare Windows Print Spooler", "route": "short_text"}
+{"query": "Ivanti Connect Secure authentication bypass", "route": "short_text"}
+{"query": "VMware vCenter file upload vulnerability", "route": "short_text"}
+{"query": "Jenkins arbitrary file read", "route": "short_text"}
+{"query": "Atlassian Confluence OGNL injection", "route": "short_text"}
+{"query": "SolarWinds Orion supply chain compromise", "route": "short_text"}
+{"query": "MOVEit Transfer SQL injection", "route": "short_text"}
+{"query": "Fortinet FortiGate SSL VPN path traversal", "route": "short_text"}
+{"query": "Cisco IOS XE web UI privilege escalation", "route": "short_text"}
+{"query": "Samba heap overflow", "route": "short_text"}
+{"query": "GitLab account takeover password reset", "route": "short_text"}
+{"query": "WordPress plugin stored XSS", "route": "short_text"}
+{"query": "Linux kernel Dirty Pipe", "route": "short_text"}
+{"query": "OpenSSH regreSSHion race condition", "route": "short_text"}
+{"query": "curl SOCKS5 heap buffer overflow", "route": "short_text"}
+{"query": "Microsoft Outlook NTLM leak vulnerability", "route": "short_text"}
+{"query": "CVE-2021-44228", "route": "cve_only"}
+{"query": "cve-2017-0144", "route": "cve_only"}
+{"query": "CVE-2023-34362", "route": "cve_only"}
+{"query": "Cve-2022-22965", "route": "cve_only"}
+{"query": "CVE-2020-1472, CVE-2021-34527", "route": "cve_only"}
+{"query": "cve-2019-0708 CVE-2019-1182", "route": "cve_only"}
+{"query": "CVE-2023-4966", "route": "cve_only"}
+{"query": "CVE-2024-3094", "route": "cve_only"}
+{"query": "CVE-2022-30190", "route": "cve_only"}
+{"query": "CVE-2018-13379 and cve-2019-11510", "route": "cve_only"}
+{"query": "CVE-2014-6271", "route": "cve_only"}
+{"query": "CVE-2023-23397 CVE-2023-29324 CVE-2023-35384", "route": "cve_only"}
+{"query": "cve-2024-6387", "route": "cve_only"}
+{"query": "CVE-2021-26855", "route": "cve_only"}
+{"query": "CVE-2016-5195", "route": "cve_only"}
+{"query": "Over the past week our SOC observed repeated authentication failures against the VPN gateway followed by a successful login from an unfamiliar autonomous system. The session then pulled a large archive from an internal file share. Analysts suspect the appliance was running an unpatched firmware release. Logs show a web shell dropped under the management interface directory.", "route": "incident"}
+{"query": "A finance workstation received a spreadsheet with an embedded macro that spawned PowerShell. The script fetched a second stage from a recently registered domain and installed a scheduled task for persistence. Credential dumping followed within an hour. The actor then moved laterally to the domain controller using stolen service account tokens.", "route": "incident"}
+{"query": "The incident began when a public-facing Java application started returning unusual error pages. Forensics found a crafted JNDI string in the request headers and an outbound LDAP connection to an external host. A cryptominer was installed on three servers. Patching the logging library stopped the activity. We want to know which vulnerabilities map to this behaviour.", "route": "incident"}
+{"query": "Ransomware operators gained access through an exposed remote desktop service with a weak password. They disabled endpoint protection, deleted volume shadow copies and encrypted file servers overnight. Exfiltration to cloud storage was seen two days earlier. The backup server was also reachable from the compromised host.", "route": "incident"}
+{"query": "Our mail gateway flagged a zero-click exploit attempt against the calendar component of the desktop mail client. The message triggered an outbound SMB connection to an attacker-controlled address. Hashes were captured on the wire. Several executives were targeted in the same window. Please identify the relevant advisories.", "route": "incident"}
+{"query": "A managed file transfer appliance began creating unexpected files in its web root. An SQL injection in the guest portal appears to have been used to obtain a session and upload a web shell. Database contents were enumerated and downloaded. The vendor released a fix after the intrusion window. Multiple customers reported the same pattern.", "route": "incident"}
+{"query": "We detected beaconing from a build server to a rarely seen hostname at fixed sixty second intervals. The host runs an outdated continuous integration tool with the script console exposed. An attacker likely used it to run arbitrary commands. Secrets stored in the pipeline were rotated. Investigation of other build agents is ongoing.", "route": "incident"}
+{"query": "Users reported that a firewall login page was redirecting to an unfamiliar site. The management plane had an unauthenticated command injection that allowed creation of a reverse shell. Configuration backups were copied out. Traffic to a staging server hosted on a bulletproof provider was observed. The device has since been isolated.", "route": "incident"}
+{"query": "During a routine hunt we found a kernel driver loaded on a laptop that was not signed by the vendor. It had been installed by a utility running with administrator rights after a privilege escalation in the print subsystem. The driver hid processes from the task manager. The same binary appeared on two other endpoints.", "route": "incident"}
+{"query": "An internet-exposed collaboration wiki began serving a malicious template after an expression injection flaw was exploited. The attacker created an administrator account and installed a plugin that proxied traffic. Customers reported spam links in their pages. The vendor advisory was published three days later. We need to confirm affected versions.", "route": "incident"}
+{"query": "A supply chain alert indicated a trojanized update was pulled by our monitoring platform. The signed package contained a backdoor that stayed dormant for two weeks before contacting a command server. DNS logs show queries to a domain generated algorithmically. The vendor confirmed the build environment was compromised.", "route": "incident"}
+{"query": "Cloud audit logs show a service principal creating new access keys outside business hours. The initial foothold was a container running a vulnerable image with an exposed management API. The attacker listed storage buckets and downloaded customer exports. We rebuilt the cluster and rotated all credentials. Which public flaws match this chain.", "route": "incident"}
+{"query": "An employee opened a document that exploited a flaw in the Windows search handler through a crafted link. Code executed without macros being enabled. A loader then injected into a trusted process and fetched an implant. EDR telemetry captured the parent child chain. Several peers at other organisations reported similar documents.", "route": "incident"}
+{"query": "A network appliance in our branch office stopped responding after a burst of malformed packets. Afterwards an unknown account appeared with root privileges. The firmware had not been updated in over a year. We believe a memory corruption bug in the SSL handling code was triggered remotely. Vendor support has asked for a packet capture.", "route": "incident"}
+{"query": "Threat intelligence shared a report on a group abusing a flaw in a widely used message broker to run commands on internet-facing nodes. We found the same ports open in our estate and a suspicious Java process on one node. No data loss is confirmed yet. Please advise on related vulnerabilities and exploitation in the wild.", "route": "incident"}
+{"query": "What is the best pizza recipe for a party of ten", "route": "off_topic"}
+{"query": "how tall is mount everest", "route": "off_topic"}
+{"query": "weather forecast for tomorrow in Mumbai", "route": "off_topic"}
+{"query": "who won the cricket world cup in 2011", "route": "off_topic"}
+{"query": "translate good morning into French", "route": "off_topic"}
+{"query": "tips for learning to play the guitar quickly", "route": "off_topic"}
+{"query": "explain photosynthesis to a child", "route": "off_topic"}
+{"query": "cheap flights from Delhi to Goa in March", "route": "off_topic"}
+{"query": "history of the Roman Empire in brief", "route": "off_topic"}
+{"query": "how do I fix a leaking kitchen tap", "route": "off_topic"}
