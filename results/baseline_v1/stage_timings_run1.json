@@ -1,0 +1,958 @@
+{
+  "calls": [
+    {
+      "query": "Palo Alto PAN-OS GlobalProtect command injection",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 11.961,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 11930.8,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.6,
+        "citation_ms": 0.5,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 11937.7
+      },
+      "top5": [
+        {
+          "doc_id": "54583917cffe53a964ee1600b6a0a90f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9979
+        },
+        {
+          "doc_id": "e94dbfb79c4110ccda6375efbf5eae72",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9907
+        },
+        {
+          "doc_id": "aa46b8c7ade80518d1c6e47bfa402c40",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9867
+        },
+        {
+          "doc_id": "bc79840cdc782c9b861d07bf0a390f7f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.986
+        },
+        {
+          "doc_id": "b835d89615efb5efcffff4b16c2f36df",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9843
+        }
+      ]
+    },
+    {
+      "query": "Palo Alto PAN-OS GlobalProtect command injection",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 11.012,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 10995.4,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 5.1,
+        "citation_ms": 0.6,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 11002.9
+      },
+      "top5": [
+        {
+          "doc_id": "54583917cffe53a964ee1600b6a0a90f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9979
+        },
+        {
+          "doc_id": "e94dbfb79c4110ccda6375efbf5eae72",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9907
+        },
+        {
+          "doc_id": "aa46b8c7ade80518d1c6e47bfa402c40",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9867
+        },
+        {
+          "doc_id": "bc79840cdc782c9b861d07bf0a390f7f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.986
+        },
+        {
+          "doc_id": "b835d89615efb5efcffff4b16c2f36df",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9843
+        }
+      ]
+    },
+    {
+      "query": "Palo Alto PAN-OS GlobalProtect command injection",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 10.305,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 10287.9,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.6,
+        "citation_ms": 0.5,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 10294.3
+      },
+      "top5": [
+        {
+          "doc_id": "54583917cffe53a964ee1600b6a0a90f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9979
+        },
+        {
+          "doc_id": "e94dbfb79c4110ccda6375efbf5eae72",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9907
+        },
+        {
+          "doc_id": "aa46b8c7ade80518d1c6e47bfa402c40",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9867
+        },
+        {
+          "doc_id": "bc79840cdc782c9b861d07bf0a390f7f",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.986
+        },
+        {
+          "doc_id": "b835d89615efb5efcffff4b16c2f36df",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9843
+        }
+      ]
+    },
+    {
+      "query": "Log4Shell",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 11.826,
+      "pipeline_profile": {
+        "exact_match_ms": 0.0,
+        "vector_database_ms": 11812.9,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.6,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 11820.6
+      },
+      "top5": [
+        {
+          "doc_id": "877498dce67d30592200b3ee1da38f1e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "6f2fcf0796e27bb1f59600d3ca309a8e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "d097f6d31ac71f05ab3164c94e5807b3",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "19f0fd9485a1f8a7d9180448c6ab5243",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "Log4Shell",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 8.941,
+      "pipeline_profile": {
+        "exact_match_ms": 0.0,
+        "vector_database_ms": 8929.0,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 4.6,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 8936.0
+      },
+      "top5": [
+        {
+          "doc_id": "877498dce67d30592200b3ee1da38f1e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "6f2fcf0796e27bb1f59600d3ca309a8e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "d097f6d31ac71f05ab3164c94e5807b3",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "19f0fd9485a1f8a7d9180448c6ab5243",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "Log4Shell",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 9.158,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 9143.1,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 3.9,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 9149.1
+      },
+      "top5": [
+        {
+          "doc_id": "877498dce67d30592200b3ee1da38f1e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "6f2fcf0796e27bb1f59600d3ca309a8e",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "d097f6d31ac71f05ab3164c94e5807b3",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "19f0fd9485a1f8a7d9180448c6ab5243",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "Heartbleed OpenSSL",
+      "rep": 1,
+      "http_status": 504,
+      "latency_s": 15.012,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "Heartbleed OpenSSL",
+      "rep": 2,
+      "http_status": 504,
+      "latency_s": 15.013,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "Heartbleed OpenSSL",
+      "rep": 3,
+      "http_status": 504,
+      "latency_s": 15.032,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "Fortinet FortiOS SSL-VPN heap overflow",
+      "rep": 1,
+      "http_status": 504,
+      "latency_s": 15.012,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "Fortinet FortiOS SSL-VPN heap overflow",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 8.932,
+      "pipeline_profile": {
+        "exact_match_ms": 0.0,
+        "vector_database_ms": 8919.0,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.2,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 8925.1
+      },
+      "top5": [
+        {
+          "doc_id": "1ac6677ab4e54a257e85695b5652731b",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.998
+        },
+        {
+          "doc_id": "fb01217c8a14f7315d0d2fdb7a00e3b8",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9954
+        },
+        {
+          "doc_id": "2063c410cd31a31a1758ccf789db0d84",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9942
+        },
+        {
+          "doc_id": "c7c900b1356f56a8531cddfc54b216d8",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9924
+        },
+        {
+          "doc_id": "de1fc216067c903aeaee493eb07118ac",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9564
+        }
+      ]
+    },
+    {
+      "query": "Fortinet FortiOS SSL-VPN heap overflow",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 8.547,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 8535.8,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 3.9,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 8541.2
+      },
+      "top5": [
+        {
+          "doc_id": "1ac6677ab4e54a257e85695b5652731b",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.998
+        },
+        {
+          "doc_id": "fb01217c8a14f7315d0d2fdb7a00e3b8",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9954
+        },
+        {
+          "doc_id": "2063c410cd31a31a1758ccf789db0d84",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9942
+        },
+        {
+          "doc_id": "c7c900b1356f56a8531cddfc54b216d8",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9924
+        },
+        {
+          "doc_id": "de1fc216067c903aeaee493eb07118ac",
+          "confidence_tier": "STRONG",
+          "composite_score": 0.9564
+        }
+      ]
+    },
+    {
+      "query": "Citrix Bleed",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 9.665,
+      "pipeline_profile": {
+        "exact_match_ms": 0.0,
+        "vector_database_ms": 9650.5,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 3.6,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 9656.6
+      },
+      "top5": [
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "ff9b92764cce6226db544d0360766345",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "412746e02f63792597ff6a44593d0e68",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "3313ec518557b62e6de8eae30c6e1175",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "a0d064a7e3a920746f38a3e1a85059e7",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "Citrix Bleed",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 10.701,
+      "pipeline_profile": {
+        "exact_match_ms": 0.0,
+        "vector_database_ms": 10689.2,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 3.6,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 10696.1
+      },
+      "top5": [
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "ff9b92764cce6226db544d0360766345",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "412746e02f63792597ff6a44593d0e68",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "3313ec518557b62e6de8eae30c6e1175",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "a0d064a7e3a920746f38a3e1a85059e7",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "Citrix Bleed",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 9.823,
+      "pipeline_profile": {
+        "exact_match_ms": 0.1,
+        "vector_database_ms": 9809.7,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 3.9,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 9815.2
+      },
+      "top5": [
+        {
+          "doc_id": "4f8d43800cf9757e7bba7baddffae502",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "ff9b92764cce6226db544d0360766345",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "412746e02f63792597ff6a44593d0e68",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "3313ec518557b62e6de8eae30c6e1175",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "a0d064a7e3a920746f38a3e1a85059e7",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2014-0160",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 13.681,
+      "pipeline_profile": {
+        "exact_match_ms": 5049.2,
+        "vector_database_ms": 8611.5,
+        "knowledge_graph_ms": 0.3,
+        "scoring_ms": 3.8,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13667.0
+      },
+      "top5": [
+        {
+          "doc_id": "8538a38728b359fef35fde5ed42641fa",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "eb30d64225b964a8d0d7560e28a27a97",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "d4e0731df283438b41ac97e0b9840770",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "ceaebfbdeb3fcec9f98d7c30c360ba99",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "6312410c2c7f506767c341b13ecf2f8f",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2014-0160",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 13.656,
+      "pipeline_profile": {
+        "exact_match_ms": 5659.3,
+        "vector_database_ms": 7984.6,
+        "knowledge_graph_ms": 0.4,
+        "scoring_ms": 3.7,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13649.9
+      },
+      "top5": [
+        {
+          "doc_id": "8538a38728b359fef35fde5ed42641fa",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "eb30d64225b964a8d0d7560e28a27a97",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "d4e0731df283438b41ac97e0b9840770",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "ceaebfbdeb3fcec9f98d7c30c360ba99",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "6312410c2c7f506767c341b13ecf2f8f",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2014-0160",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 13.545,
+      "pipeline_profile": {
+        "exact_match_ms": 5158.5,
+        "vector_database_ms": 8372.2,
+        "knowledge_graph_ms": 0.3,
+        "scoring_ms": 3.8,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13536.3
+      },
+      "top5": [
+        {
+          "doc_id": "8538a38728b359fef35fde5ed42641fa",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "eb30d64225b964a8d0d7560e28a27a97",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "d4e0731df283438b41ac97e0b9840770",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "ceaebfbdeb3fcec9f98d7c30c360ba99",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "6312410c2c7f506767c341b13ecf2f8f",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2021-44228",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 14.319,
+      "pipeline_profile": {
+        "exact_match_ms": 4810.2,
+        "vector_database_ms": 9492.6,
+        "knowledge_graph_ms": 0.6,
+        "scoring_ms": 5.0,
+        "citation_ms": 0.5,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 14310.7
+      },
+      "top5": [
+        {
+          "doc_id": "9d2b2209878c29c921938d938154de72",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "720f0e34ae8f291deca1a29cc935b82e",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "0467b0eb504d22fe816d66c91fe98373",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "19f0fd9485a1f8a7d9180448c6ab5243",
+          "confidence_tier": "STRONG",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "647be9166f6d29f9cc05a97c466cc6e4",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2021-44228",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 12.367,
+      "pipeline_profile": {
+        "exact_match_ms": 5585.7,
+        "vector_database_ms": 6763.5,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.4,
+        "citation_ms": 0.8,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 12357.1
+      },
+      "top5": [
+        {
+          "doc_id": "9d2b2209878c29c921938d938154de72",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "647be9166f6d29f9cc05a97c466cc6e4",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "cc445baed9f2647bc4b483290cccee76",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "ab4cd0c9d8cda8878d87df842ea55bbc",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "4d0002023a8c6649a608eae91ddc0938",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2021-44228",
+      "rep": 3,
+      "http_status": 504,
+      "latency_s": 15.011,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "CVE-2017-0144",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 13.264,
+      "pipeline_profile": {
+        "exact_match_ms": 5239.9,
+        "vector_database_ms": 8009.2,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 4.1,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13256.1
+      },
+      "top5": [
+        {
+          "doc_id": "446e0fd5adfb0305972d02030e8949fe",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "a1b7bf61a3064107e36d0baeac98bf83",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0585
+        },
+        {
+          "doc_id": "e6960698e3fa54b652c7f1c4d8e0d5a5",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.005
+        },
+        {
+          "doc_id": "ef08027bb6971e77f7c36d71c2fd819c",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0001
+        },
+        {
+          "doc_id": "dad92a4f6affcd6cd31f9bc5daff80fd",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2017-0144",
+      "rep": 2,
+      "http_status": 200,
+      "latency_s": 13.471,
+      "pipeline_profile": {
+        "exact_match_ms": 4597.9,
+        "vector_database_ms": 8862.0,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 4.1,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13466.5
+      },
+      "top5": [
+        {
+          "doc_id": "446e0fd5adfb0305972d02030e8949fe",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "a1b7bf61a3064107e36d0baeac98bf83",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0585
+        },
+        {
+          "doc_id": "e6960698e3fa54b652c7f1c4d8e0d5a5",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.005
+        },
+        {
+          "doc_id": "ef08027bb6971e77f7c36d71c2fd819c",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0001
+        },
+        {
+          "doc_id": "dad92a4f6affcd6cd31f9bc5daff80fd",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2017-0144",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 11.626,
+      "pipeline_profile": {
+        "exact_match_ms": 5086.9,
+        "vector_database_ms": 6529.3,
+        "knowledge_graph_ms": 0.1,
+        "scoring_ms": 4.4,
+        "citation_ms": 0.4,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 11622.0
+      },
+      "top5": [
+        {
+          "doc_id": "446e0fd5adfb0305972d02030e8949fe",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "a1b7bf61a3064107e36d0baeac98bf83",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0585
+        },
+        {
+          "doc_id": "e6960698e3fa54b652c7f1c4d8e0d5a5",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.005
+        },
+        {
+          "doc_id": "ef08027bb6971e77f7c36d71c2fd819c",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0001
+        },
+        {
+          "doc_id": "dad92a4f6affcd6cd31f9bc5daff80fd",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2024-3400",
+      "rep": 1,
+      "http_status": 200,
+      "latency_s": 12.998,
+      "pipeline_profile": {
+        "exact_match_ms": 4407.6,
+        "vector_database_ms": 8577.4,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 3.5,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 12991.1
+      },
+      "top5": [
+        {
+          "doc_id": "54583917cffe53a964ee1600b6a0a90f",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "7aecad9baba3b5353e53595f6892ce2c",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "d2c828c2168cc3c6bbc92deb6eaebe8c",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "eca18f9506e066d5925e9ac5df5c6d4d",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "5942f1e5b7bfadcc6a78203e9a1588f5",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2024-3400",
+      "rep": 2,
+      "http_status": 504,
+      "latency_s": 15.005,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "CVE-2024-3400",
+      "rep": 3,
+      "http_status": 200,
+      "latency_s": 13.599,
+      "pipeline_profile": {
+        "exact_match_ms": 4934.9,
+        "vector_database_ms": 8651.4,
+        "knowledge_graph_ms": 0.2,
+        "scoring_ms": 3.6,
+        "citation_ms": 0.3,
+        "poc_discovery_ms": 0.0,
+        "total_ms": 13591.7
+      },
+      "top5": [
+        {
+          "doc_id": "54583917cffe53a964ee1600b6a0a90f",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "7aecad9baba3b5353e53595f6892ce2c",
+          "confidence_tier": "EXACT",
+          "composite_score": 1.0
+        },
+        {
+          "doc_id": "d2c828c2168cc3c6bbc92deb6eaebe8c",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "eca18f9506e066d5925e9ac5df5c6d4d",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        },
+        {
+          "doc_id": "5942f1e5b7bfadcc6a78203e9a1588f5",
+          "confidence_tier": "UNSUPPORTED",
+          "composite_score": 0.0
+        }
+      ]
+    },
+    {
+      "query": "CVE-2021-45046",
+      "rep": 1,
+      "http_status": 504,
+      "latency_s": 15.005,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "CVE-2021-45046",
+      "rep": 2,
+      "http_status": 504,
+      "latency_s": 15.008,
+      "pipeline_profile": null,
+      "top5": []
+    },
+    {
+      "query": "CVE-2021-45046",
+      "rep": 3,
+      "http_status": 504,
+      "latency_s": 15.012,
+      "pipeline_profile": null,
+      "top5": []
+    }
+  ]
+}
