@@ -10,35 +10,35 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 ## Build
 
 - Version `v2.0`, build date **2026-11-14**, seed `20261114`
-- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `0e304745d7690ab281af831b14065befa2187bac`, code sha256 `74ae75fd3e00a336a5d61718ff17efc101efa5edbb6e7b7558bf9190d86de830`
-- 4554 queries, 9268 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
+- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, last builder commit `e1b06ed1fee475c4afd99443ca1322cc5a7f4965`, code sha256 `df2fe4c143b7b626edd648f34910cba1fb48e9f8f778fbfb141ccf0c8ced94c7`
+- 4780 queries, 10011 qrels, 1346 equivalence sets; 2389 test queries sealed under `sealed/`
 
 ## Slices and sizes
 
 | Slice | Name | Target | Train | Dev | Test | Total | Temporal holdout | Qrels |
 |---|---|---|---|---|---|---|---|---|
-| T0 | Observation narratives | 600 | 0 | 4 | 0 | 4 | 0 | 10 |
+| T0 | Observation narratives | 600 | 0 | 92 | 138 | 230 | 13 | 588 |
 | T1 | Identifier | 300 | 0 | 150 | 150 | 300 | 41 | 365 |
-| T2 | Nickname | 250 | 0 | 100 | 150 | 250 | 0 | 378 |
+| T2 | Nickname | 250 | 0 | 99 | 151 | 250 | 0 | 378 |
 | T3 | Advisory wording | 1500 | 600 | 300 | 600 | 1500 | 26 | 1500 |
 | T4 | Detection-rule wording | 800 | 320 | 160 | 320 | 800 | 7 | 900 |
 | T5 | Product and version | 300 | 0 | 120 | 180 | 300 | 51 | 1212 |
-| T6 | Noisy | 400 | 0 | 156 | 244 | 400 | 8 | 475 |
+| T6 | Noisy | 400 | 0 | 150 | 250 | 400 | 8 | 640 |
 | T7 | Unanswerable | 400 | 0 | 160 | 240 | 400 | 0 | 0 |
 | T8 | Confusable siblings | 300 | 0 | 120 | 180 | 300 | 47 | 2249 |
 | T9 | Actor, software, technique | 300 | 0 | 120 | 180 | 300 | 0 | 2179 |
-| all | | 5150 | 920 | 1390 | 2244 | 4554 | | |
+| all | | 5150 | 920 | 1471 | 2389 | 4780 | | |
 
 Binary relevance threshold: grade >= 2. Unanswerable (T7) queries have no qrels: every document is implicitly grade 0.
 Temporal holdout: a grade-2 CVE target published in the 90 days before the build date; such groups never go to train.
 
 ### Shortfalls
 
-- **T0** short by 596: T0 narratives are written by package B2a (not yet delivered); only Team 3's own cases are in this build. Re-run the build after B2a writes <benchmark>/inputs/t0_narratives/*.jsonl.
+- **T0** short by 370: T0 is built from real ACSC and NCSC UK advisory excerpts (at most 3 per advisory, each needing a grade-2 target and passing the overlap and copy checks), Team 3's cases, and B2a narratives only once B2b verification has passed (none had passed at build time). The 600 target is not reachable from the available advisories (most advisories without an excerpt are policy news, assessments or speeches that name no CVE, product, actor or technique); the agreed floor of 250 is met once the B2a narratives pass B2b.
 
 ## Construction method per slice
 
-- **T0 Observation narratives.** Team 3's own cases (`raw_text`) form the fixed subset, pinned to dev because they are public in the repository. CVE targets are known from the case (grade 2, origin `authoring`) unless the ID collides with an unrelated real record (the CVE's corpus text does not name the case's affected product): then it is a grade-0 known non-relevant document. Named ATT&CK groups/software resolved by exact name or alias are grade 1 (grade 2 when the case has no CVE target). B2a narratives are ingested from `<benchmark>/inputs/t0_narratives/*.jsonl` (schema in `benchmarks_v2/build/slice_t0.py` and `t0_narrative.schema.json`) when verified, from an `incident`-role source, with existing targets, and passing the overlap and expansion checks. Candidates examined: 4; rejected: none.
+- **T0 Observation narratives.** Three kinds (`meta.t0_kind`). (1) `advisory_excerpt` (primary): deterministic excerpts of real ACSC and NCSC UK advisories (B1b, role `incident`). Paragraphs are split into sentences; headings, dates, lists, navigation, recommendation, contact and link sentences are removed; 2-8 consecutive prose sentences, at most 1,200 characters, at most 3 non-overlapping excerpts per advisory, strongest activity signal first (a single sentence of 20+ words only when an advisory has no longer excerpt, `meta.single_sentence_fallback`). Targets: grade 2 for CVEs named in the excerpt, advisory CVEs whose product is named in the excerpt and vendor in the excerpt or title (more than 10 such matches is too generic: grade 1), ATT&CK groups/software named by exact name or alias, and ATT&CK techniques cited by ID; grade 1 for the advisory's other CVEs (at most 30). In about 60% of excerpts with CVE IDs each ID is replaced by 'a vulnerability' (`meta.id_masked`). Excerpts of one advisory share a split. (2) `narrative`: B2a model-written narratives, ingested only when B2b verification passed. (3) `team3_case`: Team 3's cases, pinned to dev because they are public; a case CVE ID that collides with an unrelated real record is grade 0. Every advisory query keeps `source` = {name, id, licence, url}. Candidates examined: 276; rejected: attack_description_copy 34, overlap_gt_0.6 12.
 - **T1 Identifier.** Generated from the CVE universe (seeded sample of searchable CVEs): canonical, lower and mixed case, IDs inside sentences, two or three IDs, and malformed-but-recoverable forms (spaces, underscores, en dash, missing hyphen, brackets, trailing punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers). Candidates examined: 307; rejected: expansion_text_collision 7.
 - **T2 Nickname.** Names compiled from general knowledge in `benchmarks_v2/build/nicknames.py`, independently of any expansion source and of the alias table. A (name, CVE) pair is kept only when the name occurs in that CVE's NVD description or references, its CVE List text or references, or a query-side record (GHSA, ET Open, Sigma) for that CVE, or by an advisory chain (a query-side record attached to one of the name's candidate CVEs names the nickname with a Microsoft bulletin ID, e.g. ETERNALBLUE with MS17-010, and this CVE's NVD references cite that bulletin); the evidence is stored per item in `meta.corroboration`. Queries are the name in up to three of ten written templates, round-robin over names. Candidates examined: 293; rejected: expansion_text_collision 13, overlap_gt_0.6 30.
 - **T3 Advisory wording.** Reviewed GHSA advisories (not withdrawn) with a CVE alias, seeded order, at most two per package. Query = summary with CVE IDs stripped (summary + first sentence of details when the summary has fewer than three content tokens). Target = the alias CVE; an alias rejected as a duplicate maps to its canonical CVE (origin `equivalence`). Candidates examined: 10964; rejected: expansion_text_collision 33, no_searchable_target 88, overlap_gt_0.6 9343.
@@ -48,6 +48,8 @@ Temporal holdout: a grade-2 CVE target published in the 90 days before the build
 - **T7 Unanswerable.** Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels. Candidates examined: 400; rejected: none.
 - **T8 Confusable siblings.** Product groups (CPE or CNA namespace) with 3-400 CVEs that name the product (same naming and display rules as T5; components containing underscores are not used, so the text reads like an analyst's). The target is discriminated either by a component named in its description and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator. Candidates examined: 566; rejected: expansion_text_collision 1, overlap_gt_0.6 265.
 - **T9 Actor, software, technique.** Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate subset, `meta.query_form` id / exact_name; everything else is `natural` - and relationship questions (techniques/software of a group, groups using software, software techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule. Candidates examined: 305; rejected: attack_description_copy 4, expansion_text_collision 1.
+
+T0 by kind: {'advisory_excerpt': 226, 'narrative': 0, 'team3_case': 4}. Advisories: ACSC 138 (41 yielded nothing), NCSC UK 106 (54 yielded nothing); 74 excerpts ID-masked; 11 single-sentence fallbacks. B2a narratives: {'accepted': 0, 'files': 2, 'not_verified': 23, 'records': 23}.
 
 T2 corroboration: 116 of 193 candidate name strings corroborated (144 uncorroborated name-CVE pairs dropped); 116 names have queries.
 Uncorroborated (dropped) names: AMNESIA:33, Act4Shell, BLASTPASS, Bad Neighbor, Bashdoor, Baton Drop, BootHole, Branch History Injection, Bronze Bit, CacheOut, CacheWarp, Certifried, Chain of Fools, Collide+Power, CrossTalk, DejaBlue, DogWalk, Dragonblood, Drammer, Drupalgeddon, Drupalgeddon3, EternalChampion, EternalDarkness, EternalRed, EternalRomance, EternalSynergy, FORCEDENTRY, Fallout, Foreshadow, FragmentSmack, GameOver(lay), GameOverlay, Gather Data Sampling, Hertzbleed, ICMAD, IngressNightmare, KRACK, LogJam4j, Lucky13, MediaTek-su, Mutagen Astronomy, NAME:WRECK, NetCAT, PetitPotam, Platypus, Plundervolt, PrintDemon, ProxyOracle, QuadRooter, QualPwn, RIDL, RediShell, Reptar, Return Of Bleichenbacher's Oracle Threat, Rootpipe, SLOTH, SPOILER, SQUIP, SambaCry, Shitrix, Special Register Buffer Data Sampling, Spectre Variant 4, Spectre-BHB, SpookySSL, SpoolFool, StackRot, StrandHogg 2.0, SynLapse, TLStorm, Thrangrycat, Towelroot, ZombieLoad, ZombieLoad v2, checkm8, goto fail, noPac, sAMAccountName spoofing.
@@ -62,13 +64,13 @@ A (query, target) pair is dropped when more than 60% of the query's content toke
 
 | Slice | Before filter | After filter | Pairs dropped |
 |---|---|---|---|
-| T0 | n=4, p50=0.104, p90=0.161, max=0.161, >0.6=0.0%, bins=[2, 2, 0, 0, 0, 0, 0, 0, 0, 0] | n=4, p50=0.104, p90=0.161, max=0.161, >0.6=0.0%, bins=[2, 2, 0, 0, 0, 0, 0, 0, 0, 0] | 0 |
+| T0 | n=276, p50=0.125, p90=0.5, max=1.0, >0.6=6.9%, bins=[125, 45, 39, 27, 10, 11, 7, 1, 5, 6] | n=230, p50=0.14, p90=0.396, max=0.588, >0.6=0.0%, bins=[97, 43, 37, 30, 12, 11, 0, 0, 0, 0] | 30 |
 | T1 | exempt | exempt | - |
 | T2 | n=293, p50=0.25, p90=0.667, max=1.0, >0.6=12.3%, bins=[120, 4, 28, 61, 3, 30, 19, 4, 4, 20] | n=250, p50=0.2, p90=0.5, max=0.6, >0.6=0.0%, bins=[114, 4, 28, 61, 3, 29, 11, 0, 0, 0] | 37 |
 | T3 | n=10876, p50=1.0, p90=1.0, max=1.0, >0.6=85.9%, bins=[28, 53, 276, 229, 282, 491, 620, 693, 1399, 6805] | n=1500, p50=0.429, p90=0.6, max=0.6, >0.6=0.0%, bins=[28, 52, 255, 226, 278, 487, 174, 0, 0, 0] | 9343 |
 | T4 | n=2776, p50=0.714, p90=0.833, max=1.0, >0.6=71.2%, bins=[111, 64, 116, 110, 127, 212, 336, 1066, 529, 105] | n=800, p50=0.375, p90=0.571, max=0.6, >0.6=0.0%, bins=[112, 64, 114, 112, 127, 215, 56, 0, 0, 0] | 2013 |
 | T5 | n=388, p50=0.5, p90=0.75, max=0.9, >0.6=27.8%, bins=[0, 14, 36, 49, 66, 100, 59, 37, 26, 1] | n=300, p50=0.429, p90=0.571, max=0.6, >0.6=0.0%, bins=[0, 14, 36, 54, 69, 108, 19, 0, 0, 0] | 151 |
-| T6 | n=400, p50=0.143, p90=0.4, max=0.6, >0.6=0.0%, bins=[166, 87, 64, 33, 19, 24, 7, 0, 0, 0] | n=400, p50=0.143, p90=0.4, max=0.6, >0.6=0.0%, bins=[166, 87, 64, 33, 19, 24, 7, 0, 0, 0] | 0 |
+| T6 | n=400, p50=0.111, p90=0.37, max=0.6, >0.6=0.0%, bins=[185, 91, 57, 33, 10, 19, 5, 0, 0, 0] | n=400, p50=0.111, p90=0.37, max=0.6, >0.6=0.0%, bins=[185, 91, 57, 33, 10, 19, 5, 0, 0, 0] | 0 |
 | T7 | exempt | exempt | - |
 | T8 | n=566, p50=0.6, p90=0.833, max=1.0, >0.6=46.8%, bins=[16, 18, 45, 36, 52, 107, 121, 77, 73, 21] | n=300, p50=0.429, p90=0.571, max=0.6, >0.6=0.0%, bins=[16, 18, 45, 36, 52, 106, 27, 0, 0, 0] | 265 |
 | T9 | exempt | exempt | - |
@@ -81,7 +83,7 @@ T1 (identifiers), T7 (no targets) and T9 (ATT&CK names and IDs by design; it has
 
 ### Splits
 
-Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3731 groups; largest [8, 8, 7, 6, 6]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
+Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3790 groups; largest [45, 34, 10, 9, 9]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
 
 ### Leakage tests (`tests/test_benchmark_leakage.py`)
 
@@ -90,7 +92,7 @@ Run with `TRE_BENCHMARK_DIR=<data/benchmark/v2.0>`; skipped when the data is abs
 ## Known biases and limitations
 
 - **T3 over-represents open-source packages** (GHSA covers package ecosystems: Maven, PyPI, npm, Packagist, Go...); T0 and T4 balance it.
-- T0 is small until B2a narratives land; model-written narratives will be cleaner than analyst text (T6 offsets part of this).
+- T0 is mostly government advisory prose (ACSC, NCSC UK): formal, English, Five-Eyes perspective, skewed to widely exploited edge devices and named state actors; it is cleaner than an analyst's log-laden observation (T6 offsets part of this). Model-written narratives join only after B2b verification.
 - The 60% rule removes the most lexical pairs, so the remaining T3/T4 queries are harder than raw advisory/rule wording; the before-filter distributions above show how much of the raw wording copies corpus text (most GHSA summaries do).
 - T2 contains only names whose mapping could be corroborated in NVD/CVE List or query-side data; famous names without such evidence (e.g. EternalBlue) are absent, which biases T2 toward names researchers published with a web page or advisory.
 - T5 and T8 labels come from structured product data (CPE, CNA affected, CWE); errors there propagate. T5 leaves CVEs with undecidable version applicability unjudged rather than non-relevant. Version comparison is numeric only.
@@ -107,6 +109,8 @@ Run with `TRE_BENCHMARK_DIR=<data/benchmark/v2.0>`; skipped when the data is abs
 | attack_enterprise | T9 ground truth (relationships), Team 3 entity resolution, leakage test | MITRE ATT&CK Enterprise (attack-stix-data). "© The MITRE Corporation. This work is reproduced and distributed with the permission of The MITRE Corporation." No description text is used in queries. |
 | exploitdb / metasploit_modules / nuclei_templates / poc_in_github | leakage test only | Expansion sources: read only to prove no query copies them (GPL-2.0 index / BSD-3-Clause / MIT / CC0-1.0). |
 | NVD CVE feeds, CVE List V5, CISA KEV, FIRST EPSS | corpus universe, targets, T5/T8 structured data, overlap text | NVD data is public domain (NIST); CVE List © The MITRE Corporation, CVE Terms of Use; CISA KEV is a US-government public catalogue; EPSS by FIRST.org (used for the universe only). |
+| acsc_advisories | T0 advisory excerpts (query text) | Australian Signals Directorate's Australian Cyber Security Centre (ASD's ACSC), cyber.gov.au, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Excerpts are shortened and IDs may be masked (changes indicated in `meta`). |
+| ncsc_uk_advisories | T0 advisory excerpts (query text) | National Cyber Security Centre (NCSC), ncsc.gov.uk. Contains public sector information licensed under the Open Government Licence v3.0 (https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/). |
 | Team 3 `llm/evaluation/benchmark_data.py` | T0 fixed subset | Repository content. |
 
 Input snapshots (from the manifest):
@@ -140,29 +144,32 @@ Input snapshots (from the manifest):
 | nvd/2026.json |  | `ead35266e734570a26b0b525004f89fe2476daa1a81541945266e2029b5a40f8` |
 | kev/cisa_kev-2026-11-10.csv |  | `85f484aba48c592c113722cb3e17e768fb5bd2f8f8ee7c548a2ed471e44efb85` |
 | epss/epss_scores-2026-11-11.csv |  | `4fae613d38171259a481ac951b02ef48fa521029450131c26786152695467149` |
-| cvelistV5 | 0d7ce006349b591f81149835318e56fb55c7a806 | `ebea99eaec553294e362d810ee14136dc6c80db3c4804f477a73a588e3cd877d` |
+| cvelistV5 | 0d7ce006349b591f81149835318e56fb55c7a806 | `e6b38f3e987b7425cf644ec06df069e60558cdca04377ee92a953ddfca2d7516` |
+| source/acsc_advisories | 2026-11-14 | `bc36798fa2df4495cc4773a0f5f033ba17d93a8be6773b824ef1f624aabac3a8` |
 | source/attack_enterprise | 2026-11-14 | `de6c8b6a8b3b1a5a66ddbb474875c8fb491ff673c10996d77fbb2389310812d4` |
 | source/et_open_rules | 2026-11-14 | `623896ae3ad61292cad7e64880691691b5dd52b072deff2658e4932c0b2140db` |
 | source/exploitdb | 2026-11-14 | `9ebaa38d9e73ef6bd22ebf92077e5b29d12f502847c36be234db4108999ecc22` |
 | source/ghsa_reviewed | 2026-11-14 | `c7461a0163e4b3d1353b8d300970b7f3e917a1ad5239b3cbfa10f67e2cbb7360` |
 | source/metasploit_modules | 2026-11-14 | `880ed345df0a1b7eb69f08c0ee68000c0302f8b702376c13446c1b5366d4a6ca` |
+| source/ncsc_uk_advisories | 2026-11-14 | `41700b37bb512ce1eeb325487329d8806cb6fe763580b1f6680be2c7b23f8b99` |
 | source/nuclei_templates | 2026-11-14 | `1be3936478bf86984c72035e256688c0d2d7bbf2cf9a561ef13149afbf30469b` |
 | source/poc_in_github | 2026-11-14 | `b1658a861b70e7dd96d3f5242ca5c6f5b1b3649f7ec545b481e4b52fcbe5669a` |
 | source/sigma_rules | 2026-11-14 | `b771dd7b4ce6e11f3f2a0a56eef24adbe0926887ceb49652c4985a74299d4032` |
 | team3/benchmark_data.py |  | `ed4f40826b5ebf3362eaf6df9bc7df0987bb29fc9c7521c8e09e9b54ab91d982` |
-| t0_narratives/b2a_01.jsonl |  | `f06019f7c8fb6701e8fbb91b41e3614f018cb0fd4881018a0e6369463060696a` |
+| t0_narratives/b2a_01.jsonl |  | `33b53930471c1d627b319cfd5f5ff7a328c35019a41f15d810f07775975127ac` |
+| t0_narratives/b2a_02.jsonl |  | `21892a76e4825ffaa637249dfcb01faf0aa2a811da4955586fa439f6062023b9` |
 
 ## Files
 
 | File | Count | sha256 |
 |---|---|---|
-| `build_report.json` | - | `b4fd1b955c83dd1f189edcc8fce63f1aa91cc1a57d98da72136bb373db774de3` |
+| `build_report.json` | - | `9380acce3072104a366e0fdae7072875d0276f8c118f3337875cf7af088739dd` |
 | `equivalence.jsonl` | 1346 | `50947bc90a41f860cd004b7db031574b2a8b9e5a53e7c9461b920d08a6e22f96` |
-| `qrels.jsonl` | 4048 | `d116eebae65ee69ed3f2d02355fa79d834009afdb77511347c3dc4431567f5e6` |
-| `queries.jsonl` | 2310 | `dc85c2aa17a5c90ffccf84dbf76a20cde03047d10f236c40739dd4eb1d4de4e6` |
+| `qrels.jsonl` | 4274 | `3106b221f22b04689d012f657ff0bda6feb4972aeec10ba75a807c401e09daeb` |
+| `queries.jsonl` | 2391 | `c0b77915385fa0ff3bc4daf7cce4d6dd6acddb1f259b643e4a32f4faf0ab8082` |
 | `sealed/README.txt` | - | `9715b3971120942321df1b3e9606f6a451f1d1db9af688f9aa3d296ce9172c5c` |
-| `sealed/qrels.jsonl` | 5220 | `0e1c31652276662819c5a85414cbc0f5169e1e1155be4061971d757c4899840b` |
-| `sealed/queries.jsonl` | 2244 | `1abfce77400da6eb630227a512060909dbfa8caa57ff3e2dfc34571fdc056965` |
+| `sealed/qrels.jsonl` | 5737 | `7944a4d04575a6ae30cb6002dcb76881e7eb370fbcac5ba5d840828b3654c341` |
+| `sealed/queries.jsonl` | 2389 | `d6408126b8933fab5beb9438a510aa1e266551a2abb185640f8f99aad205ee5e` |
 
 `manifest.json` itself is not listed (it records the builder commit). Split hashes: `queries.jsonl`/`qrels.jsonl` hold train+dev, `sealed/*` hold test.
 
