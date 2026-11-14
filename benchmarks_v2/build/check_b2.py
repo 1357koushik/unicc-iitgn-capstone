@@ -200,6 +200,24 @@ def main() -> int:
     report(not errs, "format conforms to docs/benchmark_format.md (every field validated)",
            f"{len(oq) + len(sq)} queries, {len(oqr) + len(sqr)} qrels, {len(eq)} equivalence sets"
            + (f"; {len(errs)} errors, first: {errs[:3]}" if errs else ""))
+    try:
+        from benchmarks_v2.eval import schema as b4
+    except ImportError:
+        b4 = None
+    if b4 is None:
+        report(False, "B4 harness loader accepts the build", "benchmarks_v2.eval not present on this branch")
+    else:
+        try:
+            saved = os.environ.pop(sealed.ENV, None)
+            n_open = sum(len(b4.load_dataset(b, split=sp).select(split=sp)) for sp in ("train", "dev"))
+            sq4 = b4.load_queries(b / sealed.SEALED_DIR / "queries.jsonl")   # schema parse only, no metrics
+            b4.load_qrels(b / sealed.SEALED_DIR / "qrels.jsonl", {x.qid: x for x in sq4})
+            if saved is not None:
+                os.environ[sealed.ENV] = saved
+            report(n_open == len(oq) and len(sq4) == len(sq), "B4 harness loader accepts the build (manifest verified)",
+                   f"{n_open} train+dev queries loaded, {len(sq4)} sealed rows schema-parsed")
+        except Exception as exc:  # noqa: BLE001
+            report(False, "B4 harness loader accepts the build", f"{type(exc).__name__}: {str(exc)[:200]}")
     all_q, all_qr = oq + sq, oqr + sqr
     counts = defaultdict(lambda: defaultdict(int))
     for q in all_q:
