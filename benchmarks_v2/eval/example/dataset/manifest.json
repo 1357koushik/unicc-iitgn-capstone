@@ -1,0 +1,37 @@
+{
+ "version": "b4-example-1",
+ "build_date": "2026-11-14",
+ "builder_commit": null,
+ "note": "Synthetic 10-query fixture written by B4 to demonstrate the harness; not the benchmark collection.",
+ "sources": [
+  {
+   "name": "generated",
+   "date": "2026-11-14",
+   "sha256": null
+  }
+ ],
+ "files": {
+  "queries.jsonl": {
+   "sha256": "7eb5049ebc6708da85da7344b3579a2f933cc5f4ad15e3aec34f28754a91517d",
+   "rows": 10
+  },
+  "qrels.jsonl": {
+   "sha256": "34cd609986bf26905aae88fc2035c3a35201bc1dbcdae22242413de85c174542",
+   "rows": 18
+  },
+  "equivalence.jsonl": {
+   "sha256": "2010c31a80172bae4db73fe40fce2664ba835a69ecaf10121fb47a61c02af04a",
+   "rows": 1
+  }
+ },
+ "counts": {
+  "dev": {
+   "T0": 1,
+   "T1": 2,
+   "T2": 3,
+   "T3": 1,
+   "T5": 1,
+   "T7": 2
+  }
+ }
+}

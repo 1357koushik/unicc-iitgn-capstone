@@ -1,0 +1,2 @@
+# Hashed fixtures and committed example data: keep bytes identical on every platform.
+eval/example/** text eol=lf

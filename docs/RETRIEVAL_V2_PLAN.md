@@ -390,7 +390,7 @@ No human labelling is required. Validity comes from cross-checks.
 1. **Known-item labels** come from the source itself (advisory or rule to CVE).
 2. **Narrative authoring (T0).** Opus writes each narrative from an incident write-up. A separate Sonnet pass, shown only the narrative, must identify the target; narratives it cannot resolve, or that share more than 60% of tokens with the corpus text, are discarded.
 3. **Relevance judging.** The top 10 of every variant is pooled. Sonnet judges each query–document pair against a written rubric (relevant, related, not relevant). Opus judges the same pairs independently.
-   - Judging runs in rounds, because later systems surface documents earlier ones did not: round 1 after C3 (v1, lexical, dense, fused), round 2 after C6, round 3 on the sealed-test outputs before E1.
+   - Judging runs in rounds, because later systems surface documents earlier ones did not: round 1 after C3 (v1, lexical, dense, fused), round 2 after C6, round 3 on the sealed-test outputs, run as the first step of E1 because only E1 may open the sealed split.
    - Until round 1, tuning uses the known-item labels from step 1 and from T0 authoring.
    - A document in a top 10 that has not been judged is never counted as not relevant. It is judged before any gate is evaluated.
 4. **Agreement.** Cohen's kappa between the two judges must reach 0.75. Below that, the rubric is revised and the round repeated. Disagreements are settled by a Opus adjudication pass that sees both rationales.
@@ -646,7 +646,7 @@ A1, A2 → B1, B2, B2a, B2b, B4, B5, B6 → C1 → C9, C2, C3 → B3 round 1 →
 
 PoC track in parallel from B1, tested on the server: P2 → P1 → P4 → P5a → P3 → P5b → P6.
 
-V1 runs after B6, after C8, after P6 and after S1. B3 round 3 runs on the sealed-test outputs immediately before E1.
+V1 runs after B6, after C8, after P6 and after S1. B3 round 3 (sealed-test outputs) runs as the first step of E1.
 
 Critical path: B2 (collection) and C1 (document store).
 
@@ -770,4 +770,8 @@ Findings from completed packages that later packages must act on.
 | B5 | v1 under load: at 1 concurrent request p50 8.3 s, p95 11.4 s, 0.11 requests/s; at 4 concurrent every request returned HTTP 504 and the shared server's load average rose to about 76. Confirms the need for admission control | C6 |
 | B5 | v1 resident memory is about 28 GB steady and 40 GB peak; cold start takes 112 s to healthy | C6 and D2: record v2 memory and cold start against these |
 | B5 | The load harness repeats the same queries across repetitions, so a v2 response cache would make later repetitions look faster | C6: the response cache must be switchable off per request or by configuration for benchmarks; B5 harness gains a cache-off flag when C6 lands |
+| B1b | CISA blocks automated access; replaced by ACSC (CC BY 4.0, 138 advisories) and UK NCSC (OGL v3.0, 106) as T0 incident sources | B2a |
+| B4 | v1 `/threats/match` returned 504 on 8 of 10 demonstration queries even with 30 s pauses between them: those queries simply exceed 15 s. B6 will record many misses; that is the true v1 result, not a harness fault | B6 |
+| B4 | Ten gaps in the data format were found and decided by the coordinator; `docs/benchmark_format.md` updated (unanswerable queries, fixed meta keys, manifest layout, tier vocabulary, pool format, sealed round 3 inside E1) | B2, B3, E1 |
+| B4 | The root `.gitignore` line `build/` ignores `benchmarks_v2/build/`; B2 told to add a negation | B2 |
 

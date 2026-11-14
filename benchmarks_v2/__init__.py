@@ -1,1 +1,1 @@
-"""Benchmark v2 build code (work package B2). Not part of the runtime package."""
+"""Benchmark v2: collection build (B2, ``benchmarks_v2.build``) and evaluation harness (B4, ``benchmarks_v2.eval``)."""
