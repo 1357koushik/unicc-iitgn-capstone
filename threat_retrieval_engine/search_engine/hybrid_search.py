@@ -57,12 +57,8 @@ except ImportError:
     SearchParams = Any  # type: ignore
     MatchValue = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.bm25_index import BM25Index
-    from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, search_vectors
-except ImportError:
-    from bm25_index import BM25Index
-    from vector_database import COLLECTION_NAME, search_vectors
+from threat_retrieval_engine.search_engine.bm25_index import BM25Index
+from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, search_vectors
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +317,7 @@ def default_query_encoder(vectorizer: Any) -> Callable[[str], list[float]]:
     Build a query-encoder closure over a ``BGEVectorizer`` instance.
     Applies the asymmetric BGE-M3 query prefix at query time.
     """
-    from validator import add_query_prefix
+    from threat_retrieval_engine.search_engine.validator import add_query_prefix
 
     def _encode(query: str) -> list[float]:
         prefixed = add_query_prefix(query)

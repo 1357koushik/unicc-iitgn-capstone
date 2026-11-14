@@ -29,10 +29,7 @@ except ImportError:
     MinHash = Any  # type: ignore
     MinHashLSH = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.validator import ThreatChunk
-except ImportError:
-    from validator import ThreatChunk
+from threat_retrieval_engine.search_engine.validator import ThreatChunk
 
 logger = logging.getLogger(__name__)
 

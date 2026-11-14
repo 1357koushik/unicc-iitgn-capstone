@@ -21,10 +21,30 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _data_dir_override() -> Path | None:
+    """``TRE_DATA_DIR``: base directory that holds the data (outside the checkout)."""
+    raw = os.environ.get("TRE_DATA_DIR", "").strip()
+    return Path(raw).expanduser().resolve() if raw else None
+
+
 def _resolve_path(rel_or_abs: str | Path) -> Path:
+    """Resolve a configured path.
+
+    Absolute paths are kept. Relative paths are anchored to the repository root,
+    unless ``TRE_DATA_DIR`` is set: then ``./data/<x>`` resolves to
+    ``$TRE_DATA_DIR/<x>`` (the directory *is* the ``data`` folder, as in the
+    existing server layout ``~/data/{sqlite,qdrant_storage}``) and any other
+    relative path resolves under ``$TRE_DATA_DIR``.
+    """
     p = Path(rel_or_abs)
     if p.is_absolute():
         return p
+    data_dir = _data_dir_override()
+    if data_dir is not None:
+        parts = p.parts
+        if parts and parts[0] == "data":
+            parts = parts[1:]
+        return data_dir.joinpath(*parts).resolve()
     return (REPO_ROOT / p).resolve()
 
 
@@ -49,6 +69,8 @@ class RetrievalConfig:
         cfg = config_dict or {}
         self.repo_root = REPO_ROOT
         self.REPO_ROOT = REPO_ROOT
+        self.config_path: Path | None = None  # set by load_config()
+        self.data_dir: Path = _data_dir_override() or (REPO_ROOT / "data")
 
         # Storage paths
         self.qdrant_storage_path = _resolve_path(cfg.get("qdrant_storage_path", "./data/qdrant_storage"))
@@ -157,7 +179,12 @@ def load_config(config_path: str | Path | None = None) -> RetrievalConfig:
     if _CONFIG_CACHE is not None and config_path is None:
         return _CONFIG_CACHE
 
-    target_path = _resolve_path(config_path) if config_path else (REPO_ROOT / "config" / "retrieval_config.yaml")
+    if config_path:
+        target_path = _resolve_path(config_path)
+    elif os.environ.get("TRE_CONFIG_PATH", "").strip():
+        target_path = Path(os.environ["TRE_CONFIG_PATH"]).expanduser().resolve()
+    else:
+        target_path = REPO_ROOT / "config" / "retrieval_config.yaml"
     cfg_data: dict[str, Any] = {}
     if target_path.is_file():
         try:
@@ -170,6 +197,7 @@ def load_config(config_path: str | Path | None = None) -> RetrievalConfig:
         logger.info("Config file %s not found; using defaults.", target_path)
 
     loaded = RetrievalConfig(cfg_data)
+    loaded.config_path = target_path
     if config_path is None:
         _CONFIG_CACHE = loaded
     return loaded

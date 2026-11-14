@@ -27,26 +27,15 @@ from threat_retrieval_engine.api.feature_extractor import (
     extract_features,
 )
 
-try:
-    from threat_retrieval_engine.indicators import (
-        COMMON_ACTORS as _COMMON_ACTORS,
-        COMMON_MALWARE as _COMMON_MALWARE,
-        CVE_PATTERN as _CVE_PATTERN,
-        IPV4_PATTERN as _IPV4_PATTERN,
-        MD5_PATTERN as _MD5_PATTERN,
-        MITRE_PATTERN as _MITRE_PATTERN,
-        SHA256_PATTERN as _SHA256_PATTERN,
-    )
-except ImportError:
-    from indicators import (
-        COMMON_ACTORS as _COMMON_ACTORS,
-        COMMON_MALWARE as _COMMON_MALWARE,
-        CVE_PATTERN as _CVE_PATTERN,
-        IPV4_PATTERN as _IPV4_PATTERN,
-        MD5_PATTERN as _MD5_PATTERN,
-        MITRE_PATTERN as _MITRE_PATTERN,
-        SHA256_PATTERN as _SHA256_PATTERN,
-    )
+from threat_retrieval_engine.indicators import (
+    COMMON_ACTORS as _COMMON_ACTORS,
+    COMMON_MALWARE as _COMMON_MALWARE,
+    CVE_PATTERN as _CVE_PATTERN,
+    IPV4_PATTERN as _IPV4_PATTERN,
+    MD5_PATTERN as _MD5_PATTERN,
+    MITRE_PATTERN as _MITRE_PATTERN,
+    SHA256_PATTERN as _SHA256_PATTERN,
+)
 
 logger = logging.getLogger(__name__)
 

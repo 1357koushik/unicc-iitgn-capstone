@@ -5,30 +5,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-try:
-    from threat_retrieval_engine.api.confidence import classify_confidence_tier
-    from threat_retrieval_engine.indicators import (
-        COMMON_ACTORS as _COMMON_ACTORS,
-        COMMON_MALWARE as _COMMON_MALWARE,
-        CVE_PATTERN as _CVE_PATTERN,
-        IPV4_PATTERN as _IPV4_PATTERN,
-        MD5_PATTERN as _MD5_PATTERN,
-        MITRE_PATTERN as _MITRE_PATTERN,
-        SHA256_PATTERN as _SHA256_PATTERN,
-        TOOL_TO_TECH as _TOOL_TO_TECH,
-    )
-except ImportError:
-    from confidence import classify_confidence_tier
-    from indicators import (
-        COMMON_ACTORS as _COMMON_ACTORS,
-        COMMON_MALWARE as _COMMON_MALWARE,
-        CVE_PATTERN as _CVE_PATTERN,
-        IPV4_PATTERN as _IPV4_PATTERN,
-        MD5_PATTERN as _MD5_PATTERN,
-        MITRE_PATTERN as _MITRE_PATTERN,
-        SHA256_PATTERN as _SHA256_PATTERN,
-        TOOL_TO_TECH as _TOOL_TO_TECH,
-    )
+from threat_retrieval_engine.api.confidence import classify_confidence_tier
+from threat_retrieval_engine.indicators import (
+    COMMON_ACTORS as _COMMON_ACTORS,
+    COMMON_MALWARE as _COMMON_MALWARE,
+    CVE_PATTERN as _CVE_PATTERN,
+    IPV4_PATTERN as _IPV4_PATTERN,
+    MD5_PATTERN as _MD5_PATTERN,
+    MITRE_PATTERN as _MITRE_PATTERN,
+    SHA256_PATTERN as _SHA256_PATTERN,
+    TOOL_TO_TECH as _TOOL_TO_TECH,
+)
 
 
 @dataclass

@@ -33,10 +33,6 @@ _BENCHMARK_DIR = Path(__file__).resolve().parent
 _ENGINE_DIR = _BENCHMARK_DIR.parent
 _REPO_ROOT = _ENGINE_DIR.parent
 
-# Ensure repository root is on sys.path (C-4)
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
 from threat_retrieval_engine.benchmarks.metrics import (
     confusion_matrix,
     hit_at_k,

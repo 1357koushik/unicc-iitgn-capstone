@@ -40,10 +40,7 @@ from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-try:
-    from threat_retrieval_engine.search_engine.tokenizer import tokenize
-except ImportError:
-    from tokenizer import tokenize
+from threat_retrieval_engine.search_engine.tokenizer import tokenize
 
 logger = logging.getLogger(__name__)
 

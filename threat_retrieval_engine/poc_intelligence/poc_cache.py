@@ -7,12 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-try:
-    from threat_retrieval_engine.api.schemas import PoCFindResponse
-    from threat_retrieval_engine.config import get_config
-except ImportError:
-    from api.schemas import PoCFindResponse
-    from config import get_config
+from threat_retrieval_engine.api.schemas import PoCFindResponse
+from threat_retrieval_engine.config import get_config
 
 logger = logging.getLogger(__name__)
 

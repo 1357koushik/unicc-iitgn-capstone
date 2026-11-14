@@ -33,12 +33,8 @@ try:
 except ImportError:
     QdrantClient = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.tokenizer import extract_identifiers
-    from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, fetch_chunk_metadata
-except ImportError:
-    from tokenizer import extract_identifiers
-    from vector_database import COLLECTION_NAME, fetch_chunk_metadata
+from threat_retrieval_engine.search_engine.tokenizer import extract_identifiers
+from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, fetch_chunk_metadata
 
 logger = logging.getLogger(__name__)
 
