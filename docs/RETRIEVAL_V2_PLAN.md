@@ -388,7 +388,7 @@ Every gated slice has at least 150 test queries; a proportion near 0.9 then has 
 No human labelling is required. Validity comes from cross-checks.
 
 1. **Known-item labels** come from the source itself (advisory or rule to CVE).
-2. **Narrative authoring (T0).** Opus writes each narrative from an incident write-up. A separate Sonnet pass, shown only the narrative, must identify the target; narratives it cannot resolve, or that share more than 60% of tokens with the corpus text, are discarded.
+2. **Narrative authoring (T0).** Opus writes each narrative from an incident write-up. A separate Sonnet pass is shown the narrative and a shuffled list of candidate documents (the true targets plus four plausible decoys of the same product or flaw class) and must pick the true targets; narratives it cannot resolve, or that share more than 60% of tokens with the corpus text, are discarded. (Changed during B2a: a narrative without a CVE ID cannot be resolved from memory, so the check tests whether the narrative is specific enough to identify its target among confusable candidates.)
 3. **Relevance judging.** The top 10 of every variant is pooled. Sonnet judges each query–document pair against a written rubric (relevant, related, not relevant). Opus judges the same pairs independently.
    - Judging runs in rounds, because later systems surface documents earlier ones did not: round 1 after C3 (v1, lexical, dense, fused), round 2 after C6, round 3 on the sealed-test outputs, run as the first step of E1 because only E1 may open the sealed split.
    - Until round 1, tuning uses the known-item labels from step 1 and from T0 authoring.
@@ -774,4 +774,5 @@ Findings from completed packages that later packages must act on.
 | B4 | v1 `/threats/match` returned 504 on 8 of 10 demonstration queries even with 30 s pauses between them: those queries simply exceed 15 s. B6 will record many misses; that is the true v1 result, not a harness fault | B6 |
 | B4 | Ten gaps in the data format were found and decided by the coordinator; `docs/benchmark_format.md` updated (unanswerable queries, fixed meta keys, manifest layout, tier vocabulary, pool format, sealed round 3 inside E1) | B2, B3, E1 |
 | B4 | The root `.gitignore` line `build/` ignores `benchmarks_v2/build/`; B2 told to add a negation | B2 |
+| B2 review | Coordinator audit found T5/T8 queries naming a platform CPE instead of the vulnerable product (e.g. a Chrome bug queried as "redhat linux server") and raw CPE slugs in query text; T2 lacked EternalBlue. Sent back to B2 for a vulnerable-only CPE rule, a product-consistency filter, humanized names and wider nickname corroboration | B2 |
 
