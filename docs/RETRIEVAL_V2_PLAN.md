@@ -781,8 +781,11 @@ Findings from completed packages that later packages must act on.
 
 ### Next steps (resume point)
 
-1. B2b (Sonnet, medium): verify the 23 B2a narratives against their decoys; rebuild v2.0 with the passing ones; T0 must reach 250 with at least 150 in test.
-2. B1c (Sonnet, low): fix the two collector defects above, re-collect ACSC, rebuild.
+1. Done: B2b, B1c, rebuild (see log).
+2. Done.
 3. B6 (Sonnet, low): run v1 (`v1_match` and `v1_hybrid`) over train and dev on the server with the B4 harness (resumable, several hours unattended); test stays sealed.
 4. Then C1 (Opus, high), the CVE document store.
+| B2b | Blind verification (Sonnet, answer key withheld by the coordinator, decoys ranked by similarity to the target): 20 of 23 narratives resolved; 2 NetScaler and 1 Zimbra narrative too vague to separate from sibling CVEs, dropped | done |
+| B1c | The mislabelled CVE-2020-1350 page is an upstream ACSC error (the site serves vm2 text at that URL); an identity guard now drops such pages. The "garbled apostrophe" was a terminal display artefact (U+2019), not a data defect; charset handling hardened anyway | done |
+| Rebuild | Benchmark v2.0 rebuilt: 4,815 queries, 2,406 sealed. T0 265 (241 advisory excerpts, 20 narratives, 4 Team 3 cases), 159 in test; up to 4 excerpts per advisory. check_b2 ALL PASS | B6 |
 
