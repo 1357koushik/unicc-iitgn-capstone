@@ -10,42 +10,41 @@ An independent test collection for the Retrieval Engine v2 (plan section 6): per
 ## Build
 
 - Version `v2.0`, build date **2026-11-14**, seed `20261114`
-- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, commit `cd7649dd9c0f1d12eda1605484c1f5d890f90a67`, code sha256 `e11b88550aa4903406cc49aa1bb96f5b35502e05b7c545f9965664116ddea974`
-- 4549 queries, 9287 qrels, 1346 equivalence sets; 2241 test queries sealed under `sealed/`
+- Builder `benchmarks_v2/build/build_collection.py` v2.0.0, commit `8a093ff836e14dc1977c0e24391f1ab519a19569`, code sha256 `404fc3d4c1ee94b7b067ef025338e56c4f001f672b123fe29bea802419bd0cde`
+- 4554 queries, 9287 qrels, 1346 equivalence sets; 2244 test queries sealed under `sealed/`
 
 ## Slices and sizes
 
 | Slice | Name | Target | Train | Dev | Test | Total | Temporal holdout | Qrels |
 |---|---|---|---|---|---|---|---|---|
 | T0 | Observation narratives | 600 | 0 | 4 | 0 | 4 | 0 | 10 |
-| T1 | Identifier | 300 | 0 | 150 | 150 | 300 | 48 | 365 |
+| T1 | Identifier | 300 | 0 | 150 | 150 | 300 | 41 | 365 |
 | T2 | Nickname | 250 | 0 | 100 | 150 | 250 | 0 | 378 |
 | T3 | Advisory wording | 1500 | 600 | 300 | 600 | 1500 | 26 | 1500 |
 | T4 | Detection-rule wording | 800 | 320 | 160 | 320 | 800 | 7 | 900 |
 | T5 | Product and version | 300 | 0 | 120 | 180 | 300 | 49 | 1253 |
 | T6 | Noisy | 400 | 0 | 156 | 244 | 400 | 8 | 503 |
-| T7 | Unanswerable | 400 | 0 | 158 | 237 | 395 | 0 | 0 |
+| T7 | Unanswerable | 400 | 0 | 160 | 240 | 400 | 0 | 0 |
 | T8 | Confusable siblings | 300 | 0 | 120 | 180 | 300 | 30 | 2199 |
 | T9 | Actor, software, technique | 300 | 0 | 120 | 180 | 300 | 0 | 2179 |
-| all | | 5150 | 920 | 1388 | 2241 | 4549 | | |
+| all | | 5150 | 920 | 1390 | 2244 | 4554 | | |
 
 Temporal holdout: a grade-2 CVE target published in the 90 days before the build date; such groups never go to train.
 
 ### Shortfalls
 
 - **T0** short by 596: T0 narratives are written by package B2a (not yet delivered); only Team 3's own cases are in this build. Re-run the build after B2a writes <benchmark>/inputs/t0_narratives/*.jsonl.
-- **T7** short by 5: candidate pool exhausted under the quality filters; gate rejections {'expansion_text_collision': 45}; builder stats {'rejected_ioc_in_corpus': 0, 'rejected_id_exists': 33, 'candidates_by_category': {'off_topic': 115, 'security_absent_from_corpus': 140, 'ioc_only': 140, 'nonexistent_cve_id': 140}, 'by_category': {'off_topic': 100, 'security_absent_from_corpus': 100, 'ioc_only': 100, 'nonexistent_cve_id': 95}}
 
 ## Construction method per slice
 
 - **T0 Observation narratives.** Team 3's own cases (`raw_text`) form the fixed subset, pinned to dev because they are public in the repository. CVE targets are known from the case (grade 2, origin `authoring`) unless the ID collides with an unrelated real record (the CVE's corpus text does not name the case's affected product): then it is a grade-0 known non-relevant document. Named ATT&CK groups/software resolved by exact name or alias are grade 1 (grade 2 when the case has no CVE target). B2a narratives are ingested from `<benchmark>/inputs/t0_narratives/*.jsonl` (schema in `benchmarks_v2/build/slice_t0.py` and `t0_narrative.schema.json`) when verified, from an `incident`-role source, with existing targets, and passing the overlap and expansion checks. Candidates examined: 4; rejected: none.
-- **T1 Identifier.** Generated from the CVE universe (seeded sample of searchable CVEs): canonical, lower and mixed case, IDs inside sentences, two or three IDs, and malformed-but-recoverable forms (spaces, underscores, en dash, missing hyphen, brackets, trailing punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers). Candidates examined: 349; rejected: expansion_text_collision 49.
+- **T1 Identifier.** Generated from the CVE universe (seeded sample of searchable CVEs): canonical, lower and mixed case, IDs inside sentences, two or three IDs, and malformed-but-recoverable forms (spaces, underscores, en dash, missing hyphen, brackets, trailing punctuation, colon, double space). Only existing IDs; non-existent IDs live in T7. Exempt from the overlap rule (identifiers). Candidates examined: 307; rejected: expansion_text_collision 7.
 - **T2 Nickname.** Names compiled from general knowledge in `benchmarks_v2/build/nicknames.py`, independently of any expansion source and of the alias table. A (name, CVE) pair is kept only when the name occurs in that CVE's NVD description or references, its CVE List text or references, or a query-side record (GHSA, ET Open, Sigma) for that CVE; the evidence is stored per item in `meta.corroboration`. Queries are the name in up to three of ten written templates, round-robin over names. Candidates examined: 293; rejected: expansion_text_collision 13, overlap_gt_0.6 30.
 - **T3 Advisory wording.** Reviewed GHSA advisories (not withdrawn) with a CVE alias, seeded order, at most two per package. Query = summary with CVE IDs stripped (summary + first sentence of details when the summary has fewer than three content tokens). Target = the alias CVE; an alias rejected as a duplicate maps to its canonical CVE (origin `equivalence`). Candidates examined: 10964; rejected: expansion_text_collision 33, no_searchable_target 88, overlap_gt_0.6 9343.
 - **T4 Detection-rule wording.** Sigma rules first, then ET Open rules, each in seeded order; enabled and disabled rules both used. Rule-vendor prefixes (`ET <CATEGORY>`, `GPL <CATEGORY>`), CVE/CAN IDs (including bare continuation IDs) and ET variant markers (M1, M2...) are stripped and recorded in `meta.stripped`; a Sigma title left generic is replaced by the first description sentence. Texts with fewer than two informative tokens are dropped; at most two queries per target set. Candidates examined: 2784; rejected: expansion_text_collision 22, no_searchable_target 8, overlap_gt_0.6 1954.
 - **T5 Product and version.** From NVD CPE configurations (65%) and, for CVEs without CPE data, the CNA `affected` block (35%, mostly 2024-2026). One query per product: '<vendor> <product> <version> <flaw type>' in six templates, with a concrete version the anchor CVE affects (preferring one not written in its description) and a phrasing of its CWE class. Qrels: every CVE of that product whose version data includes the version and whose CWE class matches = grade 2; same version, other class = grade 1; CVEs whose applicability cannot be decided are left unjudged. Only CVEs with vendor, product, a parseable version and a mapped CWE are anchors. Candidates examined: 347; rejected: overlap_gt_0.6 47.
 - **T6 Noisy.** Seeded perturbations of dev/test T0, T2 and T3 queries: typos (swap, deletion, keyboard neighbour, doubling), missing spaces, analyst abbreviations, pasted log-like fragments (private IPs only) and combinations. `meta.parent_qid`; qrels and split inherited; a perturbation that would lose a target to the overlap rule is not used. Candidates examined: 400; rejected: none.
-- **T7 Unanswerable.** Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels. Candidates examined: 440; rejected: expansion_text_collision 45.
+- **T7 Unanswerable.** Four categories of about 100: off-topic questions; security topics absent from a CVE/ATT&CK corpus (governance, careers, compliance clauses); IOC-only queries (random hashes, public IPv4, domains, defanged URLs) checked absent from NVD descriptions and ATT&CK text; well-formed CVE IDs verified absent from NVD, CVE List, KEV, EPSS and from every NVD description. answerable=false, no qrels. Candidates examined: 400; rejected: none.
 - **T8 Confusable siblings.** Product groups (CPE or CNA namespace) with 3-400 CVEs. The target is discriminated either by a component named in its description and in no sibling's (file, module, function or 'the X component'), or by a CWE class no sibling has. Qrels: target grade 2; up to ten siblings grade 0 (origin `authoring`), same flaw class first. By construction no sibling matches the discriminator. Candidates examined: 480; rejected: overlap_gt_0.6 180.
 - **T9 Actor, software, technique.** Template questions over ATT&CK Enterprise: ID queries (60), exact unique names (60), unique aliases (30) - the release gate subset, `meta.gate_exact` - and relationship questions (techniques/software of a group, groups using software, software techniques, mitigations of a technique, sub-techniques, groups using a technique). Ground truth from STIX relationships between active objects (answers grade 2, subject grade 1). Checked not to copy any ATT&CK description sentence. Exempt from the overlap rule. Candidates examined: 305; rejected: attack_description_copy 4, expansion_text_collision 1.
 
@@ -81,7 +80,7 @@ T1 (identifiers), T7 (no targets) and T9 (ATT&CK names and IDs by design; it has
 
 ### Splits
 
-Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3705 groups; largest [8, 8, 7, 7, 6]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
+Queries sharing any CVE document (any grade), equivalence set, nickname, ATT&CK subject or T6 parent form one group (3711 groups; largest [8, 8, 7, 7, 6]); a group gets one split. Allowed splits are the intersection over the slices in the group (6.3: T3/T4 40/20/40, T1 50/50 dev/test, others 40/60 dev/test). Seeded greedy balancing, largest groups first. T6 children follow their parents (parents only from dev/test). T9 groups by question subject; an ATT&CK answer document may appear in dev and test (there is no T9 train split).
 
 ### Leakage tests (`tests/test_benchmark_leakage.py`)
 
@@ -155,13 +154,13 @@ Input snapshots (from the manifest):
 
 | File | Rows | Bytes | sha256 |
 |---|---|---|---|
-| `build_report.json` | - | 18832 | `b22e4abb24388ffddafc5b474a513cd1459a092ceb9b43c39660e12a3b732fbb` |
+| `build_report.json` | - | 18319 | `22af64aa2d69dc1ac388c3d423c4f9a2e127b40864de33446d23191e33069e47` |
 | `equivalence.jsonl` | 1346 | 226707 | `50947bc90a41f860cd004b7db031574b2a8b9e5a53e7c9461b920d08a6e22f96` |
-| `qrels.jsonl` | 4100 | 309586 | `3e5d392fd7549147376e226a487410faa6fe8bd728f29d89933e9e1f501124d5` |
-| `queries.jsonl` | 2308 | 857186 | `634889269388e88317c39c4f98c7ab1d74e1892016d8959dc372f73ece4b6a83` |
+| `qrels.jsonl` | 4101 | 309635 | `5675136877cbc381348b7c34bc455d3abb07af9c7e85b4f4107b37a169dae73c` |
+| `queries.jsonl` | 2310 | 857146 | `17c1ff4100628f1a7d88e09908391bb3391895271cbf42bd20580c65d69dab59` |
 | `sealed/README.txt` | - | 356 | `9715b3971120942321df1b3e9606f6a451f1d1db9af688f9aa3d296ce9172c5c` |
-| `sealed/qrels.jsonl` | 5187 | 391309 | `fcd49545ed6303b1833c0e81706f460c047284d02e6063df657ad7d445c19628` |
-| `sealed/queries.jsonl` | 2241 | 860027 | `946cf5d1062f5194e7ba5e079dce59f231e1403bd495ef593bd6de151578ffe9` |
+| `sealed/qrels.jsonl` | 5186 | 391246 | `2bc362d2ff34b42b404c320186c147b840f7424b6aa9833243be8a529898eabc` |
+| `sealed/queries.jsonl` | 2244 | 862209 | `6a5aa59c719f78c14a9086172c60a83ec9d1998df955a3c92bf55faeccd50490` |
 
 `manifest.json` itself is not listed (it records the builder commit). Split hashes: `queries.jsonl`/`qrels.jsonl` hold train+dev, `sealed/*` hold test.
 

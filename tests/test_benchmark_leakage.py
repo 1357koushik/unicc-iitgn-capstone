@@ -21,7 +21,7 @@ import pytest
 from benchmarks_v2.build import sealed
 from benchmarks_v2.build.common import default_feeds_dir, default_sources_dir
 from benchmarks_v2.build.leakage import TextIndex, attack_sentence_copied, attack_sentence_refs, expansion_refs
-from benchmarks_v2.build.text import normalize, strip_cve_ids
+from benchmarks_v2.build.text import content_tokens, normalize, strip_cve_ids
 
 BENCH = os.environ.get("TRE_BENCHMARK_DIR")
 
@@ -119,8 +119,8 @@ def test_no_query_text_in_expansion_sources(data, srcs):
     bad = []
     for q in data["queries"]:
         s = strip_cve_ids(q["text"]).strip()
-        if not normalize(s):
-            continue
+        if not content_tokens(q["text"]):
+            continue        # identifier-only text (e.g. "CVE-A and CVE-B"): nothing that could be copied
         if s in raw or normalize(s) in norm or index.collisions(q["text"]):
             bad.append(q["qid"])
     assert not bad, f"{len(bad)} queries collide with expansion-source text (e.g. {bad[:5]})"
