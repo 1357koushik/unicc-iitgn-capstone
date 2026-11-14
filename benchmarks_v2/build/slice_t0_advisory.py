@@ -2,7 +2,7 @@
 
 For every advisory: split into paragraphs, drop headings, dates, bullet/numbered lists, navigation,
 recommendation and contact sentences; join the remaining consecutive prose sentences into runs; cut runs
-into excerpts of 2-8 sentences and at most 1,200 characters; keep up to 3 non-overlapping excerpts with
+into excerpts of 2-8 sentences and at most 1,200 characters; keep up to 4 non-overlapping excerpts with
 the strongest activity signal (CVE IDs, affected products, named actors or malware, exploitation words).
 
 Targets: grade 2 for CVEs named in the excerpt, or advisory CVEs whose product is named in the excerpt and
@@ -23,7 +23,7 @@ from .slice_products import find_span, slug_tokens
 from .text import CVE_FIND_RE, sentences
 
 INCIDENT_SOURCES = ("acsc_advisories", "ncsc_uk_advisories")
-MAX_PER_ADVISORY = 3
+MAX_PER_ADVISORY = 4
 MIN_SENT, MAX_SENT, MAX_CHARS = 2, 8, 1200
 MASK_SHARE = 0.6
 SINGLE_MIN_WORDS = 20   # fallback: one long factual sentence, only for advisories with no 2+ sentence excerpt

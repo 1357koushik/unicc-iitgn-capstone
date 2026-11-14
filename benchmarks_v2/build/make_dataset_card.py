@@ -46,7 +46,7 @@ METHOD = {
     "T0": "Three kinds (`meta.t0_kind`). (1) `advisory_excerpt` (primary): deterministic excerpts of real ACSC and NCSC UK "
           "advisories (B1b, role `incident`). Paragraphs are split into sentences; headings, dates, lists, navigation, "
           "recommendation, contact and link sentences are removed; 2-8 consecutive prose sentences, at most 1,200 characters, "
-          "at most 3 non-overlapping excerpts per advisory, strongest activity signal first (a single sentence of 20+ words "
+          "at most 4 non-overlapping excerpts per advisory, strongest activity signal first (a single sentence of 20+ words "
           "only when an advisory has no longer excerpt, `meta.single_sentence_fallback`). Targets: grade 2 for CVEs named in "
           "the excerpt, advisory CVEs whose product is named in the excerpt and vendor in the excerpt or title (more than 10 "
           "such matches is too generic: grade 1), ATT&CK groups/software named by exact name or alias, and ATT&CK techniques "
