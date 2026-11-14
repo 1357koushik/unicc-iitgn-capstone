@@ -115,13 +115,24 @@ if rs "TRE_START_TIMEOUT=900 \$HOME/team2/current/scripts/deploy/run_service.sh 
 fi
 HEALTH="$(rs 'curl -s -m 30 http://127.0.0.1:8766/api/v1/health')"
 info "health: $(echo "$HEALTH" | cut -c1-300)"
-echo "$HEALTH" | grep -qi 'healthy\|"status": *"ok"\|"ready": *true' && pass "(d4) /api/v1/health reports healthy" || fail "(d4) health not healthy"
+if echo "$HEALTH" | python -c 'import sys,json
+d=json.load(sys.stdin)
+ok=d.get("status")=="healthy" and not d.get("degraded_components") and d.get("components",{}).get("qdrant")=="available"
+sys.exit(0 if ok else 1)' 2>/dev/null; then
+  pass "(d4) /api/v1/health healthy, no degraded components, qdrant available"
+else
+  fail "(d4) health not fully healthy (qdrant 'unavailable' means v1 on 8765 still holds the Qdrant lock)"
+fi
 SEARCH="$(rs "curl -s -m 120 -X POST http://127.0.0.1:8766/api/v1/search/hybrid -H 'Content-Type: application/json' -d '{\"query\":\"Log4j remote code execution\",\"top_k\":5}'")"
 NRES="$(echo "$SEARCH" | python -c 'import sys,json
 d=json.load(sys.stdin)
 r=d.get("results", d if isinstance(d,list) else [])
-print(len(r))' 2>/dev/null || echo 0)"
-[ "$NRES" = "5" ] && pass "(d5) hybrid search returned 5 results" || { fail "(d5) hybrid search returned '$NRES' results"; echo "$SEARCH" | cut -c1-300; }
+print(len(r), sum(1 for x in r if x.get("dense_rank") is not None))' 2>/dev/null || echo "0 0")"
+if [ "${NRES%% *}" = "5" ] && [ "${NRES##* }" != "0" ]; then
+  pass "(d5) hybrid search returned 5 results (${NRES##* } with a dense rank)"
+else
+  fail "(d5) hybrid search returned '$NRES' (results, with-dense-rank)"; echo "$SEARCH" | cut -c1-300
+fi
 PYP="$(rs 'pid=$(cat $HOME/team2/run/service-8766.pid); tr "\0" "\n" < /proc/$pid/environ | grep -c "^PYTHONPATH=" || true')"
 [ "$(echo "$PYP" | tr -d '[:space:]')" = "0" ] && pass "(d6) process environment has no PYTHONPATH" || fail "(d6) PYTHONPATH present in /proc/<pid>/environ ($PYP)"
 ENVV="$(rs 'pid=$(cat $HOME/team2/run/service-8766.pid); tr "\0" "\n" < /proc/$pid/environ | grep -E "^(CUDA_VISIBLE_DEVICES|TRE_|HF_HUB_OFFLINE|TRANSFORMERS_OFFLINE|TMPDIR|OMP_NUM_THREADS)" | tr "\n" " "')"
