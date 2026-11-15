@@ -104,7 +104,8 @@ def test_title_head_is_a_candidate():
     ("w3hj", "reference", "cve_references", "identifier_fragment"),
     ("apsb20", "reference", "cve_references", "identifier_fragment"),
     ("APSB22", "paren", "exploitdb", "identifier_fragment"),
-    ("debian", "reference_host", "cve_references", "vendor_product_vocabulary"),
+    ("debian", "reference", "cve_references", "vendor_product_vocabulary"),
+    ("herodevs", "reference_host", "cve_references", "generic_hostname"),
     ("ubuntu desktop", "poc_repo", "poc_in_github", "vendor_product_vocabulary"),
     ("SharePoint", "camel", "exploitdb", "vendor_product_vocabulary"),
 ])
@@ -134,7 +135,8 @@ def test_weak_evidence_needs_two_units_and_dedicated_site_needs_one():
     ids = [f"CVE-2017-{13077 + i}" for i in range(10)]
     info = {"krackattacks.com": [10, 2017, 2017, ids], "redhat.com": [90000, 1999, 2026, []],
             "securityco.example": [4, 2024, 2025, ["CVE-2024-0001", "CVE-2024-0002", "CVE-2025-0001", "CVE-2025-0002"]]}
-    products = {c: frozenset({"hostapd", "wpa"}) for c in ids}
+    products = {c: frozenset({"hostapd", "wpa"}) if i % 3 else frozenset({"wpa", "supplicant"})
+                for i, c in enumerate(ids)}   # not all share one word; most do
     products.update({"CVE-2024-0001": frozenset({"acme"}), "CVE-2024-0002": frozenset({"widget"}),
                      "CVE-2025-0001": frozenset({"gizmo"}), "CVE-2025-0002": frozenset({"thing"})})
     g = groups(A.select(krack, VOC, info, products))
@@ -156,7 +158,8 @@ def test_spread_years_and_relative_support():
               _c("CVE-2025-5777", "CitrixBleed", "n2", pos="camel", src="nuclei_templates")]
     sel = A.select(cands, VOC)
     assert groups(sel)["shellshock"] == ("CVE-2014-6271",)   # 3659/3671 only share a multi-CVE exploit record
-    assert groups(sel)["citrixbleed"] == ("CVE-2023-4966",)  # few CVEs over years: best-supported window kept
+    cb = sorted(g.cve_ids for g in sel.groups if g.norm == "citrixbleed")
+    assert cb == [("CVE-2023-4966",), ("CVE-2025-5777",)]        # one candidate per disclosure window
     assert sel.rejected_names[alias_norm("Widgetron")] == "spread_too_wide"
     assert sel.rejected_names[alias_norm("Oldname")] == "spread_over_years"
 

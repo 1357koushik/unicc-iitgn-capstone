@@ -652,11 +652,25 @@ def _year(cve_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+def year_clusters(years: list[int]) -> list[set[int]]:
+    """Sorted distinct ID years split into clusters spanning fewer than YEAR_WINDOW years each."""
+    out: list[set[int]] = []
+    for y in years:
+        if out and y - min(out[-1]) < YEAR_WINDOW:
+            out[-1].add(y)
+        else:
+            out.append({y})
+    return out
+
+
+DEDICATED_PRODUCT_SHARE = 0.6   # a dedicated site's CVEs mostly share a product word
+
+
 def dedicated_domains(domain_info: dict[str, list], products: dict[str, frozenset[str]] | None = None
                       ) -> frozenset[str]:
     """Registrable domains that look like a site about one disclosure (krackattacks.com: 10 CVEs, all 2017,
     all wpa_supplicant/hostapd): cited by 2 to MAX_NICKNAME_SPREAD CVEs whose ID years span at most
-    YEAR_WINDOW years and which share a product word. A security company's site cites CVEs of unrelated
+    YEAR_WINDOW years, most of which (DEDICATED_PRODUCT_SHARE) share a product word. A security company's site cites CVEs of unrelated
     products and is not dedicated; a site cited by one CVE only (vendor homepages, personal blogs) is not
     either, though its label may still be a candidate when another unit corroborates it.
 
@@ -669,7 +683,11 @@ def dedicated_domains(domain_info: dict[str, list], products: dict[str, frozense
             continue
         if products is not None:
             sets = [products.get(c, frozenset()) for c in (e[3] if len(e) > 3 else [])]
-            if not sets or not frozenset.intersection(*sets):
+            counts: dict[str, int] = defaultdict(int)
+            for st in sets:
+                for w in st:
+                    counts[w] += 1
+            if not sets or max(counts.values(), default=0) < DEDICATED_PRODUCT_SHARE * len(sets):
                 continue
         out.add(d)
     return frozenset(out)
@@ -699,10 +717,15 @@ def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
             reasons[f"accepted_{c.kind}"] += 1
     groups: list[NickGroup] = []
     for norm, cs in nick.items():
-        # a host-label row is a dedicated-site row only if its domain has that shape
-        cs = [c if c.position != "reference_site" or evidence_unit(c)[4:] in dedicated
-              else Candidate(c.cve_id, c.alias, c.norm, c.kind, c.source, c.record_id, "reference_host",
-                             c.record_cves) for c in cs]
+        # host labels are evidence only as the root of a dedicated site (krackattacks.com); company,
+        # vendor-portal and personal hostnames (herodevs, www2, provensec) never count
+        n0 = len(cs)
+        cs = [c for c in cs if c.position != "reference_host"
+              and (c.position != "reference_site" or evidence_unit(c)[4:] in dedicated)]
+        reasons["generic_hostname"] += n0 - len(cs)
+        if not cs:
+            rejected_names.setdefault(norm, "generic_hostname")
+            continue
         why = prefilter(cs[0], {c.position for c in cs}, voc)
         if why:
             reasons[why] += len(cs)
@@ -739,32 +762,28 @@ def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
                 support[c.cve_id] += 1.0 / max(1, c.record_cves)
                 single[c.cve_id] += c.record_cves <= 1
         years = [_year(x) for x in cves]
-        best_lo, best_w = years[0], -1.0
-        for lo in sorted(set(years)):
-            w = sum(support[x] for x in cves if lo <= _year(x) < lo + YEAR_WINDOW)
-            if w > best_w:
-                best_lo, best_w = lo, w
-        in_window = sum(1 for y in years if best_lo <= y < best_lo + YEAR_WINDOW)
-        if len(cves) > 3 and in_window / len(years) < MIN_WINDOW_SHARE:
+        clusters = year_clusters(sorted(set(years)))
+        largest = max(sum(1 for y in years if y in cl) for cl in clusters)
+        if len(cves) > 3 and largest / len(years) < MIN_WINDOW_SHARE:
             reasons["spread_over_years"] += len(cs)
             rejected_names[norm] = "spread_over_years"
             continue
-        top = max(support.values())
-        kept: list[Candidate] = []
-        for c in cs:
-            y = _year(c.cve_id)
-            if not (best_lo <= y < best_lo + YEAR_WINDOW):
-                reasons["outside_year_window"] += 1
-            elif not single[c.cve_id] and support[c.cve_id] < MIN_RELATIVE_SUPPORT * top:
-                reasons["low_relative_support"] += 1  # only co-listed in multi-CVE records
-            else:
-                kept.append(c)
-        if not kept:
-            continue
-        kept.sort(key=lambda c: (c.cve_id, c.source, c.record_id, c.position, c.alias))
-        groups.append(NickGroup(norm, display_alias(kept), tuple(sorted({c.cve_id for c in kept})), tuple(kept),
-                                evidence_sha256(kept)))
-        reasons["nickname_candidate_rows"] += len(kept)
+        # one candidate per disclosure window: "CitrixBleed" (2023) and "CitrixBleed 2" (2025) are judged apart
+        for cl in clusters:
+            ccs = [c for c in cs if _year(c.cve_id) in cl]
+            top = max(support[c.cve_id] for c in ccs)
+            kept: list[Candidate] = []
+            for c in ccs:
+                if not single[c.cve_id] and support[c.cve_id] < MIN_RELATIVE_SUPPORT * top:
+                    reasons["low_relative_support"] += 1  # only co-listed in multi-CVE records
+                else:
+                    kept.append(c)
+            if not kept:
+                continue
+            kept.sort(key=lambda c: (c.cve_id, c.source, c.record_id, c.position, c.alias))
+            groups.append(NickGroup(norm, display_alias(kept), tuple(sorted({c.cve_id for c in kept})), tuple(kept),
+                                    evidence_sha256(kept)))
+            reasons["nickname_candidate_rows"] += len(kept)
     keep.sort(key=lambda c: (c.cve_id, c.kind, c.norm, c.source, c.record_id))
     groups.sort(key=lambda g: (g.norm, g.cve_ids))
     return Selection(keep, groups, dict(reasons), rejected_names)
