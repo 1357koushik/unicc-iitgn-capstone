@@ -1,4 +1,4 @@
-"""Latency of the lexical retriever: query building + FTS5 MATCH + top-100 fetch, per query.
+"""Latency of the lexical retriever: query building + impact-matrix scoring + top-100, per query.
 
     python -m threat_retrieval_engine.lexical.latency --index <build> --queries <queries.jsonl> --out <json>
 
@@ -121,9 +121,10 @@ def measure(index: str, queries_path: Path, k: int = 100, repeat: int = 3, label
         "host": socket.gethostname(), "platform": platform.platform(), "python": platform.python_version(),
         "sqlite": sqlite3.sqlite_version, "cpu_count": os.cpu_count(), "load_average": load_average(),
         "index": {"build_id": ix.build_id, "index_sha256": ix.manifest.get("index_sha256"),
-                  "documents": ix.n_docs, "ranking": ix.ranking.as_dict()},
+                  "documents": ix.n_docs, "ranking": ix.ranking.as_dict(), "impact_nnz": int(len(ix.data)),
+                  "impact_mib": round(ix.memory_bytes() / 2**20, 1), "impact_load_s": round(ix.impact_seconds, 3)},
         "queries": {"path": str(queries_path), "n": len(qs)}, "k": k, "repeat": repeat,
-        "what": "LexicalIndex.search: query building + FTS5 MATCH (MaxScore plan) + top-k fetch, one query at a time",
+        "what": "LexicalIndex.search: query building + impact-matrix scoring + top-k, one query at a time",
         "cold": {**med([c["times"] for c in cold["cold"]]),
                  "open_ms": statistics.median(c["open_ms"] for c in cold["cold"]),
                  "note": "fresh process, first pass, no warm-up; OS file cache not dropped"},

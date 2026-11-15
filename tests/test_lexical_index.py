@@ -61,11 +61,9 @@ def synthetic_docs(n=400, seed=3):
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
     root = tmp_path_factory.mktemp("c2")
-    path = root / "a.sqlite"
-    info = LB.build_index([ListSource(synthetic_docs())], path, workers=1, progress=lambda m: None)
     bdir = root / "build"
     bdir.mkdir()
-    path.rename(bdir / "lexical.sqlite")
+    info = LB.build_index([ListSource(synthetic_docs())], bdir / "lexical.sqlite", workers=1, progress=lambda m: None)
     (bdir / "manifest.json").write_text(json.dumps({
         "build_id": "fixture", "tokenizer": {**LB.TOKENIZER.as_dict()}, "ranking": LB.RANKING.with_(max_df_ratio=1.0).as_dict()}))
     return {"root": root, "dir": bdir, "info": info}
@@ -80,15 +78,22 @@ def ix(built):
 def test_counts_and_identity_check(built, ix):
     assert ix.count() == ix.n_docs == 402
     assert built["info"]["identity_check"]["mismatches"] == 0
-    assert set(json.loads(ix._conn().execute("SELECT value FROM meta WHERE key='max_score_weights'").fetchone()[0])) \
-        == set(LB.RANKING.weights)
+    assert tuple(json.loads(ix.meta["impact_weights"])) == tuple(LB.RANKING.weights)
+    assert info_nnz(built) == len(ix.data) and ix.memory_bytes() > 0
+
+
+def info_nnz(built):
+    return built["info"]["impact"]["nnz"]
 
 
 def test_rebuild_is_byte_identical(tmp_path):
-    a, b = tmp_path / "a.sqlite", tmp_path / "b.sqlite"
-    LB.build_index([ListSource(synthetic_docs())], a, workers=1, progress=lambda m: None)
-    LB.build_index([ListSource(synthetic_docs())], b, workers=2, progress=lambda m: None)
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    a, b = tmp_path / "a" / "lexical.sqlite", tmp_path / "b" / "lexical.sqlite"
+    ia = LB.build_index([ListSource(synthetic_docs())], a, workers=1, progress=lambda m: None)
+    ib = LB.build_index([ListSource(synthetic_docs())], b, workers=2, progress=lambda m: None)
     assert LB.sha256_file(a) == LB.sha256_file(b)
+    assert ia["impact"]["sha256"] == ib["impact"]["sha256"]
 
 
 def test_identity_check_rejects_a_foreign_tokenizer(tmp_path, monkeypatch):
@@ -105,7 +110,7 @@ def test_rowid_scheme_round_trip():
 
 
 def test_identifier_ranks_own_document_first(ix):
-    hits = ix.search("CVE-2021-44228", k=5, ranking=ix.ranking.with_(weights={"ids": 20.0})).hits
+    hits = ix.search("CVE-2021-44228", k=5).hits
     assert hits[0][0] == "CVE-2021-44228"
 
 
@@ -128,25 +133,33 @@ def test_deterministic_order(ix):
     assert a == b
 
 
-def test_maxscore_equals_plain(ix):
+def test_impact_matrix_equals_fts5_bm25(ix):
+    """Same documents in the same order, scores equal within 1e-5 relative, for random queries, every k and both
+    kind filters, against the plain FTS5 query with the build's weights."""
     rnd = random.Random(11)
-    weights = [ix.ranking, ix.ranking.with_(weights={"description": 2.0, "title": 4.0, "ids": 10.0})]
-    for r in weights:
-        for _ in range(150):
-            q = " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(2, 12)))
-            for k in (1, 5, 50):
-                a = ix.search(q, k=k, ranking=r, strategy="exact")
-                b = ix.search(q, k=k, ranking=r, strategy="plain")
-                assert [round(s, 9) for _, s in a.hits] == [round(s, 9) for _, s in b.hits], q
-                # documents with equal scores may only swap among themselves
-                assert sorted(a.hits, key=lambda h: (-round(h[1], 9), h[0])) == \
-                    sorted(b.hits, key=lambda h: (-round(h[1], 9), h[0])) or \
-                    {d for d, _ in a.hits} == {d for d, _ in b.hits}
+    for _ in range(300):
+        q = " ".join(rnd.choice(WORDS + ["log4j", "2.15.0", "CVE-2021-44228", "jndi"]) for _ in range(rnd.randint(1, 14)))
+        for k in (1, 5, 50, 1000):
+            a = ix.search(q, k=k).hits
+            b = ix.search_fts5(q, k=k).hits
+            assert [d for d, _ in a] == [d for d, _ in b], q
+            assert all(abs(x - y) <= 1e-5 * max(abs(y), 1e-12) for (_, x), (_, y) in zip(a, b)), q
+
+
+def test_ranking_weights_must_match_the_matrix(built):
+    with pytest.raises(RuntimeError, match="impact"):
+        LexicalIndex.open(built["dir"], ranking=RankingConfig(weights=tuple([1.0] * len(COLUMNS))))
+
+
+def test_zero_weight_refused_at_build(tmp_path):
+    with pytest.raises(LB.BuildError, match="positive"):
+        LB.build_index([ListSource(synthetic_docs(5))], tmp_path / "z.sqlite", workers=1, progress=lambda m: None,
+                       ranking=RankingConfig(weights=tuple([1.0] * (len(COLUMNS) - 1) + [0.0])))
 
 
 def test_bm25_weights_change_ranking(ix):
     only_title = RankingConfig(weights=tuple(1.0 if c == "title" else 0.0 for c in COLUMNS))
-    res = ix.search("jndi", k=3, ranking=only_title)
+    res = ix.search_fts5("jndi", k=3, ranking=only_title)
     assert res.hits[0][0] == "CVE-2021-44228"
 
 
@@ -185,8 +198,6 @@ def test_search_argument_validation(ix):
             ix.search("x", k=k)
     with pytest.raises(ValueError):
         ix.search("overflow", kinds=("nope",))
-    with pytest.raises(ValueError):
-        ix.search("overflow", strategy="fast")
 
 
 def test_refuses_mismatched_tokenizer(built, tmp_path):
@@ -205,11 +216,9 @@ def test_attack_kind_through_row_source(tmp_path):
              "description": "North Korean state-sponsored threat group", "dense_text": "ignored"},
             {"doc_id": "attack:S0334", "title": "DarkComet", "aliases": ["DarkKomet"], "description": "remote access tool"}]
     src = RowSource("attack", lambda: rows, {"title": "title", "aliases": "aliases", "description": "description"})
-    path = tmp_path / "k.sqlite"
-    LB.build_index([ListSource(synthetic_docs(30)), src], path, workers=1, progress=lambda m: None)
     bdir = tmp_path / "bd"
     bdir.mkdir()
-    path.rename(bdir / "lexical.sqlite")
+    LB.build_index([ListSource(synthetic_docs(30)), src], bdir / "lexical.sqlite", workers=1, progress=lambda m: None)
     (bdir / "manifest.json").write_text(json.dumps({"tokenizer": LB.TOKENIZER.as_dict(), "ranking": LB.RANKING.with_(max_df_ratio=1.0).as_dict()}))
     with LexicalIndex.open(bdir, verify=True) as ix:
         assert ix.count("attack") == 2
@@ -218,6 +227,31 @@ def test_attack_kind_through_row_source(tmp_path):
         assert ix.search("hidden cobra").hits == []  # default: CVE documents only
         assert all(d.startswith("CVE-") for d, _ in ix.search("remote access tool code").hits)
         assert any(d == "attack:S0334" for d, _ in ix.search("remote access tool", kinds=None).hits)
+        for q in ("remote access tool", "hidden cobra code", "G0032 overflow"):
+            for kinds in (None, ("attack",), ("cve",)):
+                assert [d for d, _ in ix.search(q, kinds=kinds).hits] == \
+                    [d for d, _ in ix.search_fts5(q, kinds=kinds).hits]
+
+
+def test_attack_sqlite_reader(tmp_path):
+    import sqlite3 as sq
+    from threat_retrieval_engine.lexical.sources import AttackSqliteReader
+    d = tmp_path / "attack" / "b1"
+    d.mkdir(parents=True)
+    (tmp_path / "attack" / "LATEST").write_text("b1")
+    db = sq.connect(d / "attack.sqlite")
+    db.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+    db.execute("INSERT INTO meta VALUES ('build_id', 'b1')")
+    db.execute("CREATE TABLE objects (doc_id TEXT, title TEXT, aliases TEXT, description TEXT, state TEXT, "
+               "searchable INTEGER)")
+    db.executemany("INSERT INTO objects VALUES (?,?,?,?,?,?)", [
+        ("attack:G0032", "Lazarus Group", '["HIDDEN COBRA"]', "North Korean group", "active", 1),
+        ("attack:G9999", "Old", None, "revoked", "revoked", 0)])
+    db.commit()
+    db.close()
+    rows = list(AttackSqliteReader(tmp_path / "attack").iter_searchable())
+    assert rows == [{"doc_id": "attack:G0032", "title": "Lazarus Group", "aliases": ["HIDDEN COBRA"],
+                     "description": "North Korean group"}]
 
 
 def test_end_to_end_from_c1_fixture_store(tmp_path):

@@ -3,7 +3,7 @@
 #     scripts/lexical/server_latency.sh [<lexical build dir>]        (default: data/lexical/LATEST)
 #
 # 1. writes the dev-split query texts (never test) to a temporary file;
-# 2. copies the index build (lexical.sqlite + manifest.json; skipped when the server copy has the same sha256)
+# 2. copies the index build (lexical.sqlite, impact_*.npy, manifest.json; skipped when the server copy has the same sha256)
 #    and the stdlib-only code it needs (threat_retrieval_engine/{__init__,runtime}.py, text/, lexical/) to
 #    ~/team2/lexical on the server; nothing is written to ~/data, ~/config or ~/threat_retrieval_engine;
 # 3. under the benchmark lock (scripts/bench/server_lock.sh, flock on ~/team2/run/bench.lock; waits while B6 or
@@ -56,7 +56,7 @@ cp_to "$TMPQ" "$TARGET:team2/lexical/dev_queries.jsonl" || exit 1
 rm -f "$TMPQ"
 remote_sha="$(rs "sha256sum ~/team2/lexical/builds/$BID/lexical.sqlite 2>/dev/null | cut -d' ' -f1")"
 if [ "$remote_sha" != "$SHA" ]; then
-  cp_to "$BUILD/lexical.sqlite" "$BUILD/manifest.json" "$TARGET:team2/lexical/builds/$BID/" || exit 1
+  cp_to "$BUILD/lexical.sqlite" "$BUILD/manifest.json" "$BUILD"/impact_*.npy "$TARGET:team2/lexical/builds/$BID/" || exit 1
 fi
 rs "cd ~/team2/lexical && sed -i 's/\r$//' server_lock.sh && chmod +x server_lock.sh" || exit 1
 remote_sha="$(rs "sha256sum ~/team2/lexical/builds/$BID/lexical.sqlite | cut -d' ' -f1")"

@@ -81,11 +81,18 @@ variants:
 
   v2_lexical:
     adapter: inprocess
-    description: C2 lexical index (SQLite FTS5, per-column BM25 weights, domain tokenizer), top 100 CVE documents;
+    description: C2 lexical index (FTS5 bm25, per-column weights, as a precomputed impact matrix), top 100 CVE documents;
       index from $TRE_LEXICAL_DIR or data/lexical/LATEST
     service: v2
     factory: threat_retrieval_engine.lexical.eval_adapter:make
     options: {k: 100}
+
+  v2_lexical_attack:
+    adapter: inprocess
+    description: as v2_lexical, over CVE and ATT&CK documents (index built with --attack)
+    service: v2
+    factory: threat_retrieval_engine.lexical.eval_adapter:make
+    options: {k: 100, kinds: all}
 
   v1_lexical:
     adapter: inprocess

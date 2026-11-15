@@ -5,19 +5,27 @@
         res = ix.search("log4j jndi remote code execution", k=100)
         res.hits                                         # [(doc_id, score), ...], best first, one per document
 
-Query building (``build_query``) never passes user text to FTS5 as syntax. The text is cut to
-``max_query_chars``, tokenized by the shared domain tokenizer (the same function that produced the indexed
-text), de-duplicated, filtered (stop words, terms absent from the index, terms above ``max_df_ratio``),
-capped at ``max_terms`` rarest terms, and every surviving term is checked by ``is_valid_token`` and written
-as a double-quoted FTS5 string. The MATCH expression is therefore always ``"t1" OR "t2" OR ...``: operators,
-column filters, NEAR, prefix ``*``, ``^``, parentheses and quotes in the input are only ever separators.
-An input with no usable term returns no hits without touching FTS5.
+Scoring. The column weights are fixed at build time, and FTS5's bm25() is a sum over query terms of one
+contribution per (term, document) (k1 = 1.2, b = 0.75, weighted term frequency, whole-document length).
+The build computes every such contribution once, exactly as bm25() does, and stores them as a term-major
+CSR matrix (``impact``: float64 values, int32 document indices). ``search`` adds the rows of the query's
+terms into a float64 accumulator and takes the top k (ties broken by rowid). The ranking equals the plain
+FTS5 query ``SELECT rowid, bm25(lex, w...) ... ORDER BY bm25, rowid`` with the build's weights; check_c2
+verifies this on every train and dev query. ``search_fts5`` runs that reference query (tests, check_c2 and
+tuning of weights, which the matrix cannot change).
 
-Ranking is FTS5's ``bm25()`` with per-column weights; ties are broken by rowid, so the order is
-deterministic. Scores are reported as ``-bm25`` (larger is better).
+Query building (``build_query``) never passes user text to FTS5 as syntax: the text is cut to
+``max_query_chars``, tokenized by the shared domain tokenizer, de-duplicated, filtered (stop words, terms
+absent from the index, terms above ``max_df_ratio``) and capped at ``max_terms`` rarest terms; every term
+passes ``is_valid_token`` and is written as a double-quoted FTS5 string, so the reference MATCH expression is
+always ``"t1" OR "t2" ...``. An input with no usable term returns no hits.
+
+The matrix is read fully into memory at open (``np.load`` without memory mapping) and its files are checked
+against the manifest's sha256 (startup integrity).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -27,18 +35,16 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
+
 from ..text.tokenizer import ENGLISH_STOP_WORDS, TokenizerConfig, is_valid_token, tokenize
 from .config import RankingConfig
-from .schema import COLUMNS, KIND_RANGES, LEXICAL_FORMAT, cve_id_from_rowid
+from .schema import COLUMNS, IMPACT_FILES, KIND_RANGES, LEXICAL_FORMAT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = REPO_ROOT / "data" / "lexical"
 INDEX_FILE = "lexical.sqlite"
 MAX_K = 1000
-STRATEGIES = ("budget", "exact", "plain")
-BM25_K1 = 1.2  # fixed inside FTS5 bm25()
-# Terms in at least this share of documents start on the non-essential side of the MaxScore split.
-NON_ESSENTIAL_MIN_DF_RATIO = 0.02
 
 
 class IndexError_(RuntimeError):
@@ -64,16 +70,24 @@ def resolve_build(path: Path | str | None = None) -> Path:
     raise FileNotFoundError(f"no lexical index build found at {p}")
 
 
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 @dataclass
 class Query:
-    """A built query: the MATCH expression and how it was derived (for logging and the parser)."""
+    """A built query: the reference MATCH expression and how it was derived (for logging and the parser)."""
 
     match: str | None
     terms: list[str]
     dropped: dict[str, list[str]] = field(default_factory=dict)
     truncated: bool = False
     df: dict[str, int] = field(default_factory=dict)
-    max_score: dict[str, float] = field(default_factory=dict)
+    tid: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -85,7 +99,7 @@ class SearchResult:
 
 class LexicalIndex:
     def __init__(self, build_dir: Path | str, ranking: RankingConfig | None = None, mmap: bool = True,
-                 verify: bool = False):
+                 verify: bool = False, load_impact: bool = True):
         self.build_dir = resolve_build(build_dir)
         self.path = self.build_dir / INDEX_FILE
         mp = self.build_dir / "manifest.json"
@@ -107,13 +121,34 @@ class LexicalIndex:
             raise IndexError_(f"{self.path}: built with tokenizer {meta.get('tokenizer')!r}; this code tokenizes as "
                               f"{self.tokenizer.key()!r} (rebuild the index)")
         self.n_docs = int(meta["documents"])
-        if ranking is None:
-            ranking = RankingConfig.from_dict(self.manifest["ranking"]) if "ranking" in self.manifest else RankingConfig()
-        self.ranking = ranking
-        msw = meta.get("max_score_weights")
-        self.max_score_weights = tuple(json.loads(msw)) if msw else None
+        self.impact_weights = tuple(json.loads(meta["impact_weights"]))
+        built = RankingConfig.from_dict(self.manifest["ranking"]) if "ranking" in self.manifest else None
+        self.ranking = ranking or built or RankingConfig().with_(weights=dict(zip(COLUMNS, self.impact_weights)))
+        if tuple(self.ranking.weights) != self.impact_weights:
+            raise IndexError_(f"{self.path}: ranking weights {self.ranking.weights} differ from the weights the impact "
+                              f"matrix was built with {self.impact_weights}; rebuild, or use search_fts5")
+        self.kind_doc_range = {k: tuple(v) for k, v in json.loads(meta["kind_doc_range"]).items()}
+        self.impact_seconds = None
+        if load_impact:
+            self._load_impact()
         if verify:
             self.verify()
+
+    def _load_impact(self) -> None:
+        t0 = time.perf_counter()
+        want = (self.manifest.get("impact") or {}).get("sha256", {})
+        arrays = {}
+        for name in IMPACT_FILES:
+            p = self.build_dir / f"impact_{name}.npy"
+            if want and _sha256(p) != want.get(name):
+                raise IndexError_(f"{p}: sha256 differs from the manifest")
+            arrays[name] = np.load(p, mmap_mode=None, allow_pickle=False)
+        self.indptr, self.indices, self.data, self.rowids = (arrays["indptr"], arrays["indices"], arrays["data"],
+                                                             arrays["rowids"])
+        if len(self.rowids) != self.n_docs or len(self.indptr) != int(self.meta["terms"]) + 1 \
+                or int(self.indptr[-1]) != len(self.indices) or len(self.indices) != len(self.data):
+            raise IndexError_(f"{self.build_dir}: impact matrix shape does not match the index")
+        self.impact_seconds = time.perf_counter() - t0
 
     # ------------------------------------------------------------------ lifecycle
     @classmethod
@@ -129,8 +164,7 @@ class LexicalIndex:
             if self._mmap:
                 db.execute(f"PRAGMA mmap_size={max(1, self.path.stat().st_size) + (1 << 20)}")
             self._local.db = db
-            conns = self.__dict__.setdefault("_all_conns", [])
-            conns.append(db)
+            self.__dict__.setdefault("_all_conns", []).append(db)
         return db
 
     def close(self) -> None:
@@ -159,28 +193,30 @@ class LexicalIndex:
         return db.execute("SELECT COUNT(*) FROM docs WHERE doc_kind = ?", (kind,)).fetchone()[0]
 
     def verify(self) -> None:
-        """Startup consistency: document count in docs, meta and the FTS5 table agree."""
+        """Startup consistency: documents in docs, meta, the FTS5 table and the impact matrix agree."""
         db = self._conn()
         n_docs = db.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
         n_fts = db.execute("SELECT COUNT(*) FROM lex").fetchone()[0]
-        if not (n_docs == n_fts == self.n_docs):
-            raise IndexError_(f"{self.path}: docs {n_docs}, fts {n_fts}, meta {self.n_docs} differ")
+        n_imp = len(self.rowids) if hasattr(self, "rowids") else n_docs
+        if not (n_docs == n_fts == self.n_docs == n_imp):
+            raise IndexError_(f"{self.path}: docs {n_docs}, fts {n_fts}, meta {self.n_docs}, impact {n_imp} differ")
 
     def warm(self) -> float:
-        """Read every page of the index once through this connection (mmap and SQLite page cache), so the
-        first queries after a start do not pay for page faults. Returns the seconds taken. The service calls
-        this at start-up, before it reports ready."""
+        """Touch the SQLite pages the query builder reads (vocabulary, documents). The impact matrix is
+        already in memory. Returns the seconds taken; the service calls this at start-up."""
         t0 = time.perf_counter()
         db = self._conn()
-        for sql in ("SELECT SUM(LENGTH(block)) FROM lex_data", "SELECT SUM(LENGTH(sz)) FROM lex_docsize",
-                    "SELECT COUNT(*), SUM(LENGTH(term)) FROM lex_idx", "SELECT SUM(LENGTH(term) + df) FROM vocab",
-                    "SELECT SUM(LENGTH(column_tokens)) FROM docs"):
+        for sql in ("SELECT SUM(LENGTH(term) + df + tid) FROM vocab", "SELECT SUM(LENGTH(doc_id)) FROM docs"):
             db.execute(sql).fetchone()
         return time.perf_counter() - t0
 
+    def memory_bytes(self) -> int:
+        return int(sum(a.nbytes for a in (self.indptr, self.indices, self.data, self.rowids)))
+
     def info(self) -> dict:
         return {"build_id": self.build_id, "documents": self.n_docs, "tokenizer": self.meta.get("tokenizer"),
-                "ranking": self.ranking.as_dict(), "index_sha256": self.manifest.get("index_sha256")}
+                "ranking": self.ranking.as_dict(), "index_sha256": self.manifest.get("index_sha256"),
+                "impact_nnz": int(len(self.data)), "impact_bytes": self.memory_bytes()}
 
     # ------------------------------------------------------------------ query building
     def build_query(self, text: str | None, ranking: RankingConfig | None = None) -> Query:
@@ -204,7 +240,7 @@ class LexicalIndex:
         if invalid:  # cannot happen for tokenizer output; kept as the last line of defence
             dropped["invalid"] = invalid
             uniq = [t for t in uniq if is_valid_token(t)]
-        df, max_score = self._vocab(uniq)
+        df, tid = self._vocab(uniq)
         dropped["not_in_index"] = [t for t in uniq if df.get(t, 0) == 0]
         uniq = [t for t in uniq if df.get(t, 0) > 0]
         if r.max_df_ratio < 1:
@@ -219,177 +255,91 @@ class LexicalIndex:
         dropped = {k: v for k, v in dropped.items() if v}
         if not uniq:
             return Query(None, [], dropped, truncated)
-        match = _or(uniq)
-        return Query(match, uniq, dropped, truncated, {t: df[t] for t in uniq},
-                     {t: max_score[t] for t in uniq if max_score.get(t) is not None})
+        return Query(_or(uniq), uniq, dropped, truncated, {t: df[t] for t in uniq}, {t: tid[t] for t in uniq})
 
-    def _vocab(self, terms: list[str]) -> tuple[dict[str, int], dict[str, float | None]]:
+    def _vocab(self, terms: list[str]) -> tuple[dict[str, int], dict[str, int]]:
         df: dict[str, int] = {}
-        ms: dict[str, float | None] = {}
+        tid: dict[str, int] = {}
         if not terms:
-            return df, ms
+            return df, tid
         db = self._conn()
         for i in range(0, len(terms), 500):
             part = terms[i:i + 500]
-            for t, d, m in db.execute(f"SELECT term, df, max_score FROM vocab WHERE term IN "
-                                      f"({','.join('?' * len(part))})", part):
+            for t, d, n in db.execute(f"SELECT term, df, tid FROM vocab WHERE term IN ({','.join('?' * len(part))})",
+                                      part):
                 df[t] = d
-                ms[t] = m
-        return df, ms
+                tid[t] = n
+        return df, tid
 
     # ------------------------------------------------------------------ search
-    def search(self, text: str | None, k: int = 100, kinds: tuple[str, ...] | None = ("cve",),
-               ranking: RankingConfig | None = None, strategy: str = "budget") -> SearchResult:
-        """Top ``k`` documents for ``text``, scored by BM25 over all query terms.
-
-        Strategies (all score a matched document with every query term; they differ in which documents are
-        matched):
-
-        * ``budget`` (default): documents containing at least one of the rarest query terms, taken rarest
-          first while their summed document frequency stays within ``ranking.candidate_budget`` (at least
-          one term). When a single term already exceeds the budget, documents containing both of the two
-          rarest terms. The result is exact whenever the MaxScore bound proves it (``timings_ms
-          ["plan_exact"]``); otherwise documents that contain only common query terms are not considered.
-          The recall cost of this was measured against ``exact`` on train and dev (plan section 12, C2).
-        * ``exact``: the plain query's ranking with less work (MaxScore, ``_maxscore``); unbounded work.
-        * ``plain``: one FTS5 OR query over every term (reference for tests and measurements).
-        """
+    def _check(self, k, kinds) -> tuple[int, list[tuple[int, int]]]:
         if not isinstance(k, int) or isinstance(k, bool) or k < 1:
             raise ValueError("k must be a positive integer")
-        if strategy not in STRATEGIES:
-            raise ValueError(f"strategy must be one of {STRATEGIES}")
-        k = min(k, MAX_K)
-        kind_sql, kind_params = _kind_filter(kinds)
+        if kinds is None:
+            kinds = tuple(self.kind_doc_range)
+        if isinstance(kinds, str):
+            kinds = (kinds,)
+        bad = [x for x in kinds if x not in KIND_RANGES]
+        if bad or not kinds:
+            raise ValueError(f"unknown document kinds {bad or kinds}")
+        return min(k, MAX_K), [self.kind_doc_range[x] for x in kinds if x in self.kind_doc_range]
+
+    def search(self, text: str | None, k: int = 100, kinds: tuple[str, ...] | None = ("cve",)) -> SearchResult:
+        """Top ``k`` documents for ``text`` by BM25 over all query terms (one document once, best first)."""
+        k, ranges = self._check(k, kinds)
+        t0 = time.perf_counter()
+        q = self.build_query(text)
+        t1 = time.perf_counter()
+        hits: list[tuple[str, float]] = []
+        if q.match is not None and ranges:
+            acc = np.zeros(self.n_docs, dtype=np.float64)
+            ip, ix, dv = self.indptr, self.indices, self.data
+            for t in q.terms:  # same order as the phrases of the reference MATCH expression
+                n = q.tid[t]
+                s, e = int(ip[n]), int(ip[n + 1])
+                acc[ix[s:e]] += dv[s:e]
+            if len(ranges) != len(self.kind_doc_range):
+                mask = np.zeros(self.n_docs, dtype=bool)
+                for lo, hi in ranges:
+                    mask[lo:hi] = True
+                acc[~mask] = 0.0
+            nz = np.flatnonzero(acc)
+            if len(nz) > k:
+                vals = acc[nz]
+                kth = np.partition(vals, len(vals) - k)[len(vals) - k]
+                nz = nz[vals >= kth]  # every document tied with the k-th score stays for the rowid tie-break
+            order = np.lexsort((self.rowids[nz], -acc[nz]))[:k]
+            sel = nz[order]
+            hits = self._doc_ids([(int(r), -float(s)) for r, s in zip(self.rowids[sel], acc[sel])])
+        t2 = time.perf_counter()
+        return SearchResult(hits, q, {"build_query": (t1 - t0) * 1000, "score": (t2 - t1) * 1000,
+                                      "total": (t2 - t0) * 1000})
+
+    def search_fts5(self, text: str | None, k: int = 100, kinds: tuple[str, ...] | None = ("cve",),
+                    ranking: RankingConfig | None = None) -> SearchResult:
+        """Reference: one FTS5 OR query over every term, ranked by bm25() with ``ranking``'s weights (any
+        weights; slow on common terms). Used by check_c2 for the equality check and by weight tuning."""
+        k, _ = self._check(k, kinds)
         r = ranking or self.ranking
         t0 = time.perf_counter()
         q = self.build_query(text, r)
-        t1 = time.perf_counter()
         hits: list[tuple[str, float]] = []
-        plan: dict = {}
         if q.match is not None:
+            kind_sql, kind_params = _kind_filter(kinds)
             weights = ", ".join(_fmt_weight(w) for w in r.weights)
-            if strategy == "plain" or len(q.terms) == 1:
-                rows = self._run(_or(q.terms), [], k, weights, kind_sql, kind_params)
-                plan = {"runs": 1, "essential": len(q.terms), "non_essential": 0, "exact": True}
-            elif strategy == "exact":
-                rows, plan = self._maxscore(q, k, r, weights, kind_sql, kind_params)
-            else:
-                rows, plan = self._budget(q, k, r, weights, kind_sql, kind_params)
-            hits = self._doc_ids(rows)
-        t2 = time.perf_counter()
-        return SearchResult(hits, q, {"build_query": (t1 - t0) * 1000, "match": (t2 - t1) * 1000,
-                                      "total": (t2 - t0) * 1000, **{f"plan_{a}": b for a, b in plan.items()}})
-
-    def _run(self, essential: str, rest: list[str], k: int, weights: str, kind_sql: str,
-             kind_params: list) -> list[tuple[int, float]]:
-        """Documents matching the ``essential`` expression, scored by BM25 over its terms plus ``rest``.
-
-        With ``rest`` empty this is one FTS5 query. Otherwise two are combined: documents that also contain a
-        ``rest`` term are scored by ``(E) AND (R1 OR R2 ...)`` (all their phrases), the others by ``E`` alone;
-        bm25 is a sum over phrases, so each document's best (lowest) bm25 is its full score. A document
-        appears at most twice, so the first ``2k`` rows hold the best ``k`` distinct ones."""
-        db = self._conn()
-        if not rest:
             sql = (f"SELECT rowid, bm25(lex, {weights}) AS s FROM lex WHERE lex MATCH ?{kind_sql} "
                    f"ORDER BY s, rowid LIMIT ?")
-            return db.execute(sql, [essential, *kind_params, k]).fetchall()
-        m_both = f"({essential}) AND ({_or(rest)})"
-        sql = (f"SELECT rowid, s FROM (SELECT rowid, bm25(lex, {weights}) AS s FROM lex WHERE lex MATCH ?{kind_sql} "
-               f"UNION ALL SELECT rowid, bm25(lex, {weights}) AS s FROM lex WHERE lex MATCH ?{kind_sql}) "
-               f"ORDER BY s, rowid LIMIT ?")
-        out, seen = [], set()
-        for rid, sc in db.execute(sql, [m_both, *kind_params, essential, *kind_params, 2 * k]):
-            if rid not in seen:
-                seen.add(rid)
-                out.append((rid, sc))
-                if len(out) == k:
-                    break
-        return out
-
-    def _theta_ok(self, rows: list, k: int, rest: list[str], ub: dict[str, float]) -> bool:
-        """MaxScore test: no document outside the matched set (it holds only ``rest`` terms) can reach the
-        k-th score found."""
-        if not rest:
-            return True
-        theta = -rows[k - 1][1] if len(rows) >= k else 0.0
-        return _bound(sum(ub[t] for t in rest)) < theta
-
-    def _budget(self, q: Query, k: int, r: RankingConfig, weights: str, kind_sql: str, kind_params: list
-                ) -> tuple[list[tuple[int, float]], dict]:
-        order = sorted(q.terms, key=lambda t: (q.df[t], t))
-        ub = {t: self._upper_bound(t, q, r) for t in order}
-        if q.df[order[0]] > r.candidate_budget and len(order) >= 2:
-            essential, rest = order[:2], order[2:]
-            expr = f"{_quote(order[0])} AND {_quote(order[1])}"
-            rows = self._run(expr, rest, k, weights, kind_sql, kind_params)
-            # documents lacking either of the two terms were not considered: never provably exact
-            return rows, {"runs": 1, "essential": 2, "non_essential": len(rest), "exact": False, "mode": "and"}
-        essential, total = [], 0
-        for t in order:
-            if essential and total + q.df[t] > r.candidate_budget:
-                break
-            essential.append(t)
-            total += q.df[t]
-        rest = order[len(essential):]
-        rows = self._run(_or(essential), rest, k, weights, kind_sql, kind_params)
-        return rows, {"runs": 1, "essential": len(essential), "non_essential": len(rest),
-                      "exact": self._theta_ok(rows, k, rest, ub), "mode": "or"}
-
-    def _maxscore(self, q: Query, k: int, r: RankingConfig, weights: str, kind_sql: str, kind_params: list
-                  ) -> tuple[list[tuple[int, float]], dict]:
-        """Exact top-k with the MaxScore idea (Turtle and Flood, 1995) on top of FTS5.
-
-        Terms are split into essential (rare) and non-essential (common) ones; only documents containing an
-        essential term are scored, with every term. A document containing only non-essential terms scores at
-        most UB = sum of their upper bounds (each term's largest contribution to any document: measured at
-        build time for the manifest's weights, else the BM25 supremum idf * (k1 + 1)). If UB is below the
-        k-th score found, no such document can enter the top k and the result equals the plain query's.
-        Otherwise common terms move to the essential side until the bound holds for the k-th score already
-        found; the k-th score can only rise when the essential side grows, so the second run is exact."""
-        order = sorted(q.terms, key=lambda t: (q.df[t], t))
-        ub = {t: self._upper_bound(t, q, r) for t in order}
-        cut = NON_ESSENTIAL_MIN_DF_RATIO * self.n_docs
-        rest = [t for t in order[1:] if q.df[t] >= cut]
-        rest_set = set(rest)
-        essential = [t for t in order if t not in rest_set]
-        runs = 0
-        while True:
-            rows = self._run(_or(essential), rest, k, weights, kind_sql, kind_params)
-            runs += 1
-            if self._theta_ok(rows, k, rest, ub):
-                break
-            theta = -rows[k - 1][1] if len(rows) >= k else 0.0
-            while rest and _bound(sum(ub[t] for t in rest)) >= theta:
-                essential.append(rest.pop(0))  # rest is ordered rarest first
-        return rows, {"runs": runs, "essential": len(essential), "non_essential": len(rest), "exact": True}
-
-    def _upper_bound(self, term: str, q: Query, r: RankingConfig) -> float:
-        ms = q.max_score.get(term)
-        if ms is not None and tuple(r.weights) == self.max_score_weights:
-            return ms
-        df = q.df[term]
-        idf = math.log((self.n_docs - df + 0.5) / (df + 0.5))
-        if idf <= 0:
-            idf = 1e-6  # as FTS5 bm25()
-        return idf * (BM25_K1 + 1.0)
+            hits = self._doc_ids(self._conn().execute(sql, [q.match, *kind_params, k]).fetchall())
+        return SearchResult(hits, q, {"total": (time.perf_counter() - t0) * 1000})
 
     def _doc_ids(self, rows: list[tuple[int, float]]) -> list[tuple[str, float]]:
-        out = []
+        from .schema import cve_id_from_rowid
         other = [rid for rid, _ in rows if not KIND_RANGES["cve"][0] <= rid <= KIND_RANGES["cve"][1]]
         names = {}
         if other:
-            db = self._conn()
-            names = dict(db.execute(f"SELECT rowid, doc_id FROM docs WHERE rowid IN ({','.join('?' * len(other))})",
-                                    other))
-        for rid, s in rows:
-            did = names.get(rid) or cve_id_from_rowid(rid)
-            out.append((did, -float(s)))
-        return out
-
-
-def _bound(x: float) -> float:
-    """An upper bound inflated past floating-point rounding, so the exactness test stays conservative."""
-    return x * (1 + 1e-9) + 1e-12
+            names = dict(self._conn().execute(
+                f"SELECT rowid, doc_id FROM docs WHERE rowid IN ({','.join('?' * len(other))})", other))
+        return [(names.get(rid) or cve_id_from_rowid(rid), -float(s)) for rid, s in rows]
 
 
 def _or(terms: list[str]) -> str:
@@ -407,9 +357,6 @@ def _kind_filter(kinds: tuple[str, ...] | None) -> tuple[str, list]:
         return "", []
     if isinstance(kinds, str):
         kinds = (kinds,)
-    bad = [x for x in kinds if x not in KIND_RANGES]
-    if bad or not kinds:
-        raise ValueError(f"unknown document kinds {bad or kinds}")
     params: list = []
     for x in kinds:
         params += list(KIND_RANGES[x])

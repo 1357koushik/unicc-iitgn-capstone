@@ -11,6 +11,8 @@ Items
   tokenizer     unit round trips (FTS5 re-tokenizes pre-tokenized text identically, quoted tokens match) and, on
                 the real index, 1,000 sampled store rows re-tokenized: per-column token counts equal the index's,
                 every token is in the vocabulary
+  equality      impact-matrix ranking = plain FTS5 bm25() ranking (same order, scores within 1e-5 relative) on
+                every train and dev query; with ATT&CK documents also over all kinds on dev
   fuzz          N random and malformed queries: no exception, no FTS5 syntax error, each under 1 s
   recall_gate   per-slice dev Recall@50 of v2_lexical >= v1_lexical (harness reports); lists slices below
   latency_pc    PC p50/p95/p99 (warm and cold) reported for this index
@@ -62,8 +64,12 @@ def check_count(c: Checks, ix: LexicalIndex, store) -> None:
     for row in store.iter_searchable(columns=("cve_id",)):
         if cve_rowid(row["cve_id"]) not in have:
             missing += 1
-    c.ok("count", n_fts == n_docs == n_store and missing == 0,
-         f"fts rows {n_fts:,}, docs {n_docs:,}, store searchable {n_store:,}, searchable CVEs without a row {missing}")
+    n_all = ix.count()
+    att = [s for s in ix.manifest.get("inputs", []) if s.get("kind") == "attack"]
+    n_att, want_att = ix.count("attack"), (att[0].get("documents") if att else 0)
+    c.ok("count", n_fts == n_all == len(ix.rowids) and n_docs == n_store and missing == 0 and n_att == want_att,
+         f"fts rows {n_fts:,} = docs {n_all:,} = impact {len(ix.rowids):,}; CVE docs {n_docs:,} = store searchable "
+         f"{n_store:,}, searchable CVEs without a row {missing}; ATT&CK docs {n_att:,} = C9 active searchable {want_att:,}")
 
 
 def check_manifest(c: Checks, ix: LexicalIndex) -> None:
@@ -84,11 +90,14 @@ def check_determinism(c: Checks, ix: LexicalIndex, store_path: str | None, skip:
     try:
         ranking = RankingConfig.from_dict(ix.manifest["ranking"])
         tok = ix.tokenizer
-        bdir = build_lexical(store_path or ix.manifest["inputs"][0]["store_path"], tmp, tokenizer=tok,
+        from .sources import open_attack
+        extra = [open_attack(s["attack_path"]) for s in ix.manifest["inputs"] if s.get("kind") == "attack"]
+        bdir = build_lexical(store_path or ix.manifest["inputs"][0]["store_path"], tmp, tokenizer=tok, extra_sources=extra,
                              ranking=ranking, set_latest=False, progress=lambda m: None)
         sha = sha256_file(bdir / "lexical.sqlite")
         m2 = json.loads((bdir / "manifest.json").read_text(encoding="utf-8"))
-        same = sha == ix.manifest.get("index_sha256") and m2["documents_sha256"] == ix.manifest["documents_sha256"]
+        same = (sha == ix.manifest.get("index_sha256") and m2["documents_sha256"] == ix.manifest["documents_sha256"]
+                and m2["impact"]["sha256"] == ix.manifest["impact"]["sha256"])
         c.ok("determinism", same, f"rebuild sha256 {sha[:16]}... vs {ix.manifest.get('index_sha256', '')[:16]}...")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -144,6 +153,29 @@ def check_tokenizer(c: Checks, ix: LexicalIndex, store, n_sample: int = 1000) ->
         problems.append(f"{vocab_missing} sampled tokens missing from the vocabulary")
     c.ok("tokenizer", not problems, f"{len(texts)} unit round trips, {checked} sampled store rows re-tokenized; "
                                     + ("; ".join(problems[:5]) if problems else "identical"))
+
+
+def check_equality(c: Checks, ix: LexicalIndex) -> None:
+    """Impact-matrix ranking == plain FTS5 bm25() ranking on every train and dev query (top 100)."""
+    from .evaluate import load
+    bad, n, worst = [], 0, 0.0
+    kinds_list = [("cve",)] + ([None] if "attack" in ix.kind_doc_range else [])
+    for split in ("train", "dev"):
+        _, qs = load(split)
+        for q in qs:
+            for kinds in kinds_list:
+                if kinds is None and split != "dev":
+                    continue
+                a = ix.search(q.text, k=100, kinds=kinds).hits
+                b = ix.search_fts5(q.text, k=100, kinds=kinds).hits
+                n += 1
+                rel = max((abs(x - y) / max(abs(y), 1e-12) for (_, x), (_, y) in zip(a, b)), default=0.0)
+                worst = max(worst, rel)
+                if [d for d, _ in a] != [d for d, _ in b] or rel > 1e-5:
+                    bad.append(q.qid)
+    c.ok("equality", not bad, f"{n:,} rankings (train + dev{'; dev also over all kinds' if len(kinds_list) > 1 else ''}) "
+                              f"compared with plain FTS5 bm25: {len(bad)} differ; largest relative score difference "
+                              f"{worst:.2e}" + (f"; first {bad[:5]}" if bad else ""))
 
 
 def check_fuzz(c: Checks, ix: LexicalIndex, n: int) -> None:
@@ -203,7 +235,9 @@ def check_latency(c: Checks, ix: LexicalIndex, dirp: Path) -> None:
         w, k = pc["warm"]["median"], pc["cold"]["median"]
         c.add("latency_pc", "PASS", f"warm p50 {w['p50']:.1f} / p95 {w['p95']:.1f} / p99 {w['p99']:.1f} ms; cold p50 "
                                     f"{k['p50']:.1f} / p95 {k['p95']:.1f} / p99 {k['p99']:.1f} ms; after warm() p95 "
-                                    f"{pc['cold_after_warmup']['median']['p95']:.1f} ms ({pc['host']}, "
+                                    f"{pc['cold_after_warmup']['median']['p95']:.1f} ms; impact matrix "
+                                    f"{pc['index']['impact_nnz']:,} nnz, {pc['index']['impact_mib']} MiB, load "
+                                    f"{pc['index']['impact_load_s']} s ({pc['host']}, "
                                     f"{pc['queries']['n']} dev queries; {Path(pc['path']).name})")
     sv = _latency(dirp, "server-", sha)
     if sv is None:
@@ -235,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         check_count(c, ix, store)
         check_manifest(c, ix)
         check_tokenizer(c, ix, store)
+    check_equality(c, ix)
     check_fuzz(c, ix, a.fuzz)
     check_recall(c, ix, a.v2_report, a.v1_report)
     check_latency(c, ix, a.latency_dir)

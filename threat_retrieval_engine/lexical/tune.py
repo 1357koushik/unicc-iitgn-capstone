@@ -38,7 +38,7 @@ def run(ix: LexicalIndex, data, r: RankingConfig, threads: int = 8) -> tuple[dic
     lat: list[float] = []
 
     def fn(text: str) -> list[str]:
-        res = ix.search(text, k=100, ranking=r)
+        res = ix.search_fts5(text, k=100, ranking=r)  # any weights: the FTS5 reference
         lat.append(res.timings_ms["total"])
         return [d for d, _ in res.hits]
 
@@ -176,7 +176,7 @@ def cmd_k1b(a) -> dict:
         pools = []
         t0 = time.time()
         for q in qs:
-            res = ix.search(q.text, k=a.pool)
+            res = ix.search(q.text, k=a.pool)  # the built weights
             pools.append((q, res.query, [d for d, _ in res.hits]))
         print(f"[k1b] {split}: pools in {time.time() - t0:.0f} s", flush=True)
         for k1, b in grid:

@@ -7,10 +7,13 @@ Tables
             tokenizer is ``ascii`` with the tokenizer's joiners as token characters, under which such text
             re-tokenizes to exactly the same tokens (verified for every term at build time).
 ``docs``    rowid -> doc_id, doc_kind, number of tokens per column (JSON), sha256 of the indexed text.
-``vocab``   term -> document frequency, collection frequency (from ``fts5vocab``) and, for common terms, the
-            term's largest bm25 contribution to any document (the MaxScore upper bound, under the weights
-            recorded in ``meta.max_score_weights``). Read by the query builder to drop terms absent from the
-            index, to cap the number of query terms and to plan the MaxScore evaluation.
+``vocab``   term -> document frequency, collection frequency (from ``fts5vocab``) and the term's row in the
+            impact matrix. Read by the query builder.
+
+Impact matrix (``impact_indptr/indices/data/rowids.npy``): row ``tid`` holds, for every document containing
+the term, its bm25() contribution under the build's column weights (``meta.impact_weights``), computed as
+FTS5 computes it; ``indices`` are document positions (insertion order: kinds in build order, doc_id order
+inside a kind), ``rowids`` maps a position to its rowid. ``meta.kind_doc_range`` gives each kind's positions.
 ``meta``    key/value: format version, tokenizer key, counts, hashes.
 
 Document kinds and rowids
@@ -46,7 +49,10 @@ KIND_RANGES: dict[str, tuple[int, int]] = {
 }
 
 CVE_NUMBER_LIMIT = 10**9
-MAX_SCORE_MIN_DF = 1000  # terms this common get a measured MaxScore upper bound at build time
+# impact matrix files next to the index (impact_<name>.npy): term-major CSR of bm25 contributions
+IMPACT_FILES = ("indptr", "indices", "data", "rowids")
+BM25_K1 = 1.2  # fixed inside FTS5 bm25()
+BM25_B = 0.75
 
 
 def cve_rowid(cve_id: str) -> int:
@@ -85,8 +91,7 @@ CREATE TABLE vocab (
     term TEXT PRIMARY KEY,
     df   INTEGER NOT NULL,         -- documents containing the term (any column)
     cf   INTEGER NOT NULL,         -- occurrences of the term in the index
-    max_score REAL                 -- largest bm25 contribution of the term to any document under the weights
-                                   -- in meta.max_score_weights (terms with df >= MAX_SCORE_MIN_DF), else NULL
+    tid  INTEGER NOT NULL          -- row of the term in the impact matrix (terms in sorted order)
 ) WITHOUT ROWID;
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,

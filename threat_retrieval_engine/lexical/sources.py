@@ -105,3 +105,48 @@ def attack_source(attack_store) -> RowSource:
     return RowSource("attack", attack_store.iter_searchable,
                      {"title": "title", "aliases": "aliases", "description": "description"},
                      describe={"source": type(attack_store).__name__})
+
+
+class AttackSqliteReader:
+    """Minimal read-only reader of a C9 ATT&CK build (``attack.sqlite``), used when C9's package is not on the
+    path: the ``objects`` table, active and searchable rows, in doc_id order. With C9's code present,
+    ``threat_retrieval_engine.attack.reader.AttackStore`` is used instead (same rows)."""
+
+    def __init__(self, build_dir):
+        import sqlite3
+        from pathlib import Path
+        p = Path(build_dir)
+        if (p / "LATEST").is_file() and not (p / "attack.sqlite").is_file():
+            p = p / (p / "LATEST").read_text(encoding="utf-8").strip()
+        self.build_dir = p
+        self.path = p / "attack.sqlite"
+        if not self.path.is_file():
+            raise FileNotFoundError(f"no C9 ATT&CK build (attack.sqlite) at {build_dir}")
+        self._db = sqlite3.connect(f"file:{self.path.as_posix()}?mode=ro", uri=True, check_same_thread=False)
+        meta = dict(self._db.execute("SELECT key, value FROM meta"))
+        self.build_id = meta.get("build_id", p.name)
+
+    def iter_searchable(self):
+        import json
+        for doc_id, title, aliases, description in self._db.execute(
+                "SELECT doc_id, title, aliases, description FROM objects WHERE searchable = 1 AND state = 'active' "
+                "ORDER BY doc_id"):
+            if isinstance(aliases, str) and aliases.startswith("["):
+                aliases = json.loads(aliases)
+            yield {"doc_id": doc_id, "title": title, "aliases": aliases, "description": description}
+
+
+def open_attack(build_dir) -> RowSource:
+    """RowSource over a C9 build: C9's reader when importable, else ``AttackSqliteReader``."""
+    try:
+        from ..attack.reader import AttackStore  # type: ignore[import-not-found]
+        store = AttackStore.open(build_dir)
+        rows = lambda: (r for r in store.iter_searchable(columns=("doc_id", "title", "aliases", "description",
+                                                                     "state")) if r.get("state", "active") == "active")
+        bid = store.build_id
+    except ImportError:
+        store = AttackSqliteReader(build_dir)
+        rows, bid = store.iter_searchable, store.build_id
+    return RowSource("attack", rows, {"title": "title", "aliases": "aliases", "description": "description"},
+                     describe={"attack_build_id": bid, "attack_path": str(build_dir), "reader": type(store).__name__})
+

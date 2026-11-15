@@ -22,6 +22,8 @@ import sqlite3
 import sys
 import time
 import unicodedata
+
+import numpy as np
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +31,8 @@ from typing import Iterable, Iterator
 
 from ..text.tokenizer import TokenizerConfig, fts5_tokenize_option, tokenize
 from .config import RANKING, TOKENIZER, RankingConfig
-from .schema import COLUMNS, KIND_RANGES, LEXICAL_FORMAT, MAX_SCORE_MIN_DF, cve_id_from_rowid, cve_rowid, ddl
+from .schema import (BM25_B, BM25_K1, COLUMNS, IMPACT_FILES, KIND_RANGES, LEXICAL_FORMAT, cve_id_from_rowid,
+                     cve_rowid, ddl)
 from .sources import CveStoreSource, DocumentSource
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -62,25 +65,32 @@ def code_fingerprint() -> dict:
 
 # --------------------------------------------------------------------------- tokenizing workers
 _CFG: TokenizerConfig | None = None
+_WEIGHTS: tuple[float, ...] = tuple(RANKING.weights)
 
 
-def _init_worker(cfg_dict: dict) -> None:
-    global _CFG
+def _init_worker(cfg_dict: dict, weights: tuple[float, ...]) -> None:
+    global _CFG, _WEIGHTS
     _CFG = TokenizerConfig(**cfg_dict)
+    _WEIGHTS = tuple(weights)
 
 
 def _tokenize_chunk(chunk: list[tuple[str, dict[str, str]]]) -> tuple[list[tuple], dict[str, int]]:
+    """Per document: (doc_id, pre-tokenized text per column, tokens per column, {term: weighted tf}).
+    The weighted tf adds the column weight once per occurrence, as FTS5 bm25() accumulates it."""
     cfg = _CFG or TOKENIZER
     out = []
     cf: Counter = Counter()
     for doc_id, cols in chunk:
         texts, counts = [], []
-        for c in COLUMNS:
+        wtf: dict[str, float] = {}
+        for c, w in zip(COLUMNS, _WEIGHTS):
             toks = tokenize(cols.get(c) or "", cfg)
             cf.update(toks)
             texts.append(" ".join(toks))
             counts.append(len(toks))
-        out.append((doc_id, texts, counts))
+            for t in toks:
+                wtf[t] = wtf.get(t, 0.0) + w
+        out.append((doc_id, texts, counts, wtf))
     return out, dict(cf)
 
 
@@ -95,16 +105,16 @@ def _chunks(docs: Iterator[tuple[str, dict[str, str]]], n: int) -> Iterator[list
         yield buf
 
 
-def tokenized_documents(source: DocumentSource, cfg: TokenizerConfig, workers: int
+def tokenized_documents(source: DocumentSource, cfg: TokenizerConfig, workers: int, weights: tuple[float, ...]
                         ) -> Iterator[tuple[list[tuple], dict[str, int]]]:
     chunks = _chunks(source.iter_documents(), CHUNK)
     if workers <= 1:
-        _init_worker(cfg.__dict__)
+        _init_worker(cfg.__dict__, weights)
         for ch in chunks:
             yield _tokenize_chunk(ch)
         return
     ctx = mp.get_context("spawn")
-    with ctx.Pool(workers, initializer=_init_worker, initargs=(dict(cfg.__dict__),)) as pool:
+    with ctx.Pool(workers, initializer=_init_worker, initargs=(dict(cfg.__dict__), tuple(weights))) as pool:
         yield from pool.imap(_tokenize_chunk, chunks, chunksize=1)
 
 
@@ -124,9 +134,19 @@ def build_index(sources: Iterable[DocumentSource], db_path: Path, cfg: Tokenizer
         raise BuildError(f"{db_path} exists")
     db = sqlite3.connect(str(db_path), isolation_level=None)
     try:
-        return _build_into(db, sources, cfg, workers, progress, ranking)
+        info = _build_into(db, sources, cfg, workers, progress, ranking)
     finally:
         db.close()
+    arrays = info.pop("impact")
+    shas = {}
+    for name in IMPACT_FILES:
+        p = db_path.parent / f"impact_{name}.npy"
+        np.save(p, arrays[name], allow_pickle=False)
+        shas[name] = sha256_file(p)
+    info["impact"] = {"sha256": shas, "nnz": int(len(arrays["data"])),
+                      "bytes": int(sum(a.nbytes for a in arrays.values())),
+                      "dtypes": {k: str(v.dtype) for k, v in arrays.items()}}
+    return info
 
 
 def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: TokenizerConfig, workers: int,
@@ -135,8 +155,19 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
     db.execute("PRAGMA synchronous=OFF")
     db.execute("PRAGMA page_size=4096")
     db.execute("PRAGMA cache_size=-524288")
+    if not all(w > 0 for w in ranking.weights):
+        raise BuildError("every column weight must be positive for the impact matrix (a zero-weight column "
+                         "would match documents with score 0 in FTS5 but not in the matrix)")
+    weights = tuple(float(w) for w in ranking.weights)
     db.executescript(ddl(fts5_tokenize_option()))
     cf_total: Counter = Counter()
+    term_pid: dict[str, int] = {}          # provisional term ids, first-seen order
+    imp_pid: list[np.ndarray] = []         # per chunk: provisional term id of each (term, doc) pair
+    imp_doc: list[np.ndarray] = []         # document position
+    imp_wtf: list[np.ndarray] = []         # weighted term frequency
+    doc_len: list[int] = []                # tokens in all columns (FTS5's xColumnSize(-1))
+    doc_rowid: list[int] = []
+    kind_doc_range: dict[str, list[int]] = {}
     docs_hash = hashlib.sha256()
     counts: dict = {"documents": {}, "tokens_per_column": dict.fromkeys(COLUMNS, 0), "empty_documents": 0}
     described = []
@@ -151,15 +182,17 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
         n = 0
         last_id = None
         lo, hi = KIND_RANGES[kind]
+        first_pos = len(doc_rowid)
         db.execute("BEGIN")
-        for rows, cf in tokenized_documents(source, cfg, workers):
+        for rows, cf in tokenized_documents(source, cfg, workers, weights):
             ids = [r[0] for r in rows]
             if kind != "cve":  # ordinal rowids continue across chunks
                 rowids = [lo + n + i for i in range(len(rows))]
             else:
                 rowids = _rowids_for(kind, ids)
             fts_rows, doc_rows = [], []
-            for rid, (doc_id, texts, cnts) in zip(rowids, rows):
+            c_pid, c_doc, c_wtf = [], [], []
+            for rid, (doc_id, texts, cnts, wtf) in zip(rowids, rows):
                 if last_id is not None and doc_id <= last_id:
                     raise BuildError(f"{kind}: documents not in strict doc_id order at {doc_id}")
                 last_id = doc_id
@@ -175,6 +208,19 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
                     counts["tokens_per_column"][c] += k
                 if not any(cnts):
                     counts["empty_documents"] += 1
+                pos = len(doc_rowid)
+                doc_rowid.append(rid)
+                doc_len.append(sum(cnts))
+                for t, f in wtf.items():
+                    i = term_pid.get(t)
+                    if i is None:
+                        i = term_pid[t] = len(term_pid)
+                    c_pid.append(i)
+                    c_doc.append(pos)
+                    c_wtf.append(f)
+            imp_pid.append(np.asarray(c_pid, dtype=np.int64))
+            imp_doc.append(np.asarray(c_doc, dtype=np.int32))
+            imp_wtf.append(np.asarray(c_wtf, dtype=np.float64))
             db.executemany(f"INSERT INTO lex(rowid, {', '.join(COLUMNS)}) VALUES ({', '.join('?' * (len(COLUMNS) + 1))})",
                            fts_rows)
             db.executemany("INSERT INTO docs VALUES (?, ?, ?, ?, ?)", doc_rows)
@@ -186,6 +232,7 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
         if n != expected:
             raise BuildError(f"{kind}: source announced {expected} documents but yielded {n}")
         counts["documents"][kind] = n
+        kind_doc_range[kind] = [first_pos, len(doc_rowid)]
         n_all += n
     progress(f"[lexical] {n_all:,} documents inserted ({time.time() - t0:.0f} s); optimizing")
     db.execute("INSERT INTO lex(lex) VALUES ('optimize')")
@@ -193,7 +240,7 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
     # Vocabulary, and the identity check: FTS5's terms and counts must equal the tokenizer's.
     db.execute("CREATE VIRTUAL TABLE temp.v USING fts5vocab(main, lex, row)")
     db.execute("BEGIN")
-    db.execute("INSERT INTO vocab(term, df, cf, max_score) SELECT term, doc, cnt, NULL FROM temp.v ORDER BY term")
+    db.execute("INSERT INTO vocab(term, df, cf, tid) SELECT term, doc, cnt, -1 FROM temp.v ORDER BY term")
     db.execute("COMMIT")
     mismatch = []
     n_terms = 0
@@ -210,19 +257,12 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
     if mismatch:
         raise BuildError(f"FTS5 tokenization differs from the domain tokenizer (term, fts5 count, tokenizer count): "
                          f"{mismatch[:20]}")
-    progress(f"[lexical] MaxScore upper bounds for terms with df >= {MAX_SCORE_MIN_DF}")
-    weights_sql = ", ".join(repr(float(w)) for w in ranking.weights)
-    common = [t for (t,) in db.execute("SELECT term FROM vocab WHERE df >= ? ORDER BY term", (MAX_SCORE_MIN_DF,))]
-    db.execute("BEGIN")
-    for t in common:
-        (best,) = db.execute(f"SELECT bm25(lex, {weights_sql}) AS s FROM lex WHERE lex MATCH ? ORDER BY s LIMIT 1",
-                             ('"' + t + '"',)).fetchone()
-        db.execute("UPDATE vocab SET max_score = ? WHERE term = ?", (-best, t))
-    db.execute("COMMIT")
     total_tokens = sum(counts["tokens_per_column"].values())
+    progress("[lexical] impact matrix")
+    impact = _impact_matrix(db, term_pid, imp_pid, imp_doc, imp_wtf, doc_len, doc_rowid, n_all, total_tokens)
     meta = {
-        "max_score_weights": json.dumps([float(w) for w in ranking.weights]),
-        "max_score_min_df": str(MAX_SCORE_MIN_DF),
+        "impact_weights": json.dumps(list(weights)),
+        "kind_doc_range": json.dumps(kind_doc_range, sort_keys=True),
         "format": LEXICAL_FORMAT, "tokenizer": cfg.key(), "fts5_tokenize": fts5_tokenize_option(),
         "columns": ",".join(COLUMNS), "documents": str(n_all), "terms": str(n_terms),
         "tokens": str(total_tokens), "documents_sha256": docs_hash.hexdigest(),
@@ -234,7 +274,46 @@ def _build_into(db: sqlite3.Connection, sources: Iterable[DocumentSource], cfg: 
     db.execute("VACUUM")
     counts.update({"total": n_all, "terms": n_terms, "tokens": total_tokens})
     return {"counts": counts, "sources": described, "documents_sha256": docs_hash.hexdigest(),
-            "identity_check": {"terms_compared": n_terms, "mismatches": 0}}
+            "identity_check": {"terms_compared": n_terms, "mismatches": 0, "document_frequencies_equal": True},
+            "impact": impact}
+
+
+def _impact_matrix(db, term_pid, imp_pid, imp_doc, imp_wtf, doc_len, doc_rowid, n_docs, total_tokens) -> dict:
+    """bm25() contribution of every (term, document) pair, as FTS5 computes it:
+    idf = ln((N - n + 0.5) / (n + 0.5)), 1e-6 when <= 0; c = idf * (f * (k1 + 1) / (f + k1 * (1 - b + b * D / avgdl)))
+    with f the weighted term frequency, D the document's tokens in all columns, avgdl = tokens / N.
+    Stored term-major (CSR) with float64 values: float32 values change sums by about 1e-7 relative, enough to
+    swap documents whose scores are that close, so the ranking would no longer equal bm25()'s."""
+    tid_of = np.full(len(term_pid), -1, dtype=np.int64)
+    db.execute("BEGIN")
+    rows = db.execute("SELECT term, df FROM vocab ORDER BY term").fetchall()
+    df = np.zeros(len(rows), dtype=np.int64)
+    for tid, (term, d) in enumerate(rows):
+        pid = term_pid.get(term)
+        if pid is None:
+            raise BuildError(f"term {term!r} in FTS5 but not produced by the tokenizer")
+        tid_of[pid] = tid
+        df[tid] = d
+    db.executemany("UPDATE vocab SET tid = ? WHERE term = ?", ((i, t) for i, (t, _) in enumerate(rows)))
+    db.execute("COMMIT")
+    if (tid_of < 0).any():
+        raise BuildError("tokenizer terms missing from FTS5")
+    t = tid_of[np.concatenate(imp_pid)] if imp_pid else np.zeros(0, dtype=np.int64)
+    d = np.concatenate(imp_doc) if imp_doc else np.zeros(0, dtype=np.int32)
+    f = np.concatenate(imp_wtf) if imp_wtf else np.zeros(0, dtype=np.float64)
+    if not np.array_equal(np.bincount(t, minlength=len(df)), df):
+        raise BuildError("document frequencies of the impact pairs differ from FTS5's")
+    n = float(n_docs)
+    idf = np.log((n - df + 0.5) / (df + 0.5))
+    idf[idf <= 0.0] = 1e-6
+    avgdl = float(total_tokens) / n
+    dl = np.asarray(doc_len, dtype=np.float64)
+    contrib = idf[t] * ((f * (BM25_K1 + 1.0)) / (f + BM25_K1 * (1.0 - BM25_B + BM25_B * dl[d] / avgdl)))
+    order = np.lexsort((d, t))  # term-major, documents ascending inside a term
+    indptr = np.zeros(len(df) + 1, dtype=np.int64)
+    np.cumsum(df, out=indptr[1:])
+    return {"indptr": indptr, "indices": d[order].astype(np.int32), "data": contrib[order],
+            "rowids": np.asarray(doc_rowid, dtype=np.int64)}
 
 
 def build(store_path: Path | str | None = None, out_root: Path | str | None = None,
@@ -274,6 +353,7 @@ def build(store_path: Path | str | None = None, out_root: Path | str | None = No
         "documents_sha256": info["documents_sha256"],
         "counts": info["counts"],
         "identity_check": info["identity_check"],
+        "impact": info["impact"],
         "code": code_fingerprint(),
         "environment": {"python": platform.python_version(), "sqlite": sqlite3.sqlite_version,
                         "platform": platform.platform()},
@@ -294,6 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--store", help="C1 store build directory or root (default: data/store, LATEST)")
     ap.add_argument("--out", help=f"output root (default {DEFAULT_OUT})")
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--attack", help="C9 ATT&CK build directory or root (adds attack documents)")
     ap.add_argument("--no-latest", action="store_true", help="do not move the LATEST pointer")
     ap.add_argument("--stemmer", choices=["none", "porter2"], help="override the tuned tokenizer (ablations)")
     ap.add_argument("--no-split", action="store_true", help="ablation: no split forms of compounds")
@@ -306,7 +387,9 @@ def main(argv: list[str] | None = None) -> int:
         tok = tok.with_(split_compounds=False)
     if a.no_trailing_digits:
         tok = tok.with_(trailing_digits=False)
-    build(a.store, a.out, tokenizer=tok, workers=a.workers, set_latest=not a.no_latest,
+    from .sources import open_attack
+    extra = [open_attack(a.attack)] if a.attack else []
+    build(a.store, a.out, tokenizer=tok, workers=a.workers, set_latest=not a.no_latest, extra_sources=extra,
           progress=lambda m: print(m, flush=True))
     return 0
 
