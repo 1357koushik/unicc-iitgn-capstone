@@ -14,7 +14,9 @@ Method for "CVEs the v1 corpus lacks entirely" (no row of any kind: NVD, CVE Lis
    MinHash collided with an already kept record, and only kept records were indexed, so a collision with
    the kept corpus reproduces v1's decision. The exact Jaccard similarity with the colliding row is also
    computed and reported (``verified_jaccard_ge_0_90``);
-5. ``unexplained``: none of the above.
+5. ``record_changed_after_v1_build``: no collision, but the CVE's NVD or CVE List record was modified after
+   the v1 build, so the text v1 saw is not available and the drop cannot be attributed;
+6. ``unexplained``: none of the above.
 
 Every classified CVE is written to the store's ``v1_comparison`` table (cve_id, reason, detail).
 """
@@ -83,7 +85,7 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
 
     st = sqlite3.connect(f"file:{Path(store_db).as_posix()}?mode=ro", uri=True)
     rows = st.execute("SELECT cve_id, state, searchable, published, sources, description, description_source, "
-                      "json_extract(dates, '$.nvd.published'), nvd_status FROM cve").fetchall()
+                      "json_extract(dates, '$.nvd.published'), nvd_status, modified FROM cve").fetchall()
     st.close()
     universe = {r[0]: r for r in rows}
     missing = sorted(c for c in universe if c not in v1_cves)
@@ -93,7 +95,7 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
     cls: dict[str, str] = {}
     to_check: list[tuple[str, str]] = []
     for c in missing:
-        _, state, searchable, published, sources, desc, dsrc, nvd_pub, _st = universe[c]
+        _, state, searchable, published, sources, desc, dsrc, nvd_pub, _st, _mod = universe[c]
         has_nvd = "nvd" in sources.split(",")
         if published and published > v1_date:
             cls[c] = "published_after_v1_build"
@@ -130,7 +132,8 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
         m = MinHash(num_perm=NUM_PERM, scheme="legacy", hashvalues=np.frombuffer(sig, dtype=np.uint64))
         hits = [i for i in lsh.query(m) if base(v1_rows[i][0]) != c]
         if not hits:
-            cls[c] = "unexplained"
+            modified = (universe[c][9] or "")[:10]
+            cls[c] = "record_changed_after_v1_build" if modified > v1_date else "unexplained"
             continue
         cls[c] = "likely_dropped_by_near_duplicate_filter"
         sh = _shingles(text)

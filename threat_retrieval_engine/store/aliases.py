@@ -36,13 +36,17 @@ rest is decided from the data, in two steps:
    ("via the Name parameter", "the DirectWrite component") rather than as a nickname ("aka Heartbleed")?
 2. corpus-wide (in the build master): a nickname must not spread over many CVEs (product names do), the
    CVEs it names must cluster in time (a coined name belongs to one disclosure), a bare CamelCase token
-   must not be a known CPE product name, and a CVE that only shares a multi-CVE exploit record with the
-   CVE the name really belongs to is dropped (relative support).
+   must not be a known CPE product name, and a CVE whose only evidence is multi-CVE exploit records shared
+   with a much better supported CVE is dropped (relative support); a CVE with its own single-CVE evidence
+   is kept.
 
-Every nickname needs at least two independent units of evidence for the same CVE (a single exploit title
-naming a kernel function in quotes, or a CNA title naming a class, is not a nickname): each Exploit-DB
-record, Metasploit module, nuclei template and KEV row is a unit, the CNA's title and description together
-are one unit, each distinct reference domain is a unit, and each distinct PoC-in-GitHub owner is a unit.
+Every nickname needs at least two independent units of evidence for the same CVE, from at least two
+different families (a kernel function quoted in an exploit title and repeated in the matching Metasploit
+module, or a class named in a CNA title, is not a nickname). Units: each Exploit-DB record, Metasploit
+module, nuclei template and KEV row; the CNA's title and description together; each distinct reference
+domain; each distinct PoC-in-GitHub owner. Families: ``exploit`` (Exploit-DB, Metasploit, nuclei and
+exploit-archive references such as Packet Storm), ``cna``, ``kev``, ``poc``, ``refs`` (other reference
+domains) and ``site`` (a dedicated site, see below).
 PoC-in-GitHub names and reference-URL words are weak evidence: anyone can name a repository, and a URL
 word may be a product, a person or a page title. A name attested only by weak evidence must also be rare
 in the corpus (every word in at most DF_MAX CVE descriptions, one word in at most DF_RARE), unless one of
@@ -337,6 +341,10 @@ HOSTING = frozenset({"github.com", "gitlab.com", "bitbucket.org", "blogspot.com"
                      "reddit.com", "hackerone.com", "huntr.dev", "huntr.com", "gitee.com", "notion.site"})
 _HANDLE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "twitter.com", "x.com", "medium.com", "gitee.com",
                  "huntr.dev", "huntr.com", "hackerone.com", "youtube.com", "linkedin.com")
+# code hosting: only the repository name is used (file paths and class names are not names of a flaw)
+_CODE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "gitee.com", "gist.github.com")
+EXPLOIT_ARCHIVE_DOMAINS = frozenset({"packetstormsecurity.com", "packetstorm.news", "exploit-db.com",
+                                     "0day.today", "cxsecurity.com"})
 _SEG_SPLIT = re.compile(r"[-_+.~,;=%\s]+")
 _WEAK_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 _HEXISH = re.compile(r"^[0-9a-f]{7,}$", re.IGNORECASE)
@@ -405,6 +413,8 @@ def url_phrases(url: str) -> tuple[str, list[str]]:
     segs = [unquote(x) for x in parts.path.split("/") if x]
     if any(host == h or host.endswith("." + h) for h in _HANDLE_HOSTS) and segs:
         segs = segs[1:]  # skip the account / researcher handle
+        if host in _CODE_HOSTS:
+            segs = segs[:1]
     unit = reg
     for seg in segs:
         seg = re.sub(r"\.(?:html?|php|aspx?|jsp|txt|pdf|md|shtml|cgi)$", "", seg, flags=re.IGNORECASE)
@@ -487,6 +497,21 @@ def local_decision(c: Candidate, own_tokens: frozenset[str], own_keys: frozenset
     return "keep"
 
 
+def evidence_family(unit: str, domain_cves: dict[str, int]) -> str:
+    if unit == "cna":
+        return "cna"
+    kind, _, rest = unit.partition(":")
+    if kind in ("exploitdb", "metasploit_modules", "nuclei_templates"):
+        return "exploit"
+    if kind == "ref":
+        if rest in EXPLOIT_ARCHIVE_DOMAINS:
+            return "exploit"
+        if 0 < domain_cves.get(rest, 10 ** 9) <= DEDICATED_DOMAIN_MAX_CVES:
+            return "site"
+        return "refs"
+    return kind  # kev, poc
+
+
 def evidence_unit(c: Candidate) -> str:
     """The independent unit of evidence a candidate row represents (see the module docstring)."""
     if c.source in ("cve_list", "cve_description"):
@@ -548,9 +573,12 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
             if len(units) < MIN_UNITS:
                 reasons["single_unit"] += len(ccs)
                 continue
+            families = {evidence_family(u, dom) for u in units}
+            if len(families) < 2:
+                reasons["single_family"] += len(ccs)
+                continue
             if all(c.source in WEAK_SOURCES for c in ccs):
-                dedicated = any(u.startswith("ref:") and 0 < dom.get(u[4:], 10 ** 9) <= DEDICATED_DOMAIN_MAX_CVES
-                                for u in units)
+                dedicated = "site" in families
                 words = [t.lower() for t in _tokens(ccs[0].alias)]
                 if len(words) > 1 and not any(all(w[:1].isupper() for w in c.alias.split()) for c in ccs):
                     reasons["weak_lowercase_phrase"] += len(ccs)
@@ -586,18 +614,21 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
             rejected_names[norm] = "spread_over_years"
             continue
         support: dict[str, float] = defaultdict(float)
+        single: dict[str, int] = defaultdict(int)   # units naming only this CVE
         seen: set[tuple[str, str]] = set()
         for c in cs:
             k = (c.cve_id, evidence_unit(c))
             if k not in seen:
                 seen.add(k)
                 support[c.cve_id] += 1.0 / max(1, c.record_cves)
+                single[c.cve_id] += c.record_cves <= 1
         top = max(support.values())
         for c in cs:
             y = _year(c.cve_id)
             if not (best_lo <= y < best_lo + YEAR_WINDOW):
                 reasons["outside_year_window"] += 1
-            elif support[c.cve_id] < MIN_RELATIVE_SUPPORT * top:
+            elif not single[c.cve_id] and support[c.cve_id] < MIN_RELATIVE_SUPPORT * top:
+                # only co-listed in multi-CVE records with a better-supported CVE
                 reasons["low_relative_support"] += 1
             else:
                 keep.append(c)
@@ -616,7 +647,7 @@ def weak_words(candidates: list[tuple[Candidate, str]]) -> set[str]:
 
 
 def thresholds() -> dict:
-    return {"min_units": MIN_UNITS, "df_max": DF_MAX, "df_rare": DF_RARE,
+    return {"min_units": MIN_UNITS, "min_families": 2, "df_max": DF_MAX, "df_rare": DF_RARE,
             "dedicated_domain_max_cves": DEDICATED_DOMAIN_MAX_CVES,
             "max_nickname_spread": MAX_NICKNAME_SPREAD, "year_window": YEAR_WINDOW,
             "min_window_share": MIN_WINDOW_SHARE, "min_relative_support": MIN_RELATIVE_SUPPORT,

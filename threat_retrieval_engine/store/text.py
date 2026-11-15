@@ -13,7 +13,8 @@ import unicodedata
 from typing import Iterable
 
 CVE_ID_RE = re.compile(r"^CVE-(\d{4})-(\d{4,})$")
-CVE_IN_TEXT = re.compile(r"(?<![A-Za-z0-9])CVE-\d{4}-\d{4,}(?![0-9])", re.IGNORECASE)
+# no left boundary: source tables glued into descriptions produce "AnyCVE-2025-41233"
+CVE_IN_TEXT = re.compile(r"CVE-\d{4}-\d{4,}(?![0-9])", re.IGNORECASE)
 _WS = re.compile(r"\s+")
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _WORD = re.compile(r"[A-Za-z0-9]+")

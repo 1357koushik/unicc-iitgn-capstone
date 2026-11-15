@@ -83,16 +83,19 @@ def _c(cid, alias, rid, n=1, pos="quoted", src="exploitdb"):
 
 def test_select_rejects_wide_spread_and_year_spread_and_weak_support():
     cands = [x for i in range(20) for x in (_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}"),
-                                            _c(f"CVE-2010-{i:04d}", "Widgetron", f"s{i}", src="metasploit_modules"))]
+                                            _c(f"CVE-2010-{i:04d}", "Widgetron", f"s{i}", src="cve_description"))]
     cands += [x for y in ("2005", "2012", "2019") for x in (_c(f"CVE-{y}-0001", "Oldname", "a"),
-                                                         _c(f"CVE-{y}-0001", "Oldname", "b", src="nuclei_templates"))]
+                                                         _c(f"CVE-{y}-0001", "Oldname", "b", src="cve_description"))]
     cands += [_c("CVE-2014-6271", "Shellshock", f"m{i}") for i in range(4)]
-    cands += [_c(c, "Shellshock", r, n=3) for c in ("CVE-2014-6271", "CVE-2014-3659") for r in ("e1", "e2")]
-    cands += [_c("CVE-2021-44228", "Log4Shell", "x", pos="camel"), _c("CVE-2021-44228", "Log4Shell", "y",
-                                                                       src="metasploit_modules")]
+    cands += [_c("CVE-2014-6271", "Shellshock", "n1", src="cve_description")]
+    cands += [_c(c, "Shellshock", r, n=3, src=s) for c in ("CVE-2014-6271", "CVE-2014-3659")
+              for r, s in (("e1", "exploitdb"), ("k1", "kev"))]
+    cands += [_c("CVE-2021-44228", "Log4Shell", "x", pos="camel"), _c("CVE-2021-44228", "Log4Shell", "y/l4s",
+                                                                       src="poc_in_github", pos="poc_repo")]
     cands += [_c("CVE-2021-0100", "SharePoint", "y", pos="camel"), _c("CVE-2021-0100", "SharePoint", "z", pos="camel",
                                                                        src="nuclei_templates")]
-    cands += [_c("CVE-2017-8478", "NtQueryInformationJobObject", "42000")]   # one exploit title only
+    cands += [_c("CVE-2017-8478", "NtQueryInformationJobObject", "42000"),    # exploit family only
+              _c("CVE-2017-8478", "NtQueryInformationJobObject", "exploit/windows/local/x", src="metasploit_modules")]
     sel = A.select(cands, frozenset({"sharepoint"}))
     got = {(c.cve_id, c.alias) for c in sel.rows}
     assert ("CVE-2014-6271", "Shellshock") in got and ("CVE-2021-44228", "Log4Shell") in got
@@ -107,20 +110,37 @@ def test_select_rejects_wide_spread_and_year_spread_and_weak_support():
     assert sel.reasons["low_relative_support"] >= 1
 
 
+def test_relative_support_keeps_a_cve_with_its_own_evidence():
+    cands = [_c("CVE-2017-0144", "EternalBlue", f"edb{i}") for i in range(6)]
+    cands += [_c(c, "EternalBlue", "msf", n=3, src="metasploit_modules") for c in
+              ("CVE-2017-0143", "CVE-2017-0144", "CVE-2017-0145")]
+    cands += [(A.Candidate("CVE-2017-0143", "eternalblue", "eternalblue", "nickname", "poc_in_github", f"u{i}/eb",
+                           "poc_repo", 1), "keep") for i in range(2)]
+    cands += [_c("CVE-2017-0144", "EternalBlue", "p1", src="poc_in_github", pos="poc_repo")]
+    got = {c.cve_id for c in A.select(cands, frozenset()).rows}
+    assert got == {"CVE-2017-0143", "CVE-2017-0144"}  # 0145 is only co-listed; 0143 has its own PoC repos
+
+
 def test_select_weak_only_names_must_be_rare_or_have_a_dedicated_site():
     def w(cid, alias, rid, src="poc_in_github", pos="poc_repo"):
         return (A.Candidate(cid, alias, alias_norm(alias), "nickname", src, rid, pos, 1), "keep")
-    cands = [w("CVE-2021-4034", "pwnkit", "alice/pwnkit"), w("CVE-2021-4034", "PwnKit", "bob/CVE-2021-4034-PwnKit")]
-    cands += [w("CVE-2021-0001", "segfault", "alice/segfault"), w("CVE-2021-0001", "segfault", "bob/segfault")]
+    cands = [w("CVE-2021-4034", "pwnkit", "alice/pwnkit"),
+             w("CVE-2021-4034", "pwnkit", "https://www.qualys.com/2022/01/25/cve-2021-4034/pwnkit.txt",
+               "cve_references", "reference")]
+    cands += [w("CVE-2021-0001", "segfault", "alice/segfault"),
+              w("CVE-2021-0001", "segfault", "https://example.org/segfault", "cve_references", "reference")]
+    cands += [w("CVE-2021-0003", "Lonely", "alice/lonely"), w("CVE-2021-0003", "Lonely", "bob/lonely")]  # poc only
     cands += [w("CVE-2016-0800", "drown", "https://drownattack.com", "cve_references", "reference"),
               w("CVE-2016-0800", "drown", "https://access.redhat.com/security/vulnerabilities/drown",
                 "cve_references", "reference")]
     cands += [w("CVE-2021-0002", "review and", "alice/review-and"), w("CVE-2021-0002", "review and", "bob/review-and")]
-    df = {"pwnkit": 0, "segfault": 400, "drown": 80, "review": 3000, "and": 300000}
-    sel = A.select(cands, frozenset(), df, {"drownattack.com": 1, "redhat.com": 20000})
+    df = {"pwnkit": 0, "segfault": 400, "drown": 80, "review": 3000, "and": 300000, "lonely": 0}
+    sel = A.select(cands, frozenset(), df, {"drownattack.com": 1, "redhat.com": 20000, "qualys.com": 400,
+                                            "example.org": 900})
     got = {c.norm for c in sel.rows}
     assert got == {"pwnkit", "drown"}  # drown is common-ish but has a dedicated site
     assert sel.reasons["weak_common_word"] >= 2
+    assert sel.reasons["single_family"] >= 2   # two PoC owners alone are one family
 
 
 @pytest.mark.parametrize("source", sorted(A.QUERY_SIDE_SOURCES))
@@ -155,3 +175,8 @@ def test_weak_candidates_require_two_independent_units():
     assert A.weak_candidates("CVE-2016-0800", same_host, [], frozenset()) == []  # one registrable domain
     pocs = [("alice/pwnkit", ""), ("bob/CVE-2021-4034-PwnKit", "PwnKit exploit")]
     assert {c.norm for c in A.weak_candidates("CVE-2021-4034", [], pocs, frozenset())} == {"pwnkit"}
+
+
+def test_code_host_urls_use_repository_name_only():
+    _, ph = A.url_phrases("https://github.com/acme/widgetron/blob/main/src/MainController.php")
+    assert ph == ["widgetron"]

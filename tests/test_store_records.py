@@ -266,6 +266,7 @@ def test_strip_cve_ids_tidies_sentence():
     s = T.strip_cve_ids("This is a different vulnerability than CVE-2015-1234 and CVE-2015-5678.")
     assert "CVE" not in s and s.endswith("than.")
     assert T.strip_cve_ids("Fix (CVE-2020-0001) applied") == "Fix applied"
+    assert "CVE" not in T.strip_cve_ids("Running OnAnyCVE-2025-41233 6.8")  # glued table cells
 
 
 def test_content_hash_covers_searchable_fields_only():
