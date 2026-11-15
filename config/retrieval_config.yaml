@@ -46,8 +46,9 @@ reranker_model: "BAAI/bge-reranker-v2-m3"
 reranker_use_fp16: true
 reranker_top_k: 5           # final evidence chunks after reranking
 
-# MITRE ATT&CK STIX knowledge graph
-mitre_attack_bundle_path: "./data/mitre/enterprise-attack.json"
+# MITRE ATT&CK graph, documents and entity names: C9 build root holding LATEST
+# (python -m threat_retrieval_engine.attack.build); TRE_ATTACK_DIR overrides it
+attack_build_dir: "./data/attack"
 
 # ---------------------------------------------------------------------------
 # Deadlines and Latency Contracts (V2)

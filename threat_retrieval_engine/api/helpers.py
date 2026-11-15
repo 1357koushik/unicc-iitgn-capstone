@@ -6,15 +6,13 @@ from datetime import datetime
 from typing import Any
 
 from threat_retrieval_engine.api.confidence import classify_confidence_tier
+from threat_retrieval_engine.attack.runtime import canonical_name, entity_names, techniques_for_software
 from threat_retrieval_engine.indicators import (
-    COMMON_ACTORS as _COMMON_ACTORS,
-    COMMON_MALWARE as _COMMON_MALWARE,
     CVE_PATTERN as _CVE_PATTERN,
     IPV4_PATTERN as _IPV4_PATTERN,
     MD5_PATTERN as _MD5_PATTERN,
     MITRE_PATTERN as _MITRE_PATTERN,
     SHA256_PATTERN as _SHA256_PATTERN,
-    TOOL_TO_TECH as _TOOL_TO_TECH,
 )
 
 
@@ -37,11 +35,11 @@ def parse_query_entities(query: str) -> ParsedEntities:
     md5 = set(_MD5_PATTERN.findall(query)) - sha256
     hashes = sorted(h.lower() for h in sha256 | md5)
 
-    mitre = sorted({m.upper() for m in _MITRE_PATTERN.findall(query)})
-
-    q_lower = query.lower()
-    actors = [a for a in _COMMON_ACTORS if a.lower() in q_lower]
-    malware = [m for m in _COMMON_MALWARE if m.lower() in q_lower]
+    # Entity names and ATT&CK IDs from the C9 gazetteer (empty when the ATT&CK component is unavailable).
+    names = entity_names(query, query=True)
+    mitre = sorted({m.upper() for m in _MITRE_PATTERN.findall(query)} | set(names["technique_ids"]))
+    actors = names["threat_actors"]
+    malware = names["malware"]
 
     return ParsedEntities(
         cves=cves,
@@ -118,19 +116,18 @@ def extract_attribution(
     query_iocs_norm = {i.lower() for i in (query_ent.ips + query_ent.hashes)}
     matching_iocs = sorted(query_iocs_norm & chunk_iocs_norm)
 
-    # Extract chunk malware
-    chunk_mal = set(entities_data.get("malware_families") or [])
-    for m in _COMMON_MALWARE:
-        if m.lower() in chunk_text.lower():
-            chunk_mal.add(m)
+    # Extract chunk malware: metadata names (canonicalised to the ATT&CK title when they name one software
+    # object) plus software named in the text (C9 gazetteer)
+    chunk_names = entity_names(chunk_text, query=False)
+    chunk_mal = {canonical_name(str(m), ("software",)) or str(m) for m in entities_data.get("malware_families") or []}
+    chunk_mal.update(chunk_names["malware"])
     matching_mal = sorted({m.lower(): m for m in query_ent.malware if m.lower() in {x.lower() for x in chunk_mal}}.values())
 
-    # Extract chunk MITRE TTPs (direct mentions + tool-implemented techniques)
+    # Extract chunk MITRE TTPs (direct mentions + techniques the chunk's software uses in the ATT&CK graph)
     chunk_ttps = set(entities_data.get("mitre_ttps") or [])
     chunk_ttps.update(_MITRE_PATTERN.findall(chunk_text))
-    for t_name, techs in _TOOL_TO_TECH.items():
-        if t_name in chunk_text.lower() or any(m.lower() == t_name for m in chunk_mal):
-            chunk_ttps.update(techs)
+    chunk_ttps.update(chunk_names["technique_ids"])
+    chunk_ttps.update(techniques_for_software(chunk_mal))
 
     chunk_ttps_norm = {t.upper() for t in chunk_ttps}
     query_ttps_norm = {t.upper() for t in query_ent.mitre_techniques}

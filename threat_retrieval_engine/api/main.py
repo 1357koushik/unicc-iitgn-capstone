@@ -149,8 +149,10 @@ async def health_check() -> dict[str, Any]:
             "embedder": "degraded" if "embedder" in orchestrator.degraded_components else "available",
             "reranker": "degraded" if orchestrator.reranker is None else "available",
             "confidence_model": "available" if orchestrator.confidence_model is not None else "degraded",
-            "knowledge_graph": orchestrator.attack_graph_status,
+            # C9 ATT&CK build: "available" | "unavailable" | "uninitialized"; details below
+            "knowledge_graph": orchestrator.attack_graph_status.get("status", "unavailable"),
         },
+        "builds": {"attack": orchestrator.attack_graph_status},
         "degraded_components": orchestrator.degraded_components,
     }
     return status_map

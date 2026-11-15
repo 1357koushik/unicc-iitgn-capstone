@@ -27,9 +27,8 @@ from threat_retrieval_engine.api.feature_extractor import (
     extract_features,
 )
 
+from threat_retrieval_engine.attack.runtime import entity_names
 from threat_retrieval_engine.indicators import (
-    COMMON_ACTORS as _COMMON_ACTORS,
-    COMMON_MALWARE as _COMMON_MALWARE,
     CVE_PATTERN as _CVE_PATTERN,
     IPV4_PATTERN as _IPV4_PATTERN,
     MD5_PATTERN as _MD5_PATTERN,
@@ -80,11 +79,12 @@ def parse_query_profile(query: str) -> QueryProfile:
     sha256 = set(_SHA256_PATTERN.findall(query))
     md5 = set(_MD5_PATTERN.findall(query)) - sha256
     hashes = tuple(sorted(h.lower() for h in (sha256 | md5)))
-    mitre = tuple(sorted({m.upper() for m in _MITRE_PATTERN.findall(query)}))
-
-    q_lower = query.lower()
-    actors = tuple(sorted([a for a in _COMMON_ACTORS if a in q_lower]))
-    malware = tuple(sorted([m for m in _COMMON_MALWARE if m in q_lower]))
+    # Entity names and ATT&CK IDs from the C9 gazetteer, lower-cased ATT&CK titles (empty when the ATT&CK
+    # component is unavailable).
+    names = entity_names(query, query=True)
+    mitre = tuple(sorted({m.upper() for m in _MITRE_PATTERN.findall(query)} | set(names["technique_ids"])))
+    actors = tuple(sorted({a.lower() for a in names["threat_actors"]}))
+    malware = tuple(sorted({m.lower() for m in names["malware"]}))
 
     return QueryProfile(
         cves=cves,

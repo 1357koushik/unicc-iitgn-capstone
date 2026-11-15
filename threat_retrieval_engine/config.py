@@ -107,8 +107,8 @@ class RetrievalConfig:
         self.reranker_use_fp16 = bool(cfg.get("reranker_use_fp16", True))
         self.reranker_top_k = int(cfg.get("reranker_top_k", 5))
 
-        # Graph
-        self.mitre_attack_bundle_path = _resolve_path(cfg.get("mitre_attack_bundle_path", "./data/mitre/enterprise-attack.json"))
+        # ATT&CK graph and entity names: C9 build root (holds LATEST); $TRE_ATTACK_DIR overrides at runtime
+        self.attack_build_dir = _resolve_path(cfg.get("attack_build_dir", "./data/attack"))
 
         # Deadlines (V2)
         deadlines = cfg.get("deadlines", {})

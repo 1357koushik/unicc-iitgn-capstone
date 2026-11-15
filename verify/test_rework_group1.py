@@ -63,7 +63,7 @@ def test_concurrent_initialize_race():
         return MagicMock(), MagicMock()
 
     with patch("threat_retrieval_engine.api.pipeline.setup_databases", side_effect=mock_setup_db), \
-         patch("threat_retrieval_engine.api.pipeline._build_starter_attack_graph", return_value=MagicMock()), \
+         patch("threat_retrieval_engine.api.pipeline._load_attack_graph", return_value=MagicMock()), \
          patch("threat_retrieval_engine.search_engine.bm25_index.build_from_sqlite", return_value=MagicMock()):
 
         threads = []

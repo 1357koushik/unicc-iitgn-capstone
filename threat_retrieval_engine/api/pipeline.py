@@ -46,33 +46,12 @@ from threat_retrieval_engine.search_engine.vector_database import (
 logger = logging.getLogger(__name__)
 
 
-def _build_starter_attack_graph():
-    """Construct an in-memory starter ATT&CK graph if enterprise-attack.json is not present."""
-    from threat_retrieval_engine.search_engine.mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
+def _load_attack_graph():
+    """The C9 ATT&CK graph (store, graph, gazetteer) shared with the query parsers; None when no build can be
+    opened, in which case the component is reported unavailable (there is no fallback data)."""
+    from threat_retrieval_engine.attack import runtime as attack_runtime
 
-    g = MitreAttackGraph()
-    # Core Actors
-    g.add_node(AttackNode(stix_id="intrusion-set--apt29", kind="actor", name="APT29", attack_id="APT29", aliases=["Cozy Bear", "G0016"]))
-    g.add_node(AttackNode(stix_id="intrusion-set--fin7", kind="actor", name="FIN7", attack_id="FIN7", aliases=["G0046"]))
-    g.add_node(AttackNode(stix_id="malware--wannacry", kind="actor", name="WannaCry", attack_id="WannaCry", aliases=["S0366"]))
-    
-    # Core Techniques
-    g.add_node(AttackNode(stix_id="attack-pattern--t1021-002", kind="technique", name="SMB/Windows Admin Shares", attack_id="T1021.002", aliases=[]))
-    g.add_node(AttackNode(stix_id="attack-pattern--t1059-001", kind="technique", name="PowerShell", attack_id="T1059.001", aliases=[]))
-    g.add_node(AttackNode(stix_id="attack-pattern--t1190", kind="technique", name="Exploit Public-Facing Application", attack_id="T1190", aliases=[]))
-
-    # Core Malware / Tools
-    g.add_node(AttackNode(stix_id="tool--psexec", kind="malware", name="PsExec", attack_id="PsExec", aliases=["S0029"]))
-    g.add_node(AttackNode(stix_id="tool--cobaltstrike", kind="malware", name="Cobalt Strike", attack_id="Cobalt Strike", aliases=["S0154"]))
-
-    # Core Edges
-    g.add_edge(AttackEdge(source="intrusion-set--apt29", target="attack-pattern--t1021-002", relationship="uses"))
-    g.add_edge(AttackEdge(source="intrusion-set--apt29", target="tool--psexec", relationship="uses"))
-    g.add_edge(AttackEdge(source="malware--wannacry", target="attack-pattern--t1021-002", relationship="uses"))
-    g.add_edge(AttackEdge(source="intrusion-set--fin7", target="attack-pattern--t1021-002", relationship="uses"))
-    g.add_edge(AttackEdge(source="tool--psexec", target="attack-pattern--t1021-002", relationship="implements"))
-
-    return g
+    return attack_runtime.get_attack_graph()
 
 
 class ThreatRetrieverEngine:
@@ -80,7 +59,7 @@ class ThreatRetrieverEngine:
     Unified Orchestrator coordinating:
       Engine 1: Exact Match (exact_lookup.py)
       Engine 2: Vector Hybrid Search (hybrid_search.py via BGE-M3 + BM25)
-      Engine 3: MITRE ATT&CK Knowledge Graph (mitre_graph.py)
+      Engine 3: MITRE ATT&CK graph (C9 ATT&CK build, threat_retrieval_engine.attack)
     """
 
     def __init__(
@@ -99,7 +78,7 @@ class ThreatRetrieverEngine:
         self.attack_graph = attack_graph
         self.reranker = reranker
         self.confidence_model = confidence_model
-        self.attack_graph_status: str = "uninitialized"
+        self.attack_graph_status: dict[str, Any] = {"status": "uninitialized"}
         self.degraded_components: list[str] = []
         self._init_lock = threading.RLock()
         self._initialized = False
@@ -136,21 +115,17 @@ class ThreatRetrieverEngine:
                     logger.error("Failed to setup databases: %s", exc)
                     self.degraded_components.append("databases")
 
-            # 2. Knowledge Graph (MITRE STIX)
+            # 2. ATT&CK graph (C9 build). Relationships in responses come only from it.
             if self.attack_graph is None:
-                bundle_path = cfg.mitre_attack_bundle_path
-                if bundle_path.is_file():
-                    try:
-                        from threat_retrieval_engine.search_engine.mitre_graph import load_attack_bundle
-                        self.attack_graph = load_attack_bundle(bundle_path)
-                        self.attack_graph_status = "ready"
-                    except Exception as exc:
-                        logger.warning("Failed to load ATT&CK STIX bundle: %s; using starter stub.", exc)
-                        self.attack_graph = _build_starter_attack_graph()
-                        self.attack_graph_status = "starter_stub"
-                else:
-                    self.attack_graph = _build_starter_attack_graph()
-                    self.attack_graph_status = "starter_stub"
+                self.attack_graph = _load_attack_graph()
+            if self.attack_graph is None:
+                from threat_retrieval_engine.attack import runtime as attack_runtime
+
+                self.attack_graph_status = {"status": "unavailable", "reason": attack_runtime.status().get("reason")}
+                self.degraded_components.append("attack_graph")
+            else:
+                self.attack_graph_status = {"status": "available", "build_id": self.attack_graph.build_id,
+                                            "attack_version": self.attack_graph.store.attack_version}
 
             # 3. Hybrid Searcher (BM25 + BGE-M3)
             if self.hybrid_searcher is None:
