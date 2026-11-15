@@ -550,17 +550,23 @@ def latest_dated(feeds_dir: Path, prefix: str) -> Path | None:
 def git_head(repo: Path) -> str | None:
     """HEAD commit of a git checkout, read from .git without running git."""
     g = repo / ".git"
+    common = g
     try:
+        if g.is_file():  # a worktree: ".git" names the real git dir; refs live in its common dir
+            g = (repo / g.read_text(encoding="utf-8").split(":", 1)[1].strip()).resolve()
+            cd = g / "commondir"
+            common = (g / cd.read_text(encoding="utf-8").strip()).resolve() if cd.is_file() else g
         head = (g / "HEAD").read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, IndexError):
         return None
     if not head.startswith("ref:"):
         return head or None
     ref = head.split(":", 1)[1].strip()
-    p = g / ref
-    if p.is_file():
-        return p.read_text(encoding="utf-8").strip() or None
-    packed = g / "packed-refs"
+    for base in (g, common):
+        p = base / ref
+        if p.is_file():
+            return p.read_text(encoding="utf-8").strip() or None
+    packed = common / "packed-refs"
     if packed.is_file():
         for line in packed.read_text(encoding="utf-8").splitlines():
             parts = line.split()
