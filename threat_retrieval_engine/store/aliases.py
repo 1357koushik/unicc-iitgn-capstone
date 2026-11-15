@@ -39,10 +39,16 @@ rest is decided from the data, in two steps:
    must not be a known CPE product name, and a CVE that only shares a multi-CVE exploit record with the
    CVE the name really belongs to is dropped (relative support).
 
+Every nickname needs at least two independent units of evidence for the same CVE (a single exploit title
+naming a kernel function in quotes, or a CNA title naming a class, is not a nickname): each Exploit-DB
+record, Metasploit module, nuclei template and KEV row is a unit, the CNA's title and description together
+are one unit, each distinct reference domain is a unit, and each distinct PoC-in-GitHub owner is a unit.
 PoC-in-GitHub names and reference-URL words are weak evidence: anyone can name a repository, and a URL
-word may be a product, a person or a page title. They are used only when the same name (by alias key) is
-attested by at least two independent units for the same CVE: distinct repository owners, distinct
-reference hosts, or one of the strong sources above. Researcher handles in code-hosting paths are skipped.
+word may be a product, a person or a page title. A name attested only by weak evidence must also be rare
+in the corpus (every word in at most DF_MAX CVE descriptions, one word in at most DF_RARE), unless one of
+its units is a dedicated site (a domain cited by at most DEDICATED_DOMAIN_MAX_CVES CVEs, such as
+drownattack.com); a two-word weak name must be written capitalised in at least one unit
+("Citrix-Bleed"), and researcher handles in code-hosting paths are skipped.
 """
 from __future__ import annotations
 
@@ -57,7 +63,11 @@ ALLOWED_SOURCES = ("exploitdb", "metasploit_modules", "nuclei_templates", "kev",
                    "poc_in_github", "cve_references")
 WEAK_SOURCES = frozenset({"poc_in_github", "cve_references"})
 WEAK_POSITIONS = frozenset({"camel", "poc_repo", "reference"})
-MIN_WEAK_UNITS = 2              # independent evidence units (PoC owners, reference hosts, strong sources)
+MIN_UNITS = 2                   # independent evidence units a nickname needs for one CVE
+MIN_WEAK_UNITS = MIN_UNITS
+DF_MAX = 50                     # weak-only names: no word may occur in more CVE descriptions than this ...
+DF_RARE = 10                    # ... and at least one word must occur in at most this many
+DEDICATED_DOMAIN_MAX_CVES = 3   # a registrable domain cited by at most this many CVEs is a site about them
 QUERY_SIDE_SOURCES = frozenset({"ghsa_reviewed", "et_open_rules", "sigma_rules", "acsc_advisories",
                                 "ncsc_uk_advisories", "cisa_advisories"})
 TITLE_KIND_SOURCES = frozenset({"exploitdb", "metasploit_modules", "nuclei_templates"})
@@ -348,12 +358,12 @@ def _display(tok: str) -> str:
 
 
 def _phrases(tokens: list[str]) -> list[str]:
-    """Unigrams and bigrams of a token run that may be names (each bigram word at least 2 letters)."""
+    """Unigrams and bigrams of a token run that may be names, in their original case. Bigram words are both
+    name-like (no generic or URL words), so "review-and" or "sql-injection" never form a name."""
     out = [t for t in tokens if _weak_ok(t)]
     for a, b in zip(tokens, tokens[1:]):
-        if (_WEAK_TOKEN.match(a) and _WEAK_TOKEN.match(b) and len(a) >= 2 and len(b) >= 2
-                and (_weak_ok(a, 3) or _weak_ok(b, 3)) and not (a.isdigit() or b.isdigit())):
-            out.append(f"{_display(a)} {_display(b)}")
+        if _weak_ok(a, 2) and _weak_ok(b, 2) and (len(a) >= 4 or len(b) >= 4):
+            out.append(f"{a} {b}")
     return out
 
 
@@ -420,14 +430,14 @@ def weak_candidates(cve_id: str, ref_urls: list[str], pocs: list[tuple[str, str]
         for ph in dict.fromkeys(phrases):
             k = alias_norm(ph)
             if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
-                units[k].add(f"host:{host}")
+                units[k].add(f"ref:{host}")
                 rows[k].append((ph, "cve_references", url, "reference"))
     for full_name, desc in pocs:
         owner = (full_name or "").split("/", 1)[0].lower()
         for ph in dict.fromkeys(poc_phrases(full_name, desc)):
             k = alias_norm(ph)
             if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
-                units[k].add(f"owner:{owner}")
+                units[k].add(f"poc:{owner}")
                 rows[k].append((ph, "poc_in_github", full_name, "poc_repo"))
     out = []
     for k, us in units.items():
@@ -439,7 +449,7 @@ def weak_candidates(cve_id: str, ref_urls: list[str], pocs: list[tuple[str, str]
             if (src, rid) in seen:
                 continue
             seen.add((src, rid))
-            out.append(Candidate(cve_id, _display(ph) if " " not in ph else ph, k, "nickname", src, rid, pos, 1))
+            out.append(Candidate(cve_id, ph, k, "nickname", src, rid, pos, 1))
     return out
 
 
@@ -477,6 +487,22 @@ def local_decision(c: Candidate, own_tokens: frozenset[str], own_keys: frozenset
     return "keep"
 
 
+def evidence_unit(c: Candidate) -> str:
+    """The independent unit of evidence a candidate row represents (see the module docstring)."""
+    if c.source in ("cve_list", "cve_description"):
+        return "cna"
+    if c.source == "cve_references":
+        from urllib.parse import urlsplit
+        try:
+            host = (urlsplit(c.record_id).hostname or "").lower()
+        except ValueError:
+            host = ""
+        return "ref:" + registrable_domain(host[4:] if host.startswith("www.") else host)
+    if c.source == "poc_in_github":
+        return "poc:" + c.record_id.split("/", 1)[0].lower()
+    return f"{c.source}:{c.record_id}"
+
+
 @dataclass
 class Selection:
     rows: list[Candidate]
@@ -489,8 +515,15 @@ def _year(cve_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
-def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozenset[str]) -> Selection:
-    """Corpus-wide selection over (candidate, local decision) pairs. Returns the accepted alias rows."""
+def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozenset[str],
+           description_df: dict[str, int] | None = None,
+           domain_cves: dict[str, int] | None = None) -> Selection:
+    """Corpus-wide selection over (candidate, local decision) pairs. Returns the accepted alias rows.
+
+    description_df: lower-case word -> number of CVE descriptions containing it (for weak-only names);
+    domain_cves: registrable domain -> number of CVEs citing it (dedicated-site exception)."""
+    df = description_df or {}
+    dom = domain_cves or {}
     reasons: dict[str, int] = defaultdict(int)
     rejected_names: dict[str, str] = {}
     keep: list[Candidate] = []
@@ -505,6 +538,33 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
             keep.append(c)
             reasons[f"accepted_{c.kind}"] += 1
     for norm, cs in nick.items():
+        # 1. per CVE: two independent units; weak-only names must also be rare or have a dedicated site
+        by_cve: dict[str, list[Candidate]] = defaultdict(list)
+        for c in cs:
+            by_cve[c.cve_id].append(c)
+        ok_cs: list[Candidate] = []
+        for cid, ccs in by_cve.items():
+            units = {evidence_unit(c) for c in ccs}
+            if len(units) < MIN_UNITS:
+                reasons["single_unit"] += len(ccs)
+                continue
+            if all(c.source in WEAK_SOURCES for c in ccs):
+                dedicated = any(u.startswith("ref:") and 0 < dom.get(u[4:], 10 ** 9) <= DEDICATED_DOMAIN_MAX_CVES
+                                for u in units)
+                words = [t.lower() for t in _tokens(ccs[0].alias)]
+                if len(words) > 1 and not any(all(w[:1].isupper() for w in c.alias.split()) for c in ccs):
+                    reasons["weak_lowercase_phrase"] += len(ccs)
+                    continue
+                if not dedicated and (any(df.get(w, 0) > DF_MAX for w in words)
+                                      or not any(df.get(w, 0) <= DF_RARE for w in words)):
+                    reasons["weak_common_word"] += len(ccs)
+                    continue
+            ok_cs.extend(ccs)
+        if not ok_cs:
+            rejected_names.setdefault(norm, "uncorroborated")
+            continue
+        cs = ok_cs
+        # 2. corpus-wide: product names, spread, time window, relative support
         positions = {c.position for c in cs}
         if positions <= WEAK_POSITIONS and norm in product_vocabulary:
             reasons["product_name"] += len(cs)
@@ -526,9 +586,9 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
             rejected_names[norm] = "spread_over_years"
             continue
         support: dict[str, float] = defaultdict(float)
-        seen: set[tuple[str, str, str]] = set()
+        seen: set[tuple[str, str]] = set()
         for c in cs:
-            k = (c.cve_id, c.source, c.record_id)
+            k = (c.cve_id, evidence_unit(c))
             if k not in seen:
                 seen.add(k)
                 support[c.cve_id] += 1.0 / max(1, c.record_cves)
@@ -546,8 +606,19 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
     return Selection(keep, dict(reasons), rejected_names)
 
 
+def weak_words(candidates: list[tuple[Candidate, str]]) -> set[str]:
+    """Lower-case words of kept weak-source nickname candidates (for the description-frequency pass)."""
+    out: set[str] = set()
+    for c, d in candidates:
+        if d == "keep" and c.kind == "nickname" and c.source in WEAK_SOURCES:
+            out.update(t.lower() for t in _tokens(c.alias))
+    return out
+
+
 def thresholds() -> dict:
-    return {"max_nickname_spread": MAX_NICKNAME_SPREAD, "year_window": YEAR_WINDOW,
+    return {"min_units": MIN_UNITS, "df_max": DF_MAX, "df_rare": DF_RARE,
+            "dedicated_domain_max_cves": DEDICATED_DOMAIN_MAX_CVES,
+            "max_nickname_spread": MAX_NICKNAME_SPREAD, "year_window": YEAR_WINDOW,
             "min_window_share": MIN_WINDOW_SHARE, "min_relative_support": MIN_RELATIVE_SUPPORT,
             "alias_chars": [MIN_ALIAS_CHARS, MAX_ALIAS_CHARS], "max_alias_tokens": MAX_ALIAS_TOKENS,
             "max_title_chars": MAX_TITLE_CHARS}

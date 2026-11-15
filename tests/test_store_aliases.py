@@ -82,23 +82,45 @@ def _c(cid, alias, rid, n=1, pos="quoted", src="exploitdb"):
 
 
 def test_select_rejects_wide_spread_and_year_spread_and_weak_support():
-    cands = [_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}") for i in range(20)]                  # product-like
-    cands += [_c("CVE-2005-0001", "Oldname", "a"), _c("CVE-2012-0001", "Oldname", "b"),
-              _c("CVE-2019-0001", "Oldname", "c")]                                          # spans years
+    cands = [x for i in range(20) for x in (_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}"),
+                                            _c(f"CVE-2010-{i:04d}", "Widgetron", f"s{i}", src="metasploit_modules"))]
+    cands += [x for y in ("2005", "2012", "2019") for x in (_c(f"CVE-{y}-0001", "Oldname", "a"),
+                                                         _c(f"CVE-{y}-0001", "Oldname", "b", src="nuclei_templates"))]
     cands += [_c("CVE-2014-6271", "Shellshock", f"m{i}") for i in range(4)]
-    cands += [_c(c, "Shellshock", "e1", n=3) for c in ("CVE-2014-6271", "CVE-2014-3659", "CVE-2014-3671")]
-    cands += [_c("CVE-2021-44228", "Log4Shell", "x", pos="camel")]
-    cands += [_c("CVE-2021-0100", "SharePoint", "y", pos="camel")]
+    cands += [_c(c, "Shellshock", r, n=3) for c in ("CVE-2014-6271", "CVE-2014-3659") for r in ("e1", "e2")]
+    cands += [_c("CVE-2021-44228", "Log4Shell", "x", pos="camel"), _c("CVE-2021-44228", "Log4Shell", "y",
+                                                                       src="metasploit_modules")]
+    cands += [_c("CVE-2021-0100", "SharePoint", "y", pos="camel"), _c("CVE-2021-0100", "SharePoint", "z", pos="camel",
+                                                                       src="nuclei_templates")]
+    cands += [_c("CVE-2017-8478", "NtQueryInformationJobObject", "42000")]   # one exploit title only
     sel = A.select(cands, frozenset({"sharepoint"}))
     got = {(c.cve_id, c.alias) for c in sel.rows}
     assert ("CVE-2014-6271", "Shellshock") in got and ("CVE-2021-44228", "Log4Shell") in got
     assert not any(a == "Widgetron" for _, a in got)
     assert not any(a == "Oldname" for _, a in got)
-    assert ("CVE-2014-3659", "Shellshock") not in got  # only shares a multi-CVE exploit record
+    assert ("CVE-2014-3659", "Shellshock") not in got  # only shares multi-CVE exploit records
     assert ("CVE-2021-0100", "SharePoint") not in got   # bare CamelCase that is a CPE product name
+    assert ("CVE-2017-8478", "NtQueryInformationJobObject") not in got  # a single unit of evidence
     assert sel.rejected_names[alias_norm("Widgetron")] == "spread_too_wide"
     assert sel.rejected_names[alias_norm("Oldname")] == "spread_over_years"
+    assert sel.rejected_names[alias_norm("NtQueryInformationJobObject")] == "uncorroborated"
     assert sel.reasons["low_relative_support"] >= 1
+
+
+def test_select_weak_only_names_must_be_rare_or_have_a_dedicated_site():
+    def w(cid, alias, rid, src="poc_in_github", pos="poc_repo"):
+        return (A.Candidate(cid, alias, alias_norm(alias), "nickname", src, rid, pos, 1), "keep")
+    cands = [w("CVE-2021-4034", "pwnkit", "alice/pwnkit"), w("CVE-2021-4034", "PwnKit", "bob/CVE-2021-4034-PwnKit")]
+    cands += [w("CVE-2021-0001", "segfault", "alice/segfault"), w("CVE-2021-0001", "segfault", "bob/segfault")]
+    cands += [w("CVE-2016-0800", "drown", "https://drownattack.com", "cve_references", "reference"),
+              w("CVE-2016-0800", "drown", "https://access.redhat.com/security/vulnerabilities/drown",
+                "cve_references", "reference")]
+    cands += [w("CVE-2021-0002", "review and", "alice/review-and"), w("CVE-2021-0002", "review and", "bob/review-and")]
+    df = {"pwnkit": 0, "segfault": 400, "drown": 80, "review": 3000, "and": 300000}
+    sel = A.select(cands, frozenset(), df, {"drownattack.com": 1, "redhat.com": 20000})
+    got = {c.norm for c in sel.rows}
+    assert got == {"pwnkit", "drown"}  # drown is common-ish but has a dedicated site
+    assert sel.reasons["weak_common_word"] >= 2
 
 
 @pytest.mark.parametrize("source", sorted(A.QUERY_SIDE_SOURCES))

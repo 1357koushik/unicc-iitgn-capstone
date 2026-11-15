@@ -21,6 +21,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -44,6 +45,7 @@ ALIAS_INPUTS = ("exploitdb", "metasploit_modules", "nuclei_templates")
 POC_INPUT = "poc_in_github"
 CWE_INPUT = "cwe_catalog"
 READ_THREADS = 12
+WORD_RE = re.compile(r"[A-Za-z0-9]+")
 
 
 class ReconciliationError(RuntimeError):
@@ -313,6 +315,7 @@ def process_group(job: dict) -> dict:
     shard.execute("CREATE TABLE v1side (cve_id TEXT, nvd_desc TEXT)")
     insert = f"INSERT INTO cve VALUES ({', '.join('?' * len(cols))})"
     decisions: list[tuple] = []
+    domain_cves: Counter = Counter()
     batch, sigs, v1rows = [], [], []
     nvd_conflicts = 0
     for cid in ids:
@@ -354,8 +357,10 @@ def process_group(job: dict) -> dict:
             own_tokens = own_keys = desc_nicks = None
             strong_keep = set()
         # weak evidence: PoC-in-GitHub repositories and the CVE's own reference URLs, corroborated only
-        weak = A.weak_candidates(cid, [r["url"] for r in row["references"]], job["pocs"].get(cid, []),
-                                 frozenset(strong_keep))
+        ref_urls = [r["url"] for r in row["references"]]
+        for dom in {A.evidence_unit(A.Candidate(cid, "", "", "", "cve_references", u, "", 1)) for u in ref_urls}:
+            domain_cves[dom[4:]] += 1
+        weak = A.weak_candidates(cid, ref_urls, job["pocs"].get(cid, []), frozenset(strong_keep))
         if weak:
             if own_tokens is None:
                 own = side["own_names"]
@@ -382,7 +387,7 @@ def process_group(job: dict) -> dict:
         "counts": {k: dict(v) for k, v in counts.items()}, "inputs": inputs,
         "cl_files": len(cl_hash_entries),
         "cl_hash": hashlib.sha256("\n".join(cl_hash_entries).encode("utf-8")).hexdigest(),
-        "alias_decisions": decisions, "vocab": sorted(v for v in vocab if v),
+        "alias_decisions": decisions, "vocab": sorted(v for v in vocab if v), "domain_cves": dict(domain_cves),
         "state_conflicts": nvd_conflicts,
         "seconds": {"parse": round(t_parse, 1), "total": round(time.time() - t0, 1)},
     }
@@ -498,7 +503,16 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         t = time.time()
         vocab = frozenset(v for res in results for v in res["vocab"])
         decisions = [(A.Candidate(*ct), d) for res in results for ct, d in res["alias_decisions"]]
-        sel = A.select(decisions, vocab)
+        domain_cves: Counter = Counter()
+        for res in results:
+            domain_cves.update(res["domain_cves"])
+        words = A.weak_words(decisions)
+        df: Counter = Counter()
+        for (desc,) in db.execute("SELECT description FROM cve WHERE searchable = 1"):
+            for w in {t.lower() for t in WORD_RE.findall(desc)} & words:
+                df[w] += 1
+        sel = A.select(decisions, vocab, dict(df), dict(domain_cves))
+        del domain_cves, df
         db.executemany("INSERT OR IGNORE INTO aliases VALUES (?,?,?,?,?,?,?,?)",
                        [(c.cve_id, c.alias, c.norm, c.kind, c.source, c.record_id, c.position, c.record_cves)
                         for c in sel.rows if c.cve_id in universe])
