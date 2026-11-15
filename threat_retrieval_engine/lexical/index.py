@@ -292,28 +292,40 @@ class LexicalIndex:
         t1 = time.perf_counter()
         hits: list[tuple[str, float]] = []
         if q.match is not None and ranges:
-            acc = np.zeros(self.n_docs, dtype=np.float64)
             ip, ix, dv = self.indptr, self.indices, self.data
-            for t in q.terms:  # same order as the phrases of the reference MATCH expression
-                n = q.tid[t]
-                s, e = int(ip[n]), int(ip[n + 1])
-                acc[ix[s:e]] += dv[s:e]
+            rows = [(int(ip[q.tid[t]]), int(ip[q.tid[t] + 1])) for t in q.terms]
+            # Rows concatenated in query-term order: bincount adds each document's contributions in that order,
+            # starting from 0.0, as bm25() adds its phrases, so the sums are bit-identical to FTS5's.
+            acc = np.bincount(np.concatenate([ix[a:b] for a, b in rows]),
+                              weights=np.concatenate([dv[a:b] for a, b in rows]), minlength=self.n_docs)
             if len(ranges) != len(self.kind_doc_range):
                 mask = np.zeros(self.n_docs, dtype=bool)
                 for lo, hi in ranges:
                     mask[lo:hi] = True
                 acc[~mask] = 0.0
-            nz = np.flatnonzero(acc)
-            if len(nz) > k:
-                vals = acc[nz]
-                kth = np.partition(vals, len(vals) - k)[len(vals) - k]
-                nz = nz[vals >= kth]  # every document tied with the k-th score stays for the rowid tie-break
-            order = np.lexsort((self.rowids[nz], -acc[nz]))[:k]
-            sel = nz[order]
-            hits = self._doc_ids([(int(r), -float(s)) for r, s in zip(self.rowids[sel], acc[sel])])
+            sel = self._top(acc, k, [ix[a:b] for _, (a, b) in sorted(zip((q.df[t] for t in q.terms), rows))])
+            hits = self._doc_ids([(int(r), -float(v)) for r, v in zip(self.rowids[sel], acc[sel])])
         t2 = time.perf_counter()
         return SearchResult(hits, q, {"build_query": (t1 - t0) * 1000, "score": (t2 - t1) * 1000,
                                       "total": (t2 - t0) * 1000})
+
+    def _top(self, acc: np.ndarray, k: int, rare_rows: list[np.ndarray]) -> np.ndarray:
+        """Positions of the k best scores (score descending, rowid ascending), exactly. A lower bound on the
+        k-th score comes from the documents of the rarest terms (any k scored documents bound it from below);
+        only documents at or above that bound are partitioned, instead of the whole accumulator."""
+        cand = np.unique(np.concatenate(rare_rows[: max(1, len(rare_rows))])[: 8 * k]) if rare_rows else None
+        floor = 0.0
+        if cand is not None:
+            vals = acc[cand]
+            vals = vals[vals > 0]
+            if len(vals) >= k:
+                floor = float(np.partition(vals, len(vals) - k)[len(vals) - k])
+        nz = np.flatnonzero(acc >= floor) if floor > 0 else np.flatnonzero(acc)
+        if len(nz) > k:
+            vals = acc[nz]
+            kth = np.partition(vals, len(vals) - k)[len(vals) - k]
+            nz = nz[vals >= kth]  # every document tied with the k-th score stays for the rowid tie-break
+        return nz[np.lexsort((self.rowids[nz], -acc[nz]))[:k]]
 
     def search_fts5(self, text: str | None, k: int = 100, kinds: tuple[str, ...] | None = ("cve",),
                     ranking: RankingConfig | None = None) -> SearchResult:

@@ -6,15 +6,15 @@
       "k": 100
     }
   },
-  "created_at": "2026-11-15T09:22:57Z",
+  "created_at": "2026-11-15T19:31:54Z",
   "sessions": [
     {
       "abort_reason": null,
       "already_done": 0,
       "concurrency": 1,
-      "ended_at": "2026-11-15T09:23:50Z",
+      "ended_at": "2026-11-15T19:32:17Z",
       "errors": 0,
-      "harness_commit": "7ff5f1a",
+      "harness_commit": "de35617",
       "harness_version": "b4-1",
       "host": "Actually-Koushik",
       "load_average_end": null,
@@ -25,23 +25,27 @@
       "selected": 1489,
       "sent": 1489,
       "service_info": {
-        "build_id": "20261115T091556Z-b096c83510",
+        "build_id": "20261115T192656Z-bfacb4bb1c",
         "component": "lexical",
-        "documents": 405013,
-        "index_sha256": "709c16670b5c4fc0c9d8fc7dadd47ec48714b2f880edaccebc145ce30b373dd6",
+        "documents": 406840,
+        "impact_bytes": 259774960,
+        "impact_nnz": 20580052,
+        "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+        "kinds": [
+          "cve"
+        ],
         "ranking": {
           "bm25": {
             "b": 0.75,
             "implementation": "sqlite fts5 bm25()",
             "k1": 1.2
           },
-          "candidate_budget": 3000,
-          "max_df_ratio": 0.25,
+          "max_df_ratio": 1.0,
           "max_query_chars": 20000,
-          "max_terms": 24,
+          "max_terms": 64,
           "stop_words": "english",
           "weights": {
-            "aliases": 1.0,
+            "aliases": 8.0,
             "description": 1.0,
             "exploit_titles": 2.0,
             "ids": 50.0,
@@ -53,8 +57,8 @@
         },
         "tokenizer": "tre-domain-1-split1-td1-porter2"
       },
-      "session_id": "2026-11-15T09:22:57Z-25172-ce64d7c1",
-      "started_at": "2026-11-15T09:22:57Z",
+      "session_id": "2026-11-15T19:31:54Z-25556-eda30210",
+      "started_at": "2026-11-15T19:31:54Z",
       "status": "complete"
     }
   ],

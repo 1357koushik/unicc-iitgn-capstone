@@ -1,0 +1,238 @@
+{
+ "label": "pc",
+ "created_utc": "2026-11-15T20:09:08Z",
+ "host": "Actually-Koushik",
+ "platform": "Windows-11-10.0.26200-SP0",
+ "python": "3.12.10",
+ "sqlite": "3.49.1",
+ "cpu_count": 20,
+ "load_average": null,
+ "index": {
+  "build_id": "20261115T192656Z-bfacb4bb1c",
+  "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+  "documents": 406840,
+  "ranking": {
+   "weights": {
+    "ids": 50.0,
+    "title": 0.5,
+    "aliases": 8.0,
+    "vendor_product": 2.0,
+    "description": 1.0,
+    "weakness": 2.0,
+    "kev_text": 8.0,
+    "exploit_titles": 2.0
+   },
+   "stop_words": "english",
+   "max_df_ratio": 1.0,
+   "max_terms": 64,
+   "max_query_chars": 20000,
+   "bm25": {
+    "k1": 1.2,
+    "b": 0.75,
+    "implementation": "sqlite fts5 bm25()"
+   }
+  },
+  "impact_nnz": 20580052,
+  "impact_mib": 247.7,
+  "impact_load_s": 0.558
+ },
+ "queries": {
+  "path": "C:\\Users\\a\\AppData\\Local\\Temp\\claude\\1780c3d1a28a041b\\45ac322c-69f0-4f7c-adca-09fff6b2b7b3\\scratchpad\\dev_queries.jsonl",
+  "n": 1489
+ },
+ "k": 100,
+ "repeat": 3,
+ "what": "LexicalIndex.search: query building + impact-matrix scoring + top-k, one query at a time",
+ "cold": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 5.287,
+    "p95": 14.804,
+    "p99": 25.494,
+    "max": 47.646,
+    "mean": 6.523
+   },
+   {
+    "n": 1489,
+    "p50": 5.234,
+    "p95": 14.754,
+    "p99": 25.689,
+    "max": 46.942,
+    "mean": 6.492
+   },
+   {
+    "n": 1489,
+    "p50": 5.322,
+    "p95": 14.554,
+    "p99": 25.154,
+    "max": 41.435,
+    "mean": 6.561
+   }
+  ],
+  "median": {
+   "p50": 5.287,
+   "p95": 14.754,
+   "p99": 25.494,
+   "max": 46.942,
+   "mean": 6.523
+  },
+  "open_ms": 552.076499996474,
+  "note": "fresh process, first pass, no warm-up; OS file cache not dropped"
+ },
+ "cold_after_warmup": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 5.156,
+    "p95": 14.541,
+    "p99": 25.934,
+    "max": 48.567,
+    "mean": 6.441
+   },
+   {
+    "n": 1489,
+    "p50": 5.343,
+    "p95": 14.709,
+    "p99": 25.886,
+    "max": 42.872,
+    "mean": 6.607
+   },
+   {
+    "n": 1489,
+    "p50": 5.479,
+    "p95": 15.126,
+    "p99": 26.037,
+    "max": 48.812,
+    "mean": 6.656
+   }
+  ],
+  "median": {
+   "p50": 5.343,
+   "p95": 14.709,
+   "p99": 25.934,
+   "max": 48.567,
+   "mean": 6.607
+  },
+  "warm_ms": 241.8422999980976,
+  "note": "fresh process, LexicalIndex.warm() at open (the service start-up path), first pass"
+ },
+ "warm": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 5.197,
+    "p95": 14.226,
+    "p99": 25.433,
+    "max": 31.173,
+    "mean": 6.372
+   },
+   {
+    "n": 1489,
+    "p50": 5.159,
+    "p95": 14.328,
+    "p99": 25.44,
+    "max": 33.977,
+    "mean": 6.384
+   },
+   {
+    "n": 1489,
+    "p50": 5.051,
+    "p95": 14.002,
+    "p99": 23.983,
+    "max": 29.786,
+    "mean": 6.202
+   }
+  ],
+  "median": {
+   "p50": 5.159,
+   "p95": 14.226,
+   "p99": 25.433,
+   "max": 31.173,
+   "mean": 6.372
+  }
+ },
+ "warm_by_slice": {
+  "T0": {
+   "n": 106,
+   "p50": 13.755,
+   "p95": 26.707,
+   "p99": 28.745,
+   "max": 29.786,
+   "mean": 14.529
+  },
+  "T1": {
+   "n": 150,
+   "p50": 3.91,
+   "p95": 4.69,
+   "p99": 5.07,
+   "max": 5.651,
+   "mean": 3.872
+  },
+  "T2": {
+   "n": 99,
+   "p50": 4.074,
+   "p95": 6.805,
+   "p99": 7.501,
+   "max": 7.501,
+   "mean": 4.306
+  },
+  "T3": {
+   "n": 300,
+   "p50": 7.024,
+   "p95": 11.556,
+   "p99": 13.965,
+   "max": 15.277,
+   "mean": 7.169
+  },
+  "T4": {
+   "n": 160,
+   "p50": 5.202,
+   "p95": 9.995,
+   "p99": 13.483,
+   "max": 14.901,
+   "mean": 5.754
+  },
+  "T5": {
+   "n": 120,
+   "p50": 5.545,
+   "p95": 9.246,
+   "p99": 11.321,
+   "max": 11.801,
+   "mean": 5.904
+  },
+  "T6": {
+   "n": 154,
+   "p50": 6.671,
+   "p95": 21.453,
+   "p99": 25.885,
+   "max": 26.241,
+   "mean": 8.139
+  },
+  "T7": {
+   "n": 160,
+   "p50": 3.576,
+   "p95": 6.154,
+   "p99": 7.126,
+   "max": 7.506,
+   "mean": 3.457
+  },
+  "T8": {
+   "n": 120,
+   "p50": 5.422,
+   "p95": 7.995,
+   "p99": 9.395,
+   "max": 9.736,
+   "mean": 5.462
+  },
+  "T9": {
+   "n": 120,
+   "p50": 3.538,
+   "p95": 5.938,
+   "p99": 7.067,
+   "max": 8.803,
+   "mean": 3.72
+  }
+ },
+ "load_average_end": null
+}
