@@ -1,0 +1,246 @@
+{
+ "label": "server",
+ "created_utc": "2026-11-15T21:08:39Z",
+ "host": "localhost.localdomain",
+ "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+ "python": "3.12.16",
+ "sqlite": "3.53.1",
+ "cpu_count": 48,
+ "load_average": [
+  0.57,
+  0.19,
+  0.83
+ ],
+ "index": {
+  "build_id": "20261115T203653Z-bfacb4bb1c",
+  "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+  "documents": 406840,
+  "ranking": {
+   "weights": {
+    "ids": 50.0,
+    "title": 0.5,
+    "aliases": 8.0,
+    "vendor_product": 2.0,
+    "description": 1.0,
+    "weakness": 2.0,
+    "kev_text": 8.0,
+    "exploit_titles": 2.0
+   },
+   "stop_words": "english",
+   "max_df_ratio": 1.0,
+   "max_terms": 64,
+   "max_query_chars": 20000,
+   "bm25": {
+    "k1": 1.2,
+    "b": 0.75,
+    "implementation": "sqlite fts5 bm25()"
+   }
+  },
+  "impact_nnz": 20580052,
+  "impact_mib": 247.7,
+  "impact_load_s": 0.99
+ },
+ "queries": {
+  "path": "/home/koushik.moram/team2/lexical/dev_queries.jsonl",
+  "n": 1489
+ },
+ "k": 100,
+ "repeat": 3,
+ "what": "LexicalIndex.search: query building + impact-matrix scoring + top-k, one query at a time",
+ "cold": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 1.752,
+    "p95": 6.492,
+    "p99": 20.36,
+    "max": 39.88,
+    "mean": 2.453
+   },
+   {
+    "n": 1489,
+    "p50": 1.704,
+    "p95": 5.989,
+    "p99": 20.182,
+    "max": 39.034,
+    "mean": 2.347
+   },
+   {
+    "n": 1489,
+    "p50": 1.706,
+    "p95": 6.006,
+    "p99": 20.907,
+    "max": 39.145,
+    "mean": 2.378
+   }
+  ],
+  "median": {
+   "p50": 1.706,
+   "p95": 6.006,
+   "p99": 20.36,
+   "max": 39.145,
+   "mean": 2.378
+  },
+  "open_ms": 871.7882111668587,
+  "note": "fresh process, first pass, no warm-up; OS file cache not dropped"
+ },
+ "cold_after_warmup": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 1.699,
+    "p95": 6.156,
+    "p99": 21.64,
+    "max": 38.993,
+    "mean": 2.43
+   },
+   {
+    "n": 1489,
+    "p50": 1.708,
+    "p95": 6.154,
+    "p99": 21.989,
+    "max": 41.151,
+    "mean": 2.43
+   },
+   {
+    "n": 1489,
+    "p50": 1.702,
+    "p95": 6.208,
+    "p99": 22.078,
+    "max": 38.436,
+    "mean": 2.43
+   }
+  ],
+  "median": {
+   "p50": 1.702,
+   "p95": 6.156,
+   "p99": 21.989,
+   "max": 38.993,
+   "mean": 2.43
+  },
+  "warm_ms": 152.79161930084229,
+  "note": "fresh process, LexicalIndex.warm() at open (the service start-up path), first pass"
+ },
+ "warm": {
+  "repetitions": [
+   {
+    "n": 1489,
+    "p50": 1.634,
+    "p95": 5.955,
+    "p99": 21.007,
+    "max": 36.759,
+    "mean": 2.336
+   },
+   {
+    "n": 1489,
+    "p50": 1.654,
+    "p95": 6.032,
+    "p99": 20.993,
+    "max": 38.484,
+    "mean": 2.365
+   },
+   {
+    "n": 1489,
+    "p50": 1.629,
+    "p95": 5.886,
+    "p99": 20.849,
+    "max": 36.925,
+    "mean": 2.339
+   }
+  ],
+  "median": {
+   "p50": 1.634,
+   "p95": 5.955,
+   "p99": 20.993,
+   "max": 36.925,
+   "mean": 2.339
+  }
+ },
+ "warm_by_slice": {
+  "T0": {
+   "n": 106,
+   "p50": 5.464,
+   "p95": 22.495,
+   "p99": 32.332,
+   "max": 36.925,
+   "mean": 8.598
+  },
+  "T1": {
+   "n": 150,
+   "p50": 1.841,
+   "p95": 1.965,
+   "p99": 2.074,
+   "max": 2.079,
+   "mean": 1.568
+  },
+  "T2": {
+   "n": 99,
+   "p50": 1.136,
+   "p95": 1.907,
+   "p99": 2.683,
+   "max": 2.683,
+   "mean": 1.262
+  },
+  "T3": {
+   "n": 300,
+   "p50": 2.196,
+   "p95": 3.803,
+   "p99": 4.799,
+   "max": 6.011,
+   "mean": 2.266
+  },
+  "T4": {
+   "n": 160,
+   "p50": 1.517,
+   "p95": 3.107,
+   "p99": 5.353,
+   "max": 6.198,
+   "mean": 1.705
+  },
+  "T5": {
+   "n": 120,
+   "p50": 1.489,
+   "p95": 2.955,
+   "p99": 4.144,
+   "max": 4.317,
+   "mean": 1.658
+  },
+  "T6": {
+   "n": 154,
+   "p50": 2.168,
+   "p95": 15.524,
+   "p99": 26.942,
+   "max": 28.91,
+   "mean": 3.839
+  },
+  "T7": {
+   "n": 160,
+   "p50": 0.888,
+   "p95": 1.956,
+   "p99": 2.163,
+   "max": 2.173,
+   "mean": 0.958
+  },
+  "T8": {
+   "n": 120,
+   "p50": 1.506,
+   "p95": 2.514,
+   "p99": 2.877,
+   "max": 3.23,
+   "mean": 1.558
+  },
+  "T9": {
+   "n": 120,
+   "p50": 0.912,
+   "p95": 1.9,
+   "p99": 1.919,
+   "max": 3.078,
+   "mean": 1.074
+  }
+ },
+ "load_average_end": [
+  0.57,
+  0.19,
+  0.83
+ ]
+}
