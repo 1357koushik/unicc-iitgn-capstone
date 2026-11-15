@@ -137,6 +137,22 @@ def test_accepted_verdict_is_served_and_others_stay_pending(db):
     assert reasons.get(("poc_in_github", "erin/CVE-2018-6116-Lonelyname")) == "no_corroborated_alias"
 
 
+def test_served_cve_ids_limit_serving(built, tmp_path):
+    l4s = next(c for c in built["candidates"] if c["alias_norm"] == "log4shell")
+    assert len(l4s["cve_ids"]) >= 1
+    vf = tmp_path / "v.jsonl"
+    vf.write_text(json.dumps({"alias_norm": "log4shell", "cve_ids": l4s["cve_ids"], "verdict": "accept",
+                              "served_cve_ids": l4s["cve_ids"][:1], "judge": "t", "adjudicator": None,
+                              "date": "2026-11-15", "evidence_sha256": l4s["evidence_sha256"]}) + "\n",
+                  encoding="utf-8")
+    out = B.build(built["feeds"], built["sources"], tmp_path / "store", workers=1, build_id="sub", log=lambda m: None,
+                  verdicts_path=vf)
+    con = sqlite3.connect(out / "store.sqlite")
+    served = {r[0] for r in con.execute("SELECT cve_id FROM aliases WHERE kind = 'nickname'")}
+    con.close()
+    assert served == set(l4s["cve_ids"][:1])
+
+
 def test_export_tool_regenerates_candidates(built, tmp_path):
     from threat_retrieval_engine.store.export_candidates import main as export_main
     out = tmp_path / "c.jsonl"

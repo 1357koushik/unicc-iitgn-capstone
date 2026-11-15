@@ -196,6 +196,19 @@ def test_verdicts_serve_only_matching_accepts(tmp_path):
                    encoding="utf-8")
     with pytest.raises(ValueError):
         A.load_verdicts(bad)
+    sub = tmp_path / "sub.jsonl"
+    rec = {"alias_norm": hb.norm, "cve_ids": ["CVE-2014-0160", "CVE-2014-0346"], "verdict": "accept",
+           "evidence_sha256": hb.evidence_sha256, "served_cve_ids": ["CVE-2014-0160"], **common}
+    sub.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    assert A.served_cves(A.load_verdicts(sub)[(hb.norm, ("CVE-2014-0160", "CVE-2014-0346"))]) == {"CVE-2014-0160"}
+    for bad_sv, verdict in ((["CVE-2099-0001"], "accept"), ([], "accept"), (["CVE-2014-0346", "CVE-2014-0160"], "accept"),
+                            (["CVE-2014-0160"], "reject")):
+        sub.write_text(json.dumps(dict(rec, served_cve_ids=bad_sv, verdict=verdict)) + "\n", encoding="utf-8")
+        with pytest.raises(ValueError):
+            A.load_verdicts(sub)
+    nul = tmp_path / "nul.jsonl"
+    nul.write_text(json.dumps(dict(rec, adjudicator=None)) + "\n", encoding="utf-8")
+    assert A.load_verdicts(nul)   # adjudicator may be null when not needed
     leak = tmp_path / "leak.jsonl"
     leak.write_text(json.dumps({"alias_norm": hb.norm, "cve_ids": list(hb.cve_ids), "verdict": "accept",
                                 "evidence_sha256": hb.evidence_sha256, "qid": "T2-0004", **common}) + "\n",

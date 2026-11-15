@@ -555,7 +555,8 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         del lower_docs
         verdicts = A.load_verdicts(verdicts_path)
         status = A.apply_verdicts(sel.groups, verdicts)
-        served = [c for g in sel.groups if status[(g.norm, g.cve_ids)] == "accepted" for c in g.rows]
+        served = [c for g in sel.groups if status[(g.norm, g.cve_ids)] == "accepted"
+                  for c in g.rows if c.cve_id in A.served_cves(verdicts[(g.norm, g.cve_ids)])]
         alias_rows = sel.rows + [c for c in served if c.cve_id in universe]
         db.executemany("INSERT OR IGNORE INTO aliases VALUES (?,?,?,?,?,?,?,?)",
                        [(c.cve_id, c.alias, c.norm, c.kind, c.source, c.record_id, c.position, c.record_cves)

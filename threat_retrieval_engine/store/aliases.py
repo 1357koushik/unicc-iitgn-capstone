@@ -836,10 +836,17 @@ def load_verdicts(path) -> dict[tuple[str, tuple[str, ...]], dict]:
             if not line.strip():
                 continue
             v = json.loads(line)
-            missing = [k for k in VERDICT_FIELDS if not v.get(k)]
+            missing = [k for k in VERDICT_FIELDS if k != "adjudicator" and not v.get(k)]
+            missing += [] if "adjudicator" in v else ["adjudicator"]   # null when no adjudication was needed
             if missing or v["verdict"] not in ("accept", "reject") or not isinstance(v["cve_ids"], list):
                 raise ValueError(f"{path}:{n}: malformed verdict (missing {missing} or bad verdict/cve_ids)")
-            extra = set(v) - set(VERDICT_FIELDS) - {"alias", "rationale", "notes"}
+            if "served_cve_ids" in v:
+                sv = v["served_cve_ids"]
+                if (v["verdict"] != "accept" or not isinstance(sv, list) or not sv or sv != sorted(set(sv))
+                        or not set(sv) <= set(v["cve_ids"])):
+                    raise ValueError(f"{path}:{n}: served_cve_ids must be a non-empty sorted subset of cve_ids, "
+                                     f"on an accept verdict only")
+            extra = set(v) - set(VERDICT_FIELDS) - {"alias", "rationale", "notes", "served_cve_ids"}
             if extra:
                 raise ValueError(f"{path}:{n}: unexpected fields {sorted(extra)}")
             key = (v["alias_norm"], tuple(sorted(v["cve_ids"])))
@@ -847,6 +854,12 @@ def load_verdicts(path) -> dict[tuple[str, tuple[str, ...]], dict]:
                 raise ValueError(f"{path}:{n}: conflicting verdicts for {key}")
             out[key] = v
     return out
+
+
+def served_cves(verdict: dict) -> frozenset[str]:
+    """CVEs an accept verdict serves: served_cve_ids when given (the name is real but the candidate set had
+    extra CVEs, e.g. EternalBlue -> CVE-2017-0144 only), else every candidate CVE."""
+    return frozenset(verdict.get("served_cve_ids") or verdict["cve_ids"])
 
 
 def apply_verdicts(groups: list[NickGroup], verdicts: dict) -> dict[tuple[str, tuple[str, ...]], str]:

@@ -322,17 +322,25 @@ def main(argv: list[str] | None = None) -> int:
         served[norm].add(cid)
     unvetted = []
     for norm, cids in served.items():
-        ok = False
-        for (gnorm, gcves), g in groups.items():
-            if gnorm != norm or set(gcves.split(",")) != cids or g["status"] != "accepted":
-                continue
-            v = (verdicts or {}).get((norm, tuple(gcves.split(","))))
-            ok = v is not None and v["verdict"] == "accept" and v["evidence_sha256"] == g["sha"] == \
-                A.evidence_sha256(g["rows"])
-        if not ok:
-            unvetted.append(norm)
-    report(not unvetted, "every served nickname has an accept verdict with a matching evidence hash",
-           f"{len(served)} served names; {len(unvetted)} without" + (f" e.g. {unvetted[:5]}" if unvetted else ""))
+        for cid in cids:
+            ok = False
+            for (gnorm, gcves), g in groups.items():
+                if gnorm != norm or g["status"] != "accepted":
+                    continue
+                v = (verdicts or {}).get((norm, tuple(gcves.split(","))))
+                ok = (v is not None and v["verdict"] == "accept" and cid in A.served_cves(v)
+                      and v["evidence_sha256"] == g["sha"] == A.evidence_sha256(g["rows"]))
+                if ok:
+                    break
+            if not ok:
+                unvetted.append(f"{norm}:{cid}")
+    n_rows = q("SELECT COUNT(*) FROM aliases WHERE kind = 'nickname'")
+    report(not unvetted, "every served nickname has an accept verdict (within served_cve_ids) with a matching hash",
+           f"{n_rows} rows, {len(served)} names, {sum(len(v) for v in served.values())} name-CVE pairs; "
+           f"{len(unvetted)} without" + (f" e.g. {unvetted[:5]}" if unvetted else ""))
+    stale = sum(1 for g in groups.values() if g["status"] in ("pending", "stale"))
+    report(verdicts is None or stale == 0 or not verdicts, "no pending or stale candidates once verdicts exist",
+           f"{stale} pending/stale")
     st = Counter(g["status"] for g in groups.values())
     info("nickname vetting", f"{len(groups)} candidate groups: {dict(st)}; verdicts {vet.get('verdicts')}, "
                              f"verdicts without a current candidate {vet.get('verdicts_without_candidate')}")
