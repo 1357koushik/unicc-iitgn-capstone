@@ -55,8 +55,13 @@ done
 echo "[b6] $(date '+%F %T') healthy"
 
 rc=0
-for V in v1_match v1_hybrid; do
-  for S in train dev; do
+# Order (coordinator decision): the fast hybrid endpoint first on train and dev, then /threats/match on dev only.
+# v1_match on train is not needed: v1 is compared on dev (and on test in E1); train is only used to fit v2.
+# Override with B6_RUNS="variant:split ...".
+B6_RUNS="${B6_RUNS:-v1_hybrid:train v1_hybrid:dev v1_match:dev}"
+for VS in $B6_RUNS; do
+  V="${VS%%:*}"; S="${VS##*:}"
+  {
     OUT="$OUTD/$V-$S.jsonl"
     echo "[b6] $(date '+%F %T') $V $S -> $OUT"
     ( cd "$E/pkg" && env CUDA_VISIBLE_DEVICES= PYTHONPATH="$E/pkg" TRE_HARNESS_COMMIT="$COMMIT" \
@@ -65,7 +70,7 @@ for V in v1_match v1_hybrid; do
     r=$?
     echo "[b6] $V $S exit $r"
     [ $r -ne 0 ] && rc=$r
-  done
+  }
 done
 echo "[b6] $(date '+%F %T') done; load $(cut -d' ' -f1-3 /proc/loadavg)"
 exit $rc

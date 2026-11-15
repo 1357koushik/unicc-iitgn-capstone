@@ -77,3 +77,14 @@ python -m benchmarks_v2.eval score --run results/eval/runs/v1_match-dev.jsonl --
 If `score` is unhappy about a flag, `python -m benchmarks_v2.eval score --help` lists them
 (`--allow-incomplete` only for a run that is knowingly partial). Errors (504, timeouts) are recorded as misses
 by design; that is the true v1 result.
+
+
+## Run order (coordinator decision, 2026-11-15)
+
+v1 `/threats/match` times out (HTTP 504 at 15 s) on most queries, and the harness waits 30 s after each error so that work v1 abandons after a timeout cannot slow the next query (the pause is kept: removing it would bias v1 downwards). Running every variant on train and dev would take about 28 hours. v1 is only compared on dev (and on test in E1); the train split is only used to fit v2. The default order is therefore:
+
+1. `v1_hybrid` train, 2. `v1_hybrid` dev, 3. `v1_match` dev.
+
+`v1_match` train is not run. The 25 `v1_match-train` records from the first start are kept but not used. Override with `B6_RUNS="variant:split ..."`.
+
+Note: the process to stop is the `b6_server.sh` process (check with `ps -u $USER -o pid,ppid,cmd | grep b6_server`), not the nohup wrapper PID printed at start.
