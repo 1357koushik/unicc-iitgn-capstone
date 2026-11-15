@@ -14,6 +14,8 @@
 # Results are de-duplicated after mapping, keeping the first occurrence. A response that does not have the
 # configured shape stops the run (it is a configuration error, never recorded as a miss).
 # Non-200 responses (including 504) and timeouts are recorded as errors with an empty ranking.
+# adapter inprocess: `factory` (package.module:callable) is called with `options` and returns an object with
+# search(text) -> [(doc_id, score), ...]; evaluates one component (e.g. the lexical index) on its own.
 
 schema: tre-eval-variants/1
 variants:
@@ -76,6 +78,22 @@ variants:
       probability: composite_score
       abstained: null
       abstain_when_empty: true
+
+  v2_lexical:
+    adapter: inprocess
+    description: C2 lexical index (SQLite FTS5, per-column BM25 weights, domain tokenizer), top 100 CVE documents;
+      index from $TRE_LEXICAL_DIR or data/lexical/LATEST
+    service: v2
+    factory: threat_retrieval_engine.lexical.eval_adapter:make
+    options: {k: 100}
+
+  v1_lexical:
+    adapter: inprocess
+    description: v1 BM25 (search_engine/bm25_index.py, k1 1.5, b 0.75) on v1's pickled index copied read-only from
+      the server's ~/data/sqlite ($TRE_V1_SQLITE_DIR or data/v1_server/sqlite); ranking mapped to CVE documents, top 100
+    service: v1
+    factory: benchmarks_v2.eval.v1_lexical:make
+    options: {k: 100}
 
   example_v1_match:
     adapter: runfile
