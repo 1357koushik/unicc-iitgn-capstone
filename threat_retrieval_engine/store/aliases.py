@@ -155,7 +155,7 @@ _KNOWN_AS_BARE = re.compile(_TRIGGER + r"([A-Z0-9][A-Za-z0-9+]*(?:[- ][A-Z0-9][A
 _TITLE_WORDS = frozenset("""elevation execution disclosure corruption bypass injection overflow spoofing tampering
 denial escalation information feature vulnerability vulnerabilities remote security privilege memory code
 """.split())
-_BAD_CHARS = re.compile(r"[/\\_.=?&$%<>@#:;{}\[\]()|*~^`]")
+_BAD_CHARS = re.compile(r"[/\\_.=?&$%<>@#:;{}\[\]()|*~^`!]")
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9+'\u2019-]*")
 _LEAD_STRIP = re.compile(r"^(?:via|aka|a\.k\.a\.?|the|so-called|so called|dubbed|known as)\s+", re.IGNORECASE)
 _HAS_UPPER = re.compile(r"[A-Z]")
@@ -355,7 +355,8 @@ HOSTING = frozenset({"github.com", "gitlab.com", "bitbucket.org", "blogspot.com"
                      "google.com", "pastebin.com", "gist.github.com", "substack.com", "linkedin.com",
                      "reddit.com", "hackerone.com", "huntr.dev", "huntr.com", "gitee.com", "notion.site"})
 _HANDLE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "twitter.com", "x.com", "medium.com", "gitee.com",
-                 "huntr.dev", "huntr.com", "hackerone.com", "youtube.com", "linkedin.com")
+                 "huntr.dev", "huntr.com", "hackerone.com", "youtube.com", "linkedin.com", "codepen.io",
+                 "jsfiddle.net", "vimeo.com", "facebook.com", "instagram.com", "npmjs.com")
 # code hosting: only the repository name is used (file paths and class names are not names of a flaw)
 _CODE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "gitee.com", "gist.github.com")
 EXPLOIT_ARCHIVE_DOMAINS = frozenset({"packetstormsecurity.com", "packetstorm.news", "exploit-db.com",
@@ -471,16 +472,25 @@ def weak_candidates(cve_id: str, ref_urls: list[str], pocs: list[tuple[str, str]
     rows: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
     akey = alias_norm(assigner or "")
     site_norms: set[str] = set()
-    for url in ref_urls:
-        host, phrases = url_phrases_tagged(url)
+    tagged_refs = [(url, *url_phrases_tagged(url)) for url in ref_urls]
+    # organisation names: host labels of ordinary (non-root) reference URLs, e.g. herodevs.com/vulnerability-...
+    # a path word equal to one of them (codepen.io/herodevs/...) names the organisation, not the flaw
+    org_norms = {alias_norm(ph) for _, _, phrases in tagged_refs for ph, tag in phrases if tag == "host"}
+    for url, host, phrases in tagged_refs:
         label = alias_norm(host.split(".")[0]) if host else ""
         # the assigning CNA's own advisory page repeats the CNA title: same source, not corroboration
         cna_page = bool(akey and len(label) >= 3 and (label in akey or akey in label))
         for ph, tag in dict.fromkeys(phrases):
             k = alias_norm(ph)
+            if tag == "path" and k in org_norms:
+                continue
             if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
-                pos = "reference_cna" if cna_page else {"site": "reference_site", "host": "reference_host",
-                                                         "path": "reference"}[tag]
+                if tag == "host":
+                    pos = "reference_host"          # never evidence (dropped in select)
+                elif cna_page:
+                    pos = "reference_cna"
+                else:
+                    pos = "reference_site" if tag == "site" else "reference"
                 units[k].add("cna" if cna_page else f"ref:{host}")
                 rows[k].append((ph, "cve_references", url, pos))
                 if pos == "reference_site":
@@ -567,6 +577,20 @@ _IDENT_PREFIX = re.compile(r"^(?:apsb|apsa|ghsa|rhsa|rhba|dsa|dla|usn|glsa|kb|ms
                            r"tra|ntap|sa|sb|osvdb|bid|edb|cnvd|cnnvd|hpsbux|ibm|tsb|vmsa|ciscosa|esa|alas|elsa)\d",
                            re.IGNORECASE)
 _SHORT_ALNUM = re.compile(r"^(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{2,6}$")   # w3hj, x5rv, g8ph, apsb20
+
+
+def is_structured(c: Candidate) -> bool:
+    """One unit of this kind is enough to propose a candidate: a quoted or parenthesised name in an exploit
+    title, a "Name - description" head of a nuclei template or Metasploit module, an "aka" phrase, or the
+    root of a dedicated site. CamelCase tokens (often function names), Exploit-DB heads (usually product
+    names) and CNA-title spans (descriptive) need a second independent unit."""
+    if c.position in ("reference_site", "known_as"):
+        return True
+    if c.source == "cve_list":
+        return False
+    if c.position in ("quoted", "paren"):
+        return True
+    return c.position == "head" and c.source in ("nuclei_templates", "metasploit_modules")
 
 
 def _stop_words() -> frozenset[str]:
@@ -737,8 +761,7 @@ def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
             by_cve[c.cve_id].append(c)
         ok_cs: list[Candidate] = []
         for cid, ccs in by_cve.items():
-            structured = any(c.position in STRONG_POSITIONS or c.position == "reference_site"
-                             or (c.position == "camel" and c.source in EXPLOIT_SOURCES) for c in ccs)
+            structured = any(is_structured(c) for c in ccs)
             if structured or len({evidence_unit(c) for c in ccs}) >= MIN_UNITS:
                 ok_cs.extend(ccs)
             else:

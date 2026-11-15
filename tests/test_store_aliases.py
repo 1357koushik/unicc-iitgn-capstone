@@ -155,11 +155,14 @@ def test_spread_years_and_relative_support():
     cands += [_c(c, "Shellshock", "e1", n=3) for c in ("CVE-2014-6271", "CVE-2014-3659", "CVE-2014-3671")]
     cands += [_c("CVE-2023-4966", "CitrixBleed", "n1", pos="head", src="nuclei_templates"),
               _c("CVE-2023-4966", "CitrixBleed", "p1/cb", pos="poc_repo", src="poc_in_github"),
-              _c("CVE-2025-5777", "CitrixBleed", "n2", pos="camel", src="nuclei_templates")]
+              _c("CVE-2025-5777", "CitrixBleed", "n2", pos="camel", src="nuclei_templates"),
+              _c("CVE-2025-5777", "CitrixBleed", "p2/cb2", pos="poc_repo", src="poc_in_github"),
+              _c("CVE-2017-8480", "NtQueryInformationTransaction", "42000", pos="camel")]   # camel alone: no
     sel = A.select(cands, VOC)
     assert groups(sel)["shellshock"] == ("CVE-2014-6271",)   # 3659/3671 only share a multi-CVE exploit record
     cb = sorted(g.cve_ids for g in sel.groups if g.norm == "citrixbleed")
     assert cb == [("CVE-2023-4966",), ("CVE-2025-5777",)]        # one candidate per disclosure window
+    assert "ntqueryinformationtransaction" not in groups(sel)
     assert sel.rejected_names[alias_norm("Widgetron")] == "spread_too_wide"
     assert sel.rejected_names[alias_norm("Oldname")] == "spread_over_years"
 
@@ -234,3 +237,10 @@ def test_weak_candidates_count_registrable_domains():
     assert A.weak_candidates("CVE-2016-0800", same, [], frozenset()) == []
     assert {c.position for c in A.weak_candidates("CVE-2017-13077", ["https://www.krackattacks.com/"], [],
                                                   frozenset())} == {"reference_site"}
+
+
+def test_organisation_names_in_paths_are_not_nicknames():
+    refs = ["https://www.herodevs.com/vulnerability-directory/cve-2024-8372",
+            "https://codepen.io/herodevs/full/xxoQRNL/0072e627", "https://example.net/blog/herodevs-angular-advisory"]
+    cs = A.weak_candidates("CVE-2024-8372", refs, [], frozenset())
+    assert not any(c.norm == "herodevs" and c.position != "reference_host" for c in cs)
