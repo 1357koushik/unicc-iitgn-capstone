@@ -7,12 +7,13 @@ from typing import Any
 import yaml
 
 DEFAULT_REGISTRY = Path(__file__).with_name("variants.yaml")
-ADAPTERS = ("http_v1", "http_v2", "runfile")
+ADAPTERS = ("http_v1", "http_v2", "runfile", "inprocess")
 MAPPING_KEYS = ("results", "doc_id", "doc_id_transform", "doc_id_resolver", "score", "tier", "probability",
                 "abstained", "abstain_when_empty")
 HTTP_KEYS = ("adapter", "description", "base_url", "endpoint", "request", "timeout_s", "health_path", "mapping",
              "retries", "retry_wait_s", "max_transport_failures", "service")
 RUNFILE_KEYS = ("adapter", "description", "path")
+INPROCESS_KEYS = ("adapter", "description", "factory", "options", "service")
 
 
 class RegistryError(ValueError):
@@ -40,10 +41,17 @@ def validate_variant(name: str, cfg: Any) -> list[str]:
     ad = cfg.get("adapter")
     if ad not in ADAPTERS:
         return [f"{name}: adapter {ad!r} is not one of {', '.join(ADAPTERS)}"]
-    allowed = RUNFILE_KEYS if ad == "runfile" else HTTP_KEYS
+    allowed = RUNFILE_KEYS if ad == "runfile" else INPROCESS_KEYS if ad == "inprocess" else HTTP_KEYS
     for k in cfg:
         if k not in allowed:
             p.append(f"{name}: unknown key {k!r}")
+    if ad == "inprocess":
+        f = cfg.get("factory")
+        if not isinstance(f, str) or f.count(":") != 1 or not all(f.split(":")):
+            p.append(f"{name}: inprocess adapter needs 'factory' as 'package.module:callable'")
+        if cfg.get("options") is not None and not isinstance(cfg["options"], dict):
+            p.append(f"{name}: options must be a mapping")
+        return p
     if ad == "runfile":
         if not isinstance(cfg.get("path"), str):
             p.append(f"{name}: runfile adapter needs 'path'")

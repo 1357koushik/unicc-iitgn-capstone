@@ -2,6 +2,9 @@
 
 ``http_v1`` and ``http_v2`` call a running service; the response field mapping is configuration
 (``variants.yaml``), so v2 field changes need no code change. ``runfile`` replays a precomputed run file.
+``inprocess`` imports a retrieval component and calls it directly (a component evaluated on its own, such
+as the lexical index, before the service exists); the factory returns an object with
+``search(text) -> [(doc_id, score), ...]`` and optionally ``info() -> dict``.
 """
 from __future__ import annotations
 
@@ -245,10 +248,56 @@ class RunfileAdapter:
         return {"adapter": "runfile", "path": self.path}
 
 
+class InProcessAdapter:
+    """Calls ``factory(**options).search(text)`` in this process. Timing covers the search call only. An
+    exception raised by the component is recorded as an error (a miss), like an HTTP 500 from a service."""
+
+    def __init__(self, name: str, cfg: dict):
+        import importlib
+        self.name = name
+        self.cfg = cfg
+        mod_name, attr = cfg["factory"].split(":")
+        factory = getattr(importlib.import_module(mod_name), attr)
+        self.options = dict(cfg.get("options") or {})
+        self.system = factory(**self.options)
+
+    def query(self, text: str) -> dict:
+        t0 = time.perf_counter()
+        try:
+            hits = self.system.search(text)
+        except Exception as exc:  # the component failed on this input
+            ms = (time.perf_counter() - t0) * 1000.0
+            return {"ranked": [], "abstained": False, "latency_ms": ms,
+                    "error": f"exception: {type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS], "extra": {}}
+        ms = (time.perf_counter() - t0) * 1000.0
+        ranked, seen, dups = [], set(), 0
+        for i, (doc, score) in enumerate(hits, 1):
+            if not isinstance(doc, str) or not doc:
+                raise MappingError(f"{self.name}: result {i} has no doc_id string")
+            if isinstance(score, bool) or not isinstance(score, (int, float)):
+                raise MappingError(f"{self.name}: result {i} has no numeric score")
+            if doc in seen:
+                dups += 1
+                continue
+            seen.add(doc)
+            ranked.append({"doc_id": doc, "score": float(score), "tier": None, "probability": None})
+        return {"ranked": ranked, "abstained": False, "latency_ms": ms, "error": None,
+                "extra": {"raw_results": len(hits), "duplicates_removed": dups}}
+
+    def service_info(self) -> dict | None:
+        info = getattr(self.system, "info", None)
+        return info() if callable(info) else None
+
+    def describe(self) -> dict:
+        return {"adapter": "inprocess", "factory": self.cfg["factory"], "options": self.options}
+
+
 def make_adapter(name: str, cfg: dict, base_url: str | None = None, timeout_s: float | None = None,
                  runfile: str | None = None):
     if cfg["adapter"] in ("http_v1", "http_v2"):
         return HttpAdapter(name, cfg, base_url, timeout_s)
     if cfg["adapter"] == "runfile":
         return RunfileAdapter(name, cfg, runfile)
+    if cfg["adapter"] == "inprocess":
+        return InProcessAdapter(name, cfg)
     raise ValueError(f"unknown adapter {cfg['adapter']!r}")

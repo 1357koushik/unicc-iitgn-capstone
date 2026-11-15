@@ -274,3 +274,8 @@ data/store/
 
 # C9 ATT&CK builds: built data, never committed
 data/attack/
+# C2 lexical index builds and the read-only copy of v1 files used for the v1 comparison: never committed
+data/lexical/
+data/v1_server/
+# C2 run files are large (13 MB per variant); reports carry their sha256
+results/lexical/runs/*.jsonl
