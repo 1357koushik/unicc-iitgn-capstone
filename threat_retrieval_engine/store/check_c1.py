@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
                        (x.lower() for x in A._tokens(g["rows"][0].alias)))]
     report(not bad_frag, "no identifier fragments (apsb20, GHSA w3hj ...) among nickname candidates",
            f"{len(bad_frag)}" + (f" e.g. {bad_frag[:5]}" if bad_frag else ""))
-    wid = q("SELECT COUNT(*) FROM cve WHERE weakness LIKE '%CVE-%'")
+    wid = sum(1 for (w,) in db.execute("SELECT weakness FROM cve WHERE weakness LIKE '%CVE-%'") if _CVE.search(w))
     rel = q("SELECT COUNT(*) FROM cve WHERE related_cves != '[]'")
     report(wid == 0, "no CVE IDs in weakness text (moved to related_cves)", f"{wid} rows; {rel} rows with related_cves")
     srcs = {r[0] for r in db.execute("SELECT DISTINCT source FROM aliases")}

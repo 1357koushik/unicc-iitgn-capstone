@@ -183,3 +183,17 @@ def test_read_api(built):
         assert ids == sorted(ids) and len(ids) == s.count(searchable=True)
         assert ("CVE-2021-44228", "Log4Shell", "nickname", "exploitdb") in s.find_alias("log4shell")
         assert set(s.get_many(["CVE-2021-0001", "CVE-2021-0002"])) == {"CVE-2021-0001", "CVE-2021-0002"}
+
+
+def test_retention_never_deletes_by_default_and_prune_keeps_referenced(tmp_path):
+    store = tmp_path / "store"
+    for b in ("b1", "b2", "b3", "b4"):
+        (store / b).mkdir(parents=True)
+        (store / b / "store.sqlite").write_text("x")
+    (store / "LATEST").write_text("b4\n")
+    (store / "PREVIOUS").write_text("b3\n")
+    (tmp_path / "attack" / "a1").mkdir(parents=True)
+    (tmp_path / "attack" / "a1" / "manifest.json").write_text('{"c1_store_build": "b1"}')
+    assert B.retained_builds(store) == {"b1", "b3", "b4"}
+    assert B.prune_builds(store, log=lambda m: None) == ["b2"]
+    assert sorted(d.name for d in store.iterdir() if d.is_dir()) == ["b1", "b3", "b4"]

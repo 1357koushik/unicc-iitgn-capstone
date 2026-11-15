@@ -11,7 +11,9 @@ Inputs (read only):
   <sources>/{exploitdb,metasploit_modules,nuclei_templates,cwe_catalog}/<LATEST>/records.jsonl
 
 Output: <out>/<build_id>/{store.sqlite, manifest.json}, build_id = <UTC timestamp>-<short input hash>, and
-<out>/LATEST naming the newest successful build. The build is written to a temporary directory and only
+<out>/LATEST naming the newest successful build (and <out>/PREVIOUS the one before). A build never deletes
+another build; --prune applies the retention policy (keep LATEST, PREVIOUS and every build named by a
+dependant manifest such as data/attack/*/manifest.json or a lexical-index manifest). The build is written to a temporary directory and only
 renamed into place after the reconciliation check passes: for every input feed, records read must equal
 records stored or merged plus records rejected with a reason. Any mismatch fails the build (exit 1).
 """
@@ -439,7 +441,7 @@ def _ledger_rejects(ledger: dict[str, dict[str, list[str]]], stored: dict[str, s
 
 def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpus: Path | None = None,
           previous: Path | None = None, build_id: str | None = None, log=print,
-          verdicts_path: Path | None = None) -> Path:
+          verdicts_path: Path | None = None, prune: bool = False) -> Path:
     t_start = time.time()
     verdicts_path = Path(verdicts_path) if verdicts_path is not None else VERDICTS_PATH
     if not verdicts_path.is_file():
@@ -742,7 +744,14 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         if final.exists():
             shutil.rmtree(final)
         os.replace(tmp, final)
-        (out_root / "LATEST").write_text(bid + "\n", encoding="utf-8")
+        lf = out_root / "LATEST"
+        previous_latest = lf.read_text(encoding="utf-8").strip() if lf.is_file() else None
+        lf.write_text(bid + "\n", encoding="utf-8")
+        if previous_latest and previous_latest != bid:
+            (out_root / "PREVIOUS").write_text(previous_latest + "\n", encoding="utf-8")
+        if prune:
+            removed = prune_builds(out_root, log=log)
+            log(f"pruned {len(removed)} old build(s): {removed}")
         log(f"build {bid}: {n_rows} CVEs in {timings['total_s']}s -> {final}")
         return final
     except BaseException:
@@ -760,6 +769,47 @@ def _snippet(c: A.Candidate, snippets: dict, db: sqlite3.Connection) -> str:
         i = text.lower().find(c.alias.lower())
         return text[max(0, i - 120): i + 180] if i >= 0 else text[:300]
     return snippets.get((c.source, c.record_id), "")
+
+
+# ------------------------------------------------------------------ retention
+DEPENDANT_MANIFEST_GLOBS = ("attack/*/manifest.json", "lexical/*/manifest.json", "lexical/manifest.json",
+                            "dense/*/manifest.json", "vectors/*/manifest.json", "index/*/manifest.json")
+
+
+def referenced_builds(data_root: Path, build_ids: set[str]) -> set[str]:
+    """Store build IDs named anywhere in a dependant build's manifest (ATT&CK, lexical, dense indexes)."""
+    out: set[str] = set()
+    for pattern in DEPENDANT_MANIFEST_GLOBS:
+        for mp in data_root.glob(pattern):
+            try:
+                text = mp.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            out.update(b for b in build_ids if b in text)
+    return out
+
+
+def retained_builds(out_root: Path, data_root: Path | None = None) -> set[str]:
+    """Builds the retention policy keeps: LATEST, PREVIOUS and every build a dependant manifest names."""
+    builds = {d.name for d in out_root.iterdir() if d.is_dir() and (d / "store.sqlite").is_file()}
+    keep = set()
+    for pointer in ("LATEST", "PREVIOUS", "CURRENT"):
+        f = out_root / pointer
+        if f.is_file():
+            keep.add(f.read_text(encoding="utf-8").strip())
+    keep |= referenced_builds(data_root or out_root.parent, builds)
+    return keep & builds
+
+
+def prune_builds(out_root: Path, data_root: Path | None = None, log=print) -> list[str]:
+    """Delete store builds outside the retention policy. Only called with an explicit --prune."""
+    keep = retained_builds(out_root, data_root)
+    removed = []
+    for d in sorted(out_root.iterdir()):
+        if d.is_dir() and not d.name.startswith(".") and (d / "store.sqlite").is_file() and d.name not in keep:
+            shutil.rmtree(d)
+            removed.append(d.name)
+    return removed
 
 
 def alias_report(db: sqlite3.Connection, sel: A.Selection) -> dict:
@@ -806,12 +856,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--previous", type=Path, default=None, help="earlier build directory to diff content hashes")
     ap.add_argument("--build-id", default=None, help="override the build ID (tests)")
     ap.add_argument("--verdicts", type=Path, default=VERDICTS_PATH, help="nickname verdict file (JSONL)")
+    ap.add_argument("--prune", action="store_true",
+                    help="after a successful build delete old builds except LATEST, PREVIOUS and builds named by "
+                         "dependant manifests (data/attack/*, data/lexical/*, ...). Without it nothing is deleted")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     try:
         build(a.feeds, a.sources, a.out, workers=a.workers, v1_corpus=a.v1_corpus, previous=a.previous,
-              build_id=a.build_id, log=lambda m: print(m, flush=True), verdicts_path=a.verdicts)
+              build_id=a.build_id, log=lambda m: print(m, flush=True), verdicts_path=a.verdicts, prune=a.prune)
     except ReconciliationError as e:
         print(f"BUILD FAILED: {e}", file=sys.stderr)
         return 1
