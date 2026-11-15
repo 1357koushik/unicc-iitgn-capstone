@@ -38,7 +38,7 @@ where = ["."]
 include = ["threat_retrieval_engine*"]
 
 [tool.setuptools.package-data]
-threat_retrieval_engine = ["models/*.json", "benchmarks/*.json"]
+threat_retrieval_engine = ["models/*.json", "benchmarks/*.json", "store/data/*.jsonl"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

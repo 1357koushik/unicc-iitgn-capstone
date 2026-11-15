@@ -22,6 +22,7 @@ SOURCES = [
     "ghsa_reviewed", "et_open_rules", "sigma_rules", "cisa_advisories", "acsc_advisories",
     "ncsc_uk_advisories", "exploitdb",
     "metasploit_modules", "nuclei_templates", "poc_in_github", "attack_enterprise", "kev_attack_mappings",
+    "cwe_catalog",
 ]
 
 

@@ -24,6 +24,7 @@ queries, an `expansion` source may only enrich documents (aliases, PoC index), a
 | `poc_in_github` | expansion | ok | 28,299 | [CC0-1.0 (list); linked repositories keep their own licences](https://github.com/nomi-sec/PoC-in-GitHub/blob/master/LICENSE) | <https://github.com/nomi-sec/PoC-in-GitHub.git> | 2026-11-14T14:01:02Z |
 | `attack_enterprise` | attack | ok | 23,995 | [MITRE ATT&CK Terms of Use (royalty-free licence)](https://attack.mitre.org/resources/legal-and-branding/terms-of-use/) | <https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json> | 2026-11-14T13:48:23Z |
 | `kev_attack_mappings` | attack | ok | 1,183 | [Apache-2.0](https://github.com/center-for-threat-informed-defense/mappings-explorer/blob/main/LICENSE.txt) | <https://github.com/center-for-threat-informed-defense/mappings-explorer.git> | 2026-11-14T13:47:19Z |
+| `cwe_catalog` | expansion | ok | 1,477 | [CWE Terms of Use (royalty-free licence)](https://cwe.mitre.org/about/termsofuse.html) | <https://cwe.mitre.org/data/xml/cwec_latest.xml.zip> | 2026-11-15T00:14:19Z |
 
 ## Licence notes and provenance
 
@@ -39,3 +40,4 @@ queries, an `expansion` source may only enrich documents (aliases, PoC index), a
 - `poc_in_github` (commit=00cbff2d97fc): CC0 for the list itself: storing and redistributing is allowed. Repository descriptions come from GitHub users and are untrusted; the list contains fake and malicious PoCs, so entries are candidates only, never trusted. 16 malformed CVE ids dropped
 - `attack_enterprise` (attack_version=20.1, commit=a8db2f52eb93): Non-exclusive royalty-free licence for research, development and commercial use; any copy must reproduce MITRE's copyright notice and the licence (kept in raw/LICENSE.txt). Storing and ingesting as documents is permitted.
 - `kev_attack_mappings` (attack_version=16.1, commit=59f8d7230f67, kev_version=07/28/2025): Apache 2.0: storing, deriving and redistributing is allowed with licence and notice kept. Underlying KEV catalogue is a CISA public list.
+- `cwe_catalog` (cwe_version=5.0): MITRE grants a non-exclusive, royalty-free licence to use CWE for research, development and commercial purposes; any copy must reproduce MITRE's copyright designation and the licence. Storing the catalogue and using CWE names as document text is permitted.

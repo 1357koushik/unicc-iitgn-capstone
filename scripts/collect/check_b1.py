@@ -22,7 +22,8 @@ EXPECTED_ROLE = {"ghsa_reviewed": "query", "et_open_rules": "query", "sigma_rule
                  "cisa_advisories": "incident", "acsc_advisories": "incident",
                  "ncsc_uk_advisories": "incident", "exploitdb": "expansion", "metasploit_modules": "expansion",
                  "nuclei_templates": "expansion", "poc_in_github": "expansion",
-                 "attack_enterprise": "attack", "kev_attack_mappings": "attack"}
+                 "attack_enterprise": "attack", "kev_attack_mappings": "attack",
+                 "cwe_catalog": "expansion"}
 fails = 0
 
 
@@ -87,6 +88,8 @@ def check_source(out: Path, name: str, roles_seen: dict[str, str]) -> None:
     report(sha(rp) == m.get("records_sha256"), f"{name}: records sha256 matches manifest")
     if name in WEB_INCIDENT:
         check_web_incident(name, d, m)
+    if name == "cwe_catalog":
+        check_cwe_catalog(name, d, m)
     report(isinstance(m.get("malformed_cve_ids_dropped"), int), f"{name}: malformed CVE count recorded",
            str(m.get("malformed_cve_ids_dropped")))
 
@@ -125,6 +128,25 @@ def check_web_incident(name: str, d: Path, m: dict) -> None:
     report(fffd == 0, f"{name}: no U+FFFD replacement characters in any record", f"{fffd} records affected")
     report(n > 0 and with_cve > 0 and dates == sorted(dates, reverse=True), f"{name}: newest first, CVE-bearing records exist",
            f"{n} records, {with_cve} with CVE, {len(cves)} distinct CVEs")
+
+
+def check_cwe_catalog(name: str, d: Path, m: dict) -> None:
+    """C1: the CWE catalogue has unique, well-formed IDs with names, and its version is recorded."""
+    ids, bad = set(), 0
+    kinds: dict[str, int] = {}
+    with open(d / "records.jsonl", encoding="utf-8") as f:
+        for line in f:
+            r = json.loads(line)
+            ok = bool(re.fullmatch(r"CWE-\d{1,5}", r.get("cwe_id") or "")) and bool(r.get("name"))
+            ok = ok and r.get("kind") in ("weakness", "category", "grouping", "view") and r["cwe_id"] not in ids
+            bad += (not ok)
+            ids.add(r.get("cwe_id"))
+            kinds[r.get("kind")] = kinds.get(r.get("kind"), 0) + 1
+    report(bad == 0 and kinds.get("weakness", 0) > 500, f"{name}: unique CWE IDs with names, weaknesses present",
+           f"{bad} bad; {kinds}")
+    report(all(c in ids for c in ("CWE-79", "CWE-89", "CWE-787")), f"{name}: common CWEs present")
+    report(bool((m.get("upstream_version") or {}).get("cwe_version")), f"{name}: CWE version recorded",
+           str((m.get("upstream_version") or {}).get("cwe_version")))
 
 
 def check_tests() -> None:
