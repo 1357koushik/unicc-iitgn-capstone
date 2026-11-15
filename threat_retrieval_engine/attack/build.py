@@ -247,7 +247,7 @@ def build(sources: Path, store_path: Path | None, out_root: Path, build_id: str 
 
         # ---------------------------------------------------------- gazetteer
         t = time.time()
-        entries = G.build_entries(P.docs)
+        entries, collisions = G.build_entries(P.docs)
         df = G.corpus_df((r["description"] for r in store.iter_searchable(columns=("description",))), entries,
                               log=log)
         keys = G.assign_policy(entries, df, policy)
@@ -303,6 +303,8 @@ def build(sources: Path, store_path: Path | None, out_root: Path, build_id: str 
                         for e in entries])
         db.executemany("INSERT INTO gazetteer_keys VALUES (?,?,?,?,?,?)",
                        [(k["key"], k["n_docs"], k["kinds"], k["policy"], k["reason"], k["df_cve"]) for k in keys])
+        db.executemany("INSERT INTO gazetteer_collisions VALUES (?,?,?,?)",
+                       [(c["key"], c["surface"], c["derived_from"], json_dump(c["existing"])) for c in collisions])
         db.executemany("INSERT INTO rejected VALUES (?,?,?,?)",
                        [(r.source, r.record_id, r.reason, r.detail) for r in rejects])
         db.commit()
@@ -394,6 +396,11 @@ def build_report(db: sqlite3.Connection, P: Parsed, df: Counter, keys: list[dict
             "keys": len(keys),
             "names_by_origin": dict(q("SELECT origin, COUNT(*) FROM gazetteer GROUP BY 1 ORDER BY 1")),
             "keys_by_kinds": dict(Counter(k["kinds"] for k in keys)),
+            "derived_short_forms": q("SELECT COUNT(*) FROM gazetteer WHERE origin = 'derived_short_form'")[0][0],
+            "derived_short_form_policy": dict(q("SELECT k.policy, COUNT(*) FROM gazetteer g JOIN gazetteer_keys k "
+                                                "USING(key) WHERE g.origin = 'derived_short_form' GROUP BY 1")),
+            "derived_collisions": [{"surface": s_, "derived_from": f, "existing": json.loads(e)} for s_, f, e in
+                                   q("SELECT surface, derived_from, existing FROM gazetteer_collisions ORDER BY 1, 2")],
             "ambiguous_keys": len(amb),
             "ambiguous": {surface[k["key"]]: [d for (d,) in db.execute(
                 "SELECT doc_id FROM gazetteer WHERE key = ? ORDER BY doc_id", (k["key"],))] for k in amb},

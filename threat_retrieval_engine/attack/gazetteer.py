@@ -9,7 +9,8 @@ Names.  Every name and alias of an active group, software, technique or campaign
 the qualified form "Parent: Sub" (ATT&CK's own display form, unambiguous where the bare sub-technique name is
 not, e.g. "Domain Accounts"). Names of revoked objects point to their replacement, but only when no active
 object uses the name. Mitigation names are left out: they are generic phrases ("User Training", "Audit")
-that would fire on ordinary text; mitigations are reached by ID or retrieval. Keys are C1 `alias_norm`
+that would fire on ordinary text; mitigations are reached by ID or retrieval. Short forms analysts write
+("Sandworm", "Lazarus", "LockBit") are derived from the long names (`derive_short_forms`). Keys are C1 `alias_norm`
 (lower-case alphanumerics), so "APT 29", "APT29" and "apt-29" are one key.
 
 Token alignment.  A text span matches a key when its letter/digit runs, joined, equal the key and the span has
@@ -40,7 +41,7 @@ from typing import Callable, Iterable
 from .text import ATTACK_ID_IN_TEXT, alias_norm, fine_token_spans, fine_tokens, normalize_attack_id
 
 GAZETTEER_KINDS = ("group", "software", "technique", "campaign")
-ORIGIN_RANK = {"name": 0, "qualified_name": 1, "alias": 2, "revoked_name": 3}
+ORIGIN_RANK = {"name": 0, "qualified_name": 1, "alias": 2, "revoked_name": 3, "derived_short_form": 4}
 
 POLICY = {
     "version": 1,
@@ -72,8 +73,48 @@ POLICY = {
 
 
 # =========================================================================== build side
-def build_entries(docs: dict[str, dict]) -> list[dict]:
-    """Gazetteer rows {key, doc_id, doc_kind, surface, origin, fine_tokens} from the document records."""
+# Derived short forms (origin `derived_short_form`). Analysts write "Sandworm" for "Sandworm Team", "Lazarus" for
+# "Lazarus Group" and "LockBit" for "LockBit 2.0"/"LockBit 3.0"; ATT&CK lists only the long forms.
+#  * A trailing generic word is stripped from group, software and campaign names and aliases, repeatedly while
+#    one remains ("Ajax Security Team" -> "Ajax Security"). The words: GENERIC_TRAILING_WORDS.
+#  * A trailing version is stripped from software names and aliases: a separator then digits with optional
+#    dots and a letter, optionally after "v"/"ver"/"version" ("LockBit 3.0", "BlackEnergy 3", "Foo v2",
+#    "Bar-2.1b"). Digits glued to letters are part of the name and stay ("T9000", "BS2005", "APT29").
+#  * The remainder must keep at least one letter run and differ from the source. A derived form never
+#    displaces a real name or alias: if its key already names another object (real names and aliases, active
+#    or revoked), it is recorded in `gazetteer_collisions` and not added. If several objects derive one key,
+#    all are candidates (ambiguous by design, e.g. every LockBit version). Derived keys go through the same
+#    short/corpus-term policy as real ones, which keeps "Cobalt" (Cobalt Group) and "Medusa" restricted.
+GENERIC_TRAILING_WORDS = ("team", "group", "gang", "crew", "apt", "actor", "actors", "cluster", "campaign")
+DERIVE_KINDS = ("group", "software", "campaign")
+_VERSION_TAIL = re.compile(r"[\s._-]+(?:v(?:er(?:sion)?)?\.?\s*)?\d+(?:\.\d+)*[a-z]?$", re.IGNORECASE)
+_TRAIL_WORD = re.compile(r"^(?P<head>.*\S)[\s._-]+(?P<word>[A-Za-z]+)[\s.]*$")
+
+
+def derive_short_forms(surface: str, kind: str) -> list[str]:
+    """Short forms derived from one ATT&CK name or alias, shortest last (empty when no rule applies)."""
+    if kind not in DERIVE_KINDS:
+        return []
+    out: list[str] = []
+    cur = (surface or "").strip()
+    for _ in range(4):
+        nxt = cur
+        m = _TRAIL_WORD.match(cur)
+        if m and m.group("word").lower() in GENERIC_TRAILING_WORDS:
+            nxt = m.group("head").strip(" -_.")
+        elif kind == "software":
+            nxt = _VERSION_TAIL.sub("", cur).strip(" -_.")
+        if nxt == cur or not re.search(r"[A-Za-z]", nxt):
+            break
+        cur = nxt
+        if alias_norm(cur) and alias_norm(cur) != alias_norm(surface):
+            out.append(cur)
+    return list(dict.fromkeys(out))
+
+
+def build_entries(docs: dict[str, dict]) -> tuple[list[dict], list[dict]]:
+    """(gazetteer rows {key, doc_id, doc_kind, surface, origin, fine_tokens}, derived-form collisions
+    {key, surface, derived_from, existing})."""
     rows: dict[tuple[str, str], dict] = {}
 
     def add(surface: str, doc: dict, origin: str) -> None:
@@ -90,9 +131,8 @@ def build_entries(docs: dict[str, dict]) -> list[dict]:
         else:
             old["fine_tokens"] = max(old["fine_tokens"], r["fine_tokens"])
 
-    for d in docs.values():
-        if d["doc_kind"] not in GAZETTEER_KINDS or d["state"] != "active":
-            continue
+    active = [d for d in docs.values() if d["doc_kind"] in GAZETTEER_KINDS and d["state"] == "active"]
+    for d in active:
         add(d["name"], d, "name")
         if d["title"] != d["name"]:
             add(d["title"], d, "qualified_name")
@@ -107,7 +147,23 @@ def build_entries(docs: dict[str, dict]) -> list[dict]:
             k = alias_norm(s)
             if k and k not in active_keys:
                 add(s, target, "revoked_name")
-    return [rows[k] for k in sorted(rows)]
+    # derived short forms go only into keys that no real name or alias uses for another object
+    real: dict[str, set[str]] = defaultdict(set)
+    for (k, doc_id) in rows:
+        real[k].add(doc_id)
+    collisions: dict[tuple[str, str], dict] = {}
+    for d in sorted(active, key=lambda x: x["doc_id"]):
+        for s in [d["name"], *d["aliases_list"]]:
+            for short in derive_short_forms(s, d["doc_kind"]):
+                k = alias_norm(short)
+                if k in real:
+                    if real[k] != {d["doc_id"]}:
+                        collisions.setdefault((k, d["doc_id"]), {
+                            "key": k, "surface": short, "derived_from": f"{d['doc_id']} ({s})",
+                            "existing": sorted(real[k])})
+                    continue
+                add(short, d, "derived_short_form")
+    return [rows[k] for k in sorted(rows)], [collisions[k] for k in sorted(collisions)]
 
 
 def _prefixes(keys: Iterable[str]) -> set[str]:

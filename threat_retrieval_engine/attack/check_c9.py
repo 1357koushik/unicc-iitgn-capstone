@@ -341,6 +341,23 @@ def main(argv: list[str] | None = None) -> int:
                       f"{gz['ambiguous_keys']} ambiguous, {gz['restricted_keys']} restricted "
                       f"(short <= {pol['short_max_chars']} chars or CVE-corpus term df >= {pol['corpus_term_min_df']})")
     info("ambiguous names", _short(f"{k} -> {'/'.join(v)}" for k, v in gz["ambiguous"].items()))
+    info("derived short forms", f"{gz['derived_short_forms']} ({json.dumps(gz['derived_short_form_policy'])}); "
+                                f"{len(gz['derived_collisions'])} collisions not added: " +
+         _short((f"{c['surface']} from {c['derived_from']} (key names {'/'.join(c['existing'])})"
+                 for c in gz["derived_collisions"]), 20))
+    shadow = db.execute("SELECT COUNT(*) FROM gazetteer d JOIN gazetteer r ON r.key = d.key AND r.doc_id != d.doc_id "
+                        "WHERE d.origin = 'derived_short_form' AND r.origin != 'derived_short_form'").fetchone()[0]
+    report(shadow == 0, "derived short forms never share a key with a real name or alias of another object",
+           f"{shadow} shared keys")
+    for nm in ("Sandworm", "Lazarus", "the Lazarus hackers", "Winnti", "Gamaredon", "LockBit"):
+        ms = g.match(nm)
+        if ms:
+            ki = g.key_info[ms[0].key]
+            det = f"{ki['policy']} (df {ki['df_cve']}), {ms[0].matched_by} -> {'/'.join(ms[0].doc_ids)} " \
+                  f"via {ms[0].candidates[0].origin}"
+        else:
+            det = "no match; key " + json.dumps(g.key_info.get(alias_norm(nm)))
+        info(f"derived example {nm!r}", det)
     info("restricted names", _short((f"{k} ({v['reason']}, df {v['df_cve']})" for k, v in
                                      sorted(gz["restricted"].items(), key=lambda x: -x[1]["df_cve"])), 40))
     bad_g = []

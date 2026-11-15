@@ -71,6 +71,17 @@ def bundle() -> dict:
         obj("intrusion-set", "g07", "G0007", "APT28", "<code>APT28</code> is a group.", aliases=["APT28", "Sofacy"]),
         obj("intrusion-set", "g9001", "G9001", "Dark Halo", "Merged into APT29.", revoked=True, aliases=["Dark Halo"]),
         obj("intrusion-set", "g9002", "G9002", "Old Crew", "No longer tracked.", deprecated=True, aliases=["Old Crew"]),
+        # groups whose analyst short forms are derived ("Sandworm", "Lazarus"), one whose short form is a corpus
+        # term ("Remote": restricted), one whose short form collides with a real software name ("Carbon")
+        obj("intrusion-set", "g34", "G0034", "Sandworm Team", "A group.", aliases=["Sandworm Team", "ELECTRUM"]),
+        obj("intrusion-set", "g32", "G0032", "Lazarus Group", "A group.", aliases=["Lazarus Group", "HIDDEN COBRA"]),
+        obj("intrusion-set", "g9010", "G9010", "Remote Team", "A group.", aliases=["Remote Team"]),
+        obj("intrusion-set", "g9011", "G9011", "Carbon Team", "A group.", aliases=["Carbon Team"]),
+        obj("malware", "s9012", "S9012", "Carbon", "Carbon is a backdoor.", x_mitre_aliases=["Carbon"], is_family=True),
+        obj("malware", "s1199", "S1199", "LockBit 2.0", "Ransomware.", x_mitre_aliases=["LockBit 2.0"], is_family=True),
+        obj("malware", "s1202", "S1202", "LockBit 3.0", "Ransomware.", x_mitre_aliases=["LockBit 3.0", "LockBit Black"],
+            is_family=True),
+        obj("malware", "s9013", "S9013", "T9000", "Glued digits are part of the name.", is_family=True),
         # software
         obj("tool", "s154", "S0154", "Cobalt Strike", "[Cobalt Strike](https://attack.mitre.org/software/S0154) is a "
             "commercial framework.(Citation: cobaltstrike manual)", x_mitre_aliases=["Cobalt Strike", "CobaltStrike"],

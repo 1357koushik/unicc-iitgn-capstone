@@ -92,7 +92,8 @@ CREATE TABLE gazetteer (
     doc_id       TEXT NOT NULL REFERENCES objects(doc_id),
     doc_kind     TEXT NOT NULL,
     surface      TEXT NOT NULL,                -- the name or alias as ATT&CK writes it
-    origin       TEXT NOT NULL CHECK (origin IN ('name', 'qualified_name', 'alias', 'revoked_name')),
+    origin       TEXT NOT NULL CHECK (origin IN ('name', 'qualified_name', 'alias', 'revoked_name',
+                                                 'derived_short_form')),
     fine_tokens  INTEGER NOT NULL,             -- letter/digit runs in the surface form
     PRIMARY KEY (key, doc_id)
 ) WITHOUT ROWID;
@@ -104,6 +105,14 @@ CREATE TABLE gazetteer_keys (
     policy       TEXT NOT NULL CHECK (policy IN ('anywhere', 'restricted')),
     reason       TEXT,                         -- restricted: short | corpus_term | short+corpus_term
     df_cve       INTEGER NOT NULL              -- searchable C1 CVE descriptions naming the key (any case)
+) WITHOUT ROWID;
+
+CREATE TABLE gazetteer_collisions (            -- derived short forms not added: the key names another object
+    key          TEXT NOT NULL,
+    surface      TEXT NOT NULL,                -- the derived form
+    derived_from TEXT NOT NULL,                -- doc_id (name or alias it was derived from)
+    existing     TEXT NOT NULL,                -- JSON: doc_ids the key already names
+    PRIMARY KEY (key, derived_from)
 ) WITHOUT ROWID;
 
 CREATE TABLE rejected (

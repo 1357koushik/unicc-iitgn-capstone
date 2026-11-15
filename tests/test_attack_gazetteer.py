@@ -12,13 +12,17 @@ from store_fixtures import make_feeds, make_sources
 
 
 @pytest.fixture(scope="module")
-def a(tmp_path_factory):
+def built_dir(tmp_path_factory):
     root = tmp_path_factory.mktemp("c9g")
     store = SB.build(make_feeds(root), make_sources(root), root / "store", workers=1, build_id="c1-g",
                      log=lambda m: None)
-    out = AB.build(make_attack_sources(root), store, root / "attack", build_id="c9-g", log=lambda m: None,
-                   policy=low_df_policy())
-    s = AttackStore.open(out)
+    return AB.build(make_attack_sources(root), store, root / "attack", build_id="c9-g", log=lambda m: None,
+                    policy=low_df_policy())
+
+
+@pytest.fixture(scope="module")
+def a(built_dir):
+    s = AttackStore.open(built_dir)
     yield s
     s.close()
 
@@ -133,3 +137,54 @@ def test_longest_match_and_ids(g):
 def test_mitigation_ids_resolve(g):
     (m,) = g.match("apply M1042")
     assert m.doc_ids == ("attack:M1042",) and m.kinds == ("mitigation",)
+
+
+# ---------------------------------------------------------------------------- derived short forms
+def test_derive_short_forms_rules():
+    from threat_retrieval_engine.attack.gazetteer import derive_short_forms as d
+    assert d("Sandworm Team", "group") == ["Sandworm"] and d("Lazarus Group", "group") == ["Lazarus"]
+    assert d("Ajax Security Team", "group") == ["Ajax Security"]
+    assert d("LockBit 3.0", "software") == ["LockBit"] and d("BlackEnergy 3", "software") == ["BlackEnergy"]
+    assert d("Foo v2", "software") == ["Foo"] and d("Bar-2.1b", "software") == ["Bar"]
+    for glued, kind in (("T9000", "software"), ("BS2005", "software"), ("APT29", "group"), ("Group5", "group")):
+        assert d(glued, kind) == []                                   # digits glued to letters are the name
+    assert d("Group 72", "group") == []                               # versions are stripped from software only
+    assert d("Team", "group") == [] and d("Sandworm Team", "technique") == []
+
+
+def test_derived_short_forms_resolve(a, g):
+    sw = a.find_name("Sandworm")
+    assert [(x["doc_id"], x["origin"], x["surface"]) for x in sw] == [("attack:G0034", "derived_short_form", "Sandworm")]
+    assert ids(g.match("Sandworm")) == [("Sandworm", ("attack:G0034",), "anywhere")]
+    assert ids(g.match("the Lazarus hackers")) == [("Lazarus", ("attack:G0032",), "anywhere")]
+    (m,) = g.match("LockBit")
+    assert m.doc_ids == ("attack:S1199", "attack:S1202") and m.ambiguous      # every version, by design
+    assert [x.origin for x in m.candidates] == ["derived_short_form", "derived_short_form"]
+    assert g.match("LockBit 3.0")[0].doc_ids == ("attack:S1202",)             # the real name still wins
+
+
+def test_derived_never_overrides_a_real_name(a, g, built_dir):
+    import json as _json
+    import sqlite3
+    # "Carbon" is a real software name: the group "Carbon Team" does not get it, the collision is recorded
+    assert [x["doc_id"] for x in a.find_name("Carbon")] == ["attack:S9012"]
+    con = sqlite3.connect(built_dir / "attack.sqlite")
+    rows = con.execute("SELECT surface, derived_from, existing FROM gazetteer_collisions").fetchall()
+    con.close()
+    assert ("Carbon", "attack:G9011 (Carbon Team)", _json.dumps(["attack:S9012"], separators=(",", ":"))) in rows
+    rep = a.manifest["report"]["gazetteer"]
+    assert rep["names_by_origin"]["derived_short_form"] == rep["derived_short_forms"] >= 5
+    assert any(c["surface"] == "Carbon" for c in rep["derived_collisions"])
+
+
+def test_derived_forms_go_through_the_policy(g):
+    # "Remote" (from "Remote Team") is written in several fixture CVE descriptions: restricted
+    assert g.key_info["remote"]["policy"] == "restricted"
+    assert g.match("a remote attacker sent a request") == []
+    assert ids(g.match("Remote")) == [("Remote", ("attack:G9010",), "whole_query")]
+    assert ids(g.match("the Remote group struck again")) == [("Remote", ("attack:G9010",), "kind_marker")]
+
+
+def test_ordinary_group_and_team_words_create_no_matches(g):
+    assert g.match("The incident response team and the working group met; the red team crew and a gang of "
+                   "actors joined the APT cluster") == []
