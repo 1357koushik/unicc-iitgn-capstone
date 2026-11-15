@@ -47,7 +47,7 @@ def main() -> int:
         rows.append(f"| `{name}` | {m['role']} | {m['status']} | {m['record_count']:,} | "
                     f"[{lic['name']}]({lic['url']}) | <{url}> | {m['retrieved_at_utc']} |")
         v = ", ".join(f"{k}={str(val)[:12] if k == 'commit' else val}" for k, val in ver.items()
-                      if k in ("commit", "attack_version", "kev_version", "ruleset"))
+                      if k in ("commit", "attack_version", "kev_version", "ruleset", "cwe_version"))
         extra = []
         if m["status"] != "ok":
             extra.append(f"**{m['status']}**: {m['reason']}")

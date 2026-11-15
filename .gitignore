@@ -268,3 +268,6 @@ data/benchmark/
 !benchmarks_v2/build/**
 benchmarks_v2/build/**/__pycache__/
 benchmarks_v2/build/**/*.pyc
+
+# C1 document store builds: built data, never committed
+data/store/
