@@ -54,7 +54,7 @@ http://localhost:8000
         "shared_malware": ["PsExec"],
         "matching_mitre_techniques": ["T1021.002"]
       },
-      "stix_relationships": ["APT29 -[uses]-> T1021.002"],
+      "stix_relationships": ["[QUERY_CONTEXT] G0016 (APT29) -[uses]-> T1021.002 (Remote Services: SMB/Windows Admin Shares)"],
       "citations": [
         {
           "doc_id": "CVE-2017-0144_EPSS",

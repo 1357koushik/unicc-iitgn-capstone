@@ -45,10 +45,9 @@ flowchart TD
 - **Fusion**: Reciprocal Rank Fusion ($RRF(d) = \sum \frac{1}{60 + \text{rank}(d)}$) to merge non-calibrated ranking scores without arbitrary weights.
 - **Reranker**: Optional cross-encoder (`BAAI/bge-reranker-v2-m3`) for high-fidelity top-5 reranking.
 
-### 3. Engine 3: MITRE ATT&CK Knowledge Graph (`mitre_graph.py`)
-- **Latency**: `~10–30 ms`
-- **Structure**: In-memory directed adjacency graph built from MITRE ATT&CK Enterprise STIX 2.1 bundles.
-- **Purpose**: Graph expansion linking threat actors to techniques and malware (e.g. `APT29 -[uses]-> T1021.002 -[implemented-by]-> PsExec`), providing explainability and semantic threat linkage.
+### 3. Engine 3: MITRE ATT&CK graph (`threat_retrieval_engine/attack/`, work package C9)
+- **Structure**: a versioned build (`data/attack/<build_id>/attack.sqlite`, `LATEST`) made from the ATT&CK Enterprise STIX 2.1 bundle: groups, software, techniques, mitigations and campaigns as documents, every STIX relationship between them as an edge, CVE links with evidence, and the entity-name gazetteer.
+- **Purpose**: graph expansion for `stix_relationships`. Every entry is a stored STIX relationship named by ATT&CK IDs, e.g. `G0016 (APT29) -[uses]-> S0029 (PsExec)`. Actor, malware and tool names in queries are found with the gazetteer; there are no hardcoded lists and no fallback data. Without a build the component is reported `unavailable` in `/health` and the service is `degraded`.
 
 ---
 

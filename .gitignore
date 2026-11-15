@@ -271,3 +271,6 @@ benchmarks_v2/build/**/*.pyc
 
 # C1 document store builds: built data, never committed
 data/store/
+
+# C9 ATT&CK builds: built data, never committed
+data/attack/

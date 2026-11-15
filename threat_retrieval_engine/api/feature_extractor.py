@@ -19,15 +19,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from threat_retrieval_engine.api.confidence import QueryProfile
 
+from threat_retrieval_engine.attack.runtime import canonical_name, entity_names, techniques_for_software
 from threat_retrieval_engine.indicators import (
-    COMMON_ACTORS as _COMMON_ACTORS,
-    COMMON_MALWARE as _COMMON_MALWARE,
     CVE_PATTERN as _CVE_PATTERN,
     IPV4_PATTERN as _IPV4_PATTERN,
     MD5_PATTERN as _MD5_PATTERN,
     MITRE_PATTERN as _MITRE_PATTERN,
     SHA256_PATTERN as _SHA256_PATTERN,
-    TOOL_TO_TECH as _TOOL_TO_TECH,
 )
 
 FEATURE_SCHEMA_VERSION = "v1.0.0"
@@ -101,27 +99,23 @@ def _extract_chunk_ttps(ent: dict[str, Any], text: str) -> set[str]:
     if text:
         ttps.update(m.upper() for m in _MITRE_PATTERN.findall(text))
 
-    t_lower = text.lower() if text else ""
-    chunk_mal: set[str] = set()
+    # Software and actors: metadata names canonicalised to ATT&CK titles where they name one object, plus
+    # names found in the text by the C9 gazetteer; software adds the techniques it uses in the ATT&CK graph.
+    names = entity_names(text, query=False) if text else {"malware": [], "threat_actors": [], "technique_ids": []}
+    ttps.update(names["technique_ids"])
+    software: set[str] = set(names["malware"])
     raw_mal = ent.get("malware_families")
     if isinstance(raw_mal, (list, tuple, set)):
-        chunk_mal.update(str(m).lower() for m in raw_mal if m)
-    for m in _COMMON_MALWARE:
-        if m in t_lower:
-            chunk_mal.add(m)
+        software.update(canonical_name(str(m), ("software",)) or str(m) for m in raw_mal if m)
+    ttps.update(techniques_for_software(software))
 
-    for tool_name, techs in _TOOL_TO_TECH.items():
-        if tool_name in t_lower or any(m == tool_name for m in chunk_mal):
-            ttps.update(techs)
-
+    actors: set[str] = set(names["threat_actors"])
     raw_actors = ent.get("threat_actors")
     if isinstance(raw_actors, (list, tuple, set)):
-        ttps.update(str(a).lower() for a in raw_actors if a)
-    for a in _COMMON_ACTORS:
-        if a in t_lower:
-            ttps.add(a)
+        actors.update(canonical_name(str(a), ("group", "campaign")) or str(a) for a in raw_actors if a)
 
-    ttps.update(chunk_mal)
+    ttps.update(a.lower() for a in actors)
+    ttps.update(m.lower() for m in software)
     return ttps
 
 

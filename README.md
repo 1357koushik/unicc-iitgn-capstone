@@ -118,7 +118,7 @@ unicc-iitgn-capstone/
 │   │   ├── exact_lookup.py            # Sub-millisecond deterministic IOC lookup
 │   │   ├── hybrid_search.py           # Dense + BM25 RRF fusion with dynamic alpha
 │   │   ├── reranker.py                # Cross-Encoder (bge-reranker-v2-m3)
-│   │   └── mitre_graph.py             # MITRE ATT&CK STIX graph relations
+│   │   └── (ATT&CK graph: see threat_retrieval_engine/attack/)
 │   ├── api/                           # Serving interface (FastAPI REST service)
 │   │   ├── main.py                    # App entry point, unified /match & /pocs/find routes
 │   │   ├── pipeline.py                # End-to-end query router, matcher & PoC enricher
@@ -145,7 +145,6 @@ unicc-iitgn-capstone/
 │   ├── test_exact_lookup.py
 │   ├── test_hybrid_search.py
 │   ├── test_ingestion_pipeline.py
-│   ├── test_mitre_graph.py
 │   ├── test_reranker.py
 │   ├── test_tokenizer.py
 │   ├── test_validator.py
@@ -254,8 +253,7 @@ Team 2 exposes standard HTTP REST interfaces for inter-team microservice integra
         "cve_similarity": 1.0
       },
       "stix_relationships": [
-        "APT29 -[uses]-> T1021.002",
-        "APT29 -[targets]-> CVE-2017-0144"
+        "[QUERY_CONTEXT] G0016 (APT29) -[uses]-> T1021.002 (Remote Services: SMB/Windows Admin Shares)"
       ],
       "supporting_evidence_chunks": [
         {
