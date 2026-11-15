@@ -652,21 +652,38 @@ def _year(cve_id: str) -> int:
     return int(m.group(1)) if m else 0
 
 
-def dedicated_domains(domain_info: dict[str, list[int]]) -> frozenset[str]:
-    """Registrable domains cited by at most MAX_NICKNAME_SPREAD CVEs whose ID years span at most YEAR_WINDOW
-    years: the shape of a site about one disclosure (krackattacks.com: 10 CVEs, all 2017)."""
-    return frozenset(d for d, (n, lo, hi) in domain_info.items()
-                     if 0 < n <= MAX_NICKNAME_SPREAD and hi - lo < YEAR_WINDOW)
+def dedicated_domains(domain_info: dict[str, list], products: dict[str, frozenset[str]] | None = None
+                      ) -> frozenset[str]:
+    """Registrable domains that look like a site about one disclosure (krackattacks.com: 10 CVEs, all 2017,
+    all wpa_supplicant/hostapd): cited by 2 to MAX_NICKNAME_SPREAD CVEs whose ID years span at most
+    YEAR_WINDOW years and which share a product word. A security company's site cites CVEs of unrelated
+    products and is not dedicated; a site cited by one CVE only (vendor homepages, personal blogs) is not
+    either, though its label may still be a candidate when another unit corroborates it.
+
+    domain_info: domain -> [citing CVEs, first ID year, last ID year, CVE IDs (up to MAX+1)];
+    products: CVE ID -> lower-case words of its vendor_product."""
+    out = set()
+    for d, e in domain_info.items():
+        n, lo, hi = e[0], e[1], e[2]
+        if not (2 <= n <= MAX_NICKNAME_SPREAD and hi - lo < YEAR_WINDOW):
+            continue
+        if products is not None:
+            sets = [products.get(c, frozenset()) for c in (e[3] if len(e) > 3 else [])]
+            if not sets or not frozenset.intersection(*sets):
+                continue
+        out.add(d)
+    return frozenset(out)
 
 
 def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
-           domain_info: dict[str, list[int]] | None = None) -> Selection:
+           domain_info: dict[str, list] | None = None,
+           products: dict[str, frozenset[str]] | None = None) -> Selection:
     """Corpus-wide selection over (candidate, local decision) pairs.
 
     Titles and bulletin IDs that passed the local rules are served directly. Nickname candidates go through
     deterministic prefilters, the evidence rule and the corpus-wide spread rules, and come out as
     NickGroups for vetting; none is served here."""
-    dedicated = dedicated_domains(domain_info or {})
+    dedicated = dedicated_domains(domain_info or {}, products)
     reasons: dict[str, int] = defaultdict(int)
     rejected_names: dict[str, str] = {}
     keep: list[Candidate] = []
@@ -712,16 +729,6 @@ def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
             reasons["spread_too_wide"] += len(cs)
             rejected_names[norm] = "spread_too_wide"
             continue
-        years = [_year(x) for x in cves]
-        best_lo, best_n = years[0], -1
-        for lo in sorted(set(years)):
-            n = sum(1 for y in years if lo <= y < lo + YEAR_WINDOW)
-            if n > best_n:
-                best_lo, best_n = lo, n
-        if best_n / len(years) < MIN_WINDOW_SHARE:
-            reasons["spread_over_years"] += len(cs)
-            rejected_names[norm] = "spread_over_years"
-            continue
         support: dict[str, float] = defaultdict(float)
         single: dict[str, int] = defaultdict(int)
         seen: set[tuple[str, str]] = set()
@@ -731,6 +738,17 @@ def select(candidates: list[tuple[Candidate, str]], voc: Vocabulary,
                 seen.add(k)
                 support[c.cve_id] += 1.0 / max(1, c.record_cves)
                 single[c.cve_id] += c.record_cves <= 1
+        years = [_year(x) for x in cves]
+        best_lo, best_w = years[0], -1.0
+        for lo in sorted(set(years)):
+            w = sum(support[x] for x in cves if lo <= _year(x) < lo + YEAR_WINDOW)
+            if w > best_w:
+                best_lo, best_w = lo, w
+        in_window = sum(1 for y in years if best_lo <= y < best_lo + YEAR_WINDOW)
+        if len(cves) > 3 and in_window / len(years) < MIN_WINDOW_SHARE:
+            reasons["spread_over_years"] += len(cs)
+            rejected_names[norm] = "spread_over_years"
+            continue
         top = max(support.values())
         kept: list[Candidate] = []
         for c in cs:

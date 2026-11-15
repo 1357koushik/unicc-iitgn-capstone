@@ -131,20 +131,32 @@ def test_weak_evidence_needs_two_units_and_dedicated_site_needs_one():
     assert groups(A.select(two, VOC)) == {"pwnkit": ("CVE-2021-4034",)}
     krack = [_c(f"CVE-2017-{13077 + i}", "krack", "https://www.krackattacks.com/", pos="reference_site",
                 src="cve_references") for i in range(10)]
-    info = {"krackattacks.com": [10, 2017, 2017], "redhat.com": [90000, 1999, 2026]}
-    g = groups(A.select(krack, VOC, info))
+    ids = [f"CVE-2017-{13077 + i}" for i in range(10)]
+    info = {"krackattacks.com": [10, 2017, 2017, ids], "redhat.com": [90000, 1999, 2026, []],
+            "securityco.example": [4, 2024, 2025, ["CVE-2024-0001", "CVE-2024-0002", "CVE-2025-0001", "CVE-2025-0002"]]}
+    products = {c: frozenset({"hostapd", "wpa"}) for c in ids}
+    products.update({"CVE-2024-0001": frozenset({"acme"}), "CVE-2024-0002": frozenset({"widget"}),
+                     "CVE-2025-0001": frozenset({"gizmo"}), "CVE-2025-0002": frozenset({"thing"})})
+    g = groups(A.select(krack, VOC, info, products))
     assert g["krack"] == tuple(f"CVE-2017-{13077 + i}" for i in range(10))
     not_dedicated = [_c("CVE-2017-0001", "Redhatnews", "https://redhat.com/", pos="reference_site", src="cve_references")]
-    assert groups(A.select(not_dedicated, VOC, info)) == {}  # a widely cited domain is not a dedicated site
+    assert groups(A.select(not_dedicated, VOC, info, products)) == {}  # widely cited: not a dedicated site
+    company = [_c(c, "Securityco", "https://securityco.example/", pos="reference_site", src="cve_references")
+               for c in ("CVE-2024-0001", "CVE-2024-0002", "CVE-2025-0001", "CVE-2025-0002")]
+    assert groups(A.select(company, VOC, info, products)) == {}  # unrelated products: a company site
 
 
 def test_spread_years_and_relative_support():
     cands = [_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}") for i in range(20)]
-    cands += [_c(f"CVE-{y}-0001", "Oldname", f"a{y}") for y in ("2005", "2012", "2019")]
+    cands += [_c(f"CVE-{y}-0001", "Oldname", f"a{y}") for y in ("2005", "2008", "2012", "2016", "2019")]
     cands += [_c("CVE-2014-6271", "Shellshock", f"m{i}") for i in range(4)]
     cands += [_c(c, "Shellshock", "e1", n=3) for c in ("CVE-2014-6271", "CVE-2014-3659", "CVE-2014-3671")]
+    cands += [_c("CVE-2023-4966", "CitrixBleed", "n1", pos="head", src="nuclei_templates"),
+              _c("CVE-2023-4966", "CitrixBleed", "p1/cb", pos="poc_repo", src="poc_in_github"),
+              _c("CVE-2025-5777", "CitrixBleed", "n2", pos="camel", src="nuclei_templates")]
     sel = A.select(cands, VOC)
     assert groups(sel)["shellshock"] == ("CVE-2014-6271",)   # 3659/3671 only share a multi-CVE exploit record
+    assert groups(sel)["citrixbleed"] == ("CVE-2023-4966",)  # few CVEs over years: best-supported window kept
     assert sel.rejected_names[alias_norm("Widgetron")] == "spread_too_wide"
     assert sel.rejected_names[alias_norm("Oldname")] == "spread_over_years"
 

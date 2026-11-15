@@ -372,11 +372,13 @@ def process_group(job: dict) -> dict:
             y = _year(cid)
             e = domain_info.get(dom[4:])
             if e is None:
-                domain_info[dom[4:]] = [1, y, y]
+                domain_info[dom[4:]] = [1, y, y, [cid]]
             else:
                 e[0] += 1
                 e[1] = min(e[1], y)
                 e[2] = max(e[2], y)
+                if len(e[3]) <= A.MAX_NICKNAME_SPREAD:
+                    e[3].append(cid)
         weak = A.weak_candidates(cid, ref_urls, job["pocs"].get(cid, []), frozenset(strong_keep),
                                  (row["assigner"] or {}).get("short_name") or "")
         if weak:
@@ -529,10 +531,16 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         decisions = [(A.Candidate(*ct), d) for res in results for ct, d in res["alias_decisions"]]
         domain_info: dict[str, list[int]] = {}
         for res in results:
-            for dom, (n, lo, hi) in res["domain_info"].items():
-                e = domain_info.setdefault(dom, [0, lo, hi])
+            for dom, (n, lo, hi, cids) in res["domain_info"].items():
+                e = domain_info.setdefault(dom, [0, lo, hi, []])
                 e[0] += n
                 e[1], e[2] = min(e[1], lo), max(e[2], hi)
+                e[3] = (e[3] + cids)[:A.MAX_NICKNAME_SPREAD + 1]
+        small = {c for e in domain_info.values() if 2 <= e[0] <= A.MAX_NICKNAME_SPREAD for c in e[3]}
+        products = {}
+        for cid, vp in db.execute("SELECT cve_id, vendor_product FROM cve WHERE vendor_product IS NOT NULL"):
+            if cid in small:
+                products[cid] = frozenset(t.lower() for t in WORD_RE.findall(vp) if len(t) > 2)
         # corpus dictionary: candidate words written in lower case in at least DICTIONARY_MIN_DOCS descriptions
         words = A.candidate_words(decisions)
         lower_docs: Counter = Counter()
@@ -541,7 +549,7 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
                 lower_docs[w] += 1
         voc = A.Vocabulary(dictionary=frozenset(w for w, n in lower_docs.items() if n >= A.DICTIONARY_MIN_DOCS),
                            names=vocab, name_tokens=vocab_tokens)
-        sel = A.select(decisions, voc, domain_info)
+        sel = A.select(decisions, voc, domain_info, products)
         del lower_docs
         verdicts = A.load_verdicts(verdicts_path)
         status = A.apply_verdicts(sel.groups, verdicts)
