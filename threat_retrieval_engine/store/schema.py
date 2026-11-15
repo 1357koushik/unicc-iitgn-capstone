@@ -84,6 +84,12 @@ CREATE TABLE changes (                         -- against --previous build, when
     change TEXT NOT NULL CHECK (change IN ('added', 'changed', 'removed'))
 ) WITHOUT ROWID;
 
+CREATE TABLE v1_comparison (                   -- with --v1-corpus: why each CVE is missing from the v1 corpus
+    cve_id TEXT PRIMARY KEY,
+    reason TEXT NOT NULL,
+    detail TEXT
+) WITHOUT ROWID;
+
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

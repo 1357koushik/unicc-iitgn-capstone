@@ -41,6 +41,7 @@ from .text import alias_norm, cve_sort_key, name_key
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALIAS_INPUTS = ("exploitdb", "metasploit_modules", "nuclei_templates")
+POC_INPUT = "poc_in_github"
 CWE_INPUT = "cwe_catalog"
 READ_THREADS = 12
 
@@ -109,7 +110,7 @@ def resolve_inputs(feeds: Path, sources: Path) -> dict:
     epss = F.latest_dated(feeds, "epss_scores")
     if kev is None or epss is None:
         raise FileNotFoundError("KEV or EPSS CSV missing in feeds dir")
-    alias_dirs = {n: latest_source_dir(sources, n) for n in ALIAS_INPUTS}
+    alias_dirs = {n: latest_source_dir(sources, n) for n in ALIAS_INPUTS + (POC_INPUT,)}
     cwe_dir = latest_source_dir(sources, CWE_INPUT)
     for d in list(alias_dirs.values()) + [cwe_dir]:
         if "benchmark" in {p.lower() for p in d.resolve().parts}:
@@ -141,12 +142,15 @@ def year_groups(nvd_files: list[Path], cl_root: Path, extra_ids: set[str]) -> li
     return groups
 
 
-def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tuple[dict, dict, dict]:
-    """Raw alias candidates from the exploit sources and KEV names, grouped by CVE.
+def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tuple[dict, dict, dict, dict]:
+    """Raw alias candidates from the exploit sources and KEV names, grouped by CVE, plus the PoC-in-GitHub
+    repositories by CVE (weak evidence, used inside the workers).
 
-    Returns (candidates by CVE, per-source record ledger {source: {record_id: [cves]}}, input info)."""
+    Returns (candidates by CVE, PoC repos by CVE, per-source record ledger {source: {record_id: [cves]}},
+    input info)."""
     by_cve: dict[str, list[A.Candidate]] = defaultdict(list)
     ledger: dict[str, dict[str, list[str]]] = {}
+    pocs: dict[str, list[tuple[str, str]]] = {}
     info = {}
     for name, d in alias_dirs.items():
         led: dict[str, list[str]] = {}
@@ -156,6 +160,14 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
         n = 0
         for line_no, r in read_jsonl(d / "records.jsonl"):
             n += 1
+            if name == POC_INPUT:
+                rid = r.get("full_name") or f"line{line_no}"
+                rid = rid if rid not in led else f"{rid}@line{line_no}"
+                cves = sorted({c for c in (F.normalize_cve_id(x) for x in [r.get("cve_id")]) if c})
+                led[rid] = cves
+                for c in cves:
+                    pocs.setdefault(c, []).append((rid, r.get("description") or ""))
+                continue
             if name == "exploitdb":
                 rid, title, desc = str(r.get("edb_id")), r.get("title") or "", ""
             elif name == "metasploit_modules":
@@ -174,7 +186,7 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
     for cid, k in kev_rows.items():
         for c in A.candidates_from_record("kev", cid, [cid], k.get("vulnerability_name") or ""):
             by_cve[cid].append(c)
-    return dict(by_cve), ledger, info
+    return dict(by_cve), pocs, ledger, info
 
 
 def load_cwe_names(cwe_dir: Path) -> tuple[dict[str, str], dict]:
@@ -332,7 +344,25 @@ def process_group(job: dict) -> dict:
             own_tokens = A.own_name_tokens(own)
             own_keys = frozenset(name_key(x) for x in own) | frozenset(alias_norm(x) for x in own)
             desc_nicks = frozenset(c.norm for c in desc_c)
+            strong_keep = set()
             for c in cands:
+                d = A.local_decision(c, own_tokens, own_keys, side["desc_texts"], desc_nicks)
+                decisions.append((_cand_tuple(c), d))
+                if d == "keep" and c.kind == "nickname":
+                    strong_keep.add(c.norm)
+        else:
+            own_tokens = own_keys = desc_nicks = None
+            strong_keep = set()
+        # weak evidence: PoC-in-GitHub repositories and the CVE's own reference URLs, corroborated only
+        weak = A.weak_candidates(cid, [r["url"] for r in row["references"]], job["pocs"].get(cid, []),
+                                 frozenset(strong_keep))
+        if weak:
+            if own_tokens is None:
+                own = side["own_names"]
+                own_tokens = A.own_name_tokens(own)
+                own_keys = frozenset(name_key(x) for x in own) | frozenset(alias_norm(x) for x in own)
+                desc_nicks = frozenset()
+            for c in weak:
                 decisions.append((_cand_tuple(c), A.local_decision(c, own_tokens, own_keys, side["desc_texts"],
                                                                      desc_nicks)))
         if len(batch) >= 5000:
@@ -374,7 +404,8 @@ def _ledger_rejects(ledger: dict[str, dict[str, list[str]]], stored: dict[str, s
             elif not any(c in universe for c in cves):
                 reason = "cve_not_in_universe"
             else:
-                reason = reasons_by_record.get((src, rid), "no_alias_candidate")
+                default = "no_corroborated_alias" if src == POC_INPUT else "no_alias_candidate"
+                reason = reasons_by_record.get((src, rid), default)
             out.append(F.Reject(src, rid, reason, ",".join(cves[:5])))
         recon[src] = {"read": len(recs), "stored_or_merged": ok, "rejected": rej}
     return out, recon
@@ -397,7 +428,7 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         kev_rows, kev_rejects, kev_read = F.read_kev(inp["kev"])
         epss_rows, epss_meta, epss_rejects, epss_read = F.read_epss(inp["epss"])
         cwe_names, cwe_info = load_cwe_names(inp["cwe_dir"])
-        alias_by_cve, ledger, alias_info = alias_prepass(inp["alias_dirs"], kev_rows)
+        alias_by_cve, poc_by_cve, ledger, alias_info = alias_prepass(inp["alias_dirs"], kev_rows)
         groups = year_groups(inp["nvd_files"], inp["cl_root"], set(kev_rows) | set(epss_rows))
         timings["prepass_s"] = round(time.time() - t, 1)
         log(f"pre-pass: KEV {len(kev_rows)}, EPSS {len(epss_rows)}, CWE names {len(cwe_names)}, "
@@ -418,8 +449,14 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
             g = gkey_of_year.get(_year(c))
             if g is not None:
                 alias_by_g[g][c] = [_cand_tuple(x) for x in cs]
+        poc_by_g: dict[int, dict] = defaultdict(dict)
+        for c, ps in poc_by_cve.items():
+            g = gkey_of_year.get(_year(c))
+            if g is not None:
+                poc_by_g[g][c] = ps
         for g in groups:
             jobs.append({**g, "cl_root": str(inp["cl_root"]), "kev": kev_by_g[g["key"]], "epss": epss_by_g[g["key"]],
+                         "pocs": poc_by_g[g["key"]],
                          "epss_meta": epss_meta, "cwe_names": cwe_names, "alias_candidates": alias_by_g[g["key"]],
                          "kev_file": inp["kev"].name, "epss_file": inp["epss"].name,
                          "shard": str(tmp / "shards" / f"{g['key']}.sqlite"), "read_threads": READ_THREADS})
@@ -466,10 +503,17 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
                        [(c.cve_id, c.alias, c.norm, c.kind, c.source, c.record_id, c.position, c.record_cves)
                         for c in sel.rows if c.cve_id in universe])
         per_cve: dict[str, dict[str, tuple[float, str]]] = defaultdict(dict)
+        best_form: dict[tuple[str, str], tuple] = {}
         for c in sel.rows:
             if c.kind in ("nickname", "advisory_id"):
-                w, name = per_cve[c.cve_id].get(c.norm, (0.0, c.alias))
-                per_cve[c.cve_id][c.norm] = (w + 1.0 / max(1, c.record_cves), name)
+                rank = (c.source not in A.WEAK_SOURCES, any(ch.isupper() for ch in c.alias[1:]), -len(c.alias))
+                key = (c.cve_id, c.norm)
+                if key not in best_form or rank > best_form[key][0]:
+                    best_form[key] = (rank, c.alias)
+        for c in sel.rows:
+            if c.kind in ("nickname", "advisory_id"):
+                w, _ = per_cve[c.cve_id].get(c.norm, (0.0, ""))
+                per_cve[c.cve_id][c.norm] = (w + 1.0 / max(1, c.record_cves), best_form[(c.cve_id, c.norm)][1])
         db.executemany("UPDATE cve SET aliases = ? WHERE cve_id = ?",
                        [("; ".join(name for _, (w, name) in sorted(d.items(), key=lambda kv: (-kv[1][0], kv[0]))), cid)
                         for cid, d in per_cve.items()])
@@ -616,6 +660,7 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
                                                    workers=workers, log=log)
             del nvd_desc
             timings["v1_compare_s"] = round(time.time() - t, 1)
+            manifest["store_bytes"] = db_path.stat().st_size
         shutil.rmtree(tmp / "shards")
         manifest["timings"] = timings
         (tmp / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

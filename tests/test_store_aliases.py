@@ -110,3 +110,26 @@ def test_query_side_sources_are_refused(source):
 def test_allowed_sources_exclude_every_query_side_source():
     assert not set(A.ALLOWED_SOURCES) & A.QUERY_SIDE_SOURCES
     assert {"ghsa_reviewed", "et_open_rules", "sigma_rules", "acsc_advisories", "ncsc_uk_advisories"} <= A.QUERY_SIDE_SOURCES
+
+
+def test_url_phrases_skip_handles_and_strip_site_suffix():
+    unit, ph = A.url_phrases("https://github.com/vanhoefm/fragattacks/blob/master/SUMMARY.md")
+    assert unit == "github.com" and "vanhoefm" not in [x.lower() for x in ph] and "fragattacks" in ph
+    unit, ph = A.url_phrases("https://drownattack.com")
+    assert unit == "drownattack.com" and "drown" in ph
+    unit, _ = A.url_phrases("https://bugzilla.redhat.com/show_bug.cgi?id=1")
+    assert unit == "redhat.com"
+    assert A.registrable_domain("ccsinjection.lepidum.co.jp") == "lepidum.co.jp"
+
+
+def test_weak_candidates_require_two_independent_units():
+    refs = ["https://drownattack.com", "https://access.redhat.com/security/vulnerabilities/drown"]
+    cs = A.weak_candidates("CVE-2016-0800", refs, [], frozenset())
+    assert {c.norm for c in cs} == {"drown"} and {c.source for c in cs} == {"cve_references"}
+    assert A.weak_candidates("CVE-2016-0800", refs[:1], [], frozenset()) == []
+    one = A.weak_candidates("CVE-2016-0800", refs[:1], [], frozenset({"drown"}))  # a strong source agrees
+    assert {c.norm for c in one} == {"drown"}
+    same_host = ["https://access.redhat.com/a/drown", "https://bugzilla.redhat.com/drown"]
+    assert A.weak_candidates("CVE-2016-0800", same_host, [], frozenset()) == []  # one registrable domain
+    pocs = [("alice/pwnkit", ""), ("bob/CVE-2021-4034-PwnKit", "PwnKit exploit")]
+    assert {c.norm for c in A.weak_candidates("CVE-2021-4034", [], pocs, frozenset())} == {"pwnkit"}

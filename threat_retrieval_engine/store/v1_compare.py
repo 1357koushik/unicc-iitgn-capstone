@@ -3,7 +3,8 @@
 Method for "CVEs the v1 corpus lacks entirely" (no row of any kind: NVD, CVE List, KEV or EPSS stub):
 
 1. ``published_after_v1_build``: the CVE was published after the v1 corpus was built (its newest
-   ``inserted_at`` date), so v1 could not contain it;
+   ``inserted_at`` date), so v1 could not contain it; ``nvd_record_after_v1_build``: the CVE List published it
+   earlier but its NVD record (v1's main source) only appeared after the v1 build;
 2. ``v1_skipped_rejected``: v1's CVE List parser skipped REJECTED records, and the CVE has no NVD record;
 3. ``v1_text_length_quarantine``: v1 quarantined texts shorter than 15 or longer than 32,000 characters;
 4. ``likely_dropped_by_near_duplicate_filter``: the text v1 would have ingested for the CVE (its NVD English
@@ -14,6 +15,8 @@ Method for "CVEs the v1 corpus lacks entirely" (no row of any kind: NVD, CVE Lis
    the kept corpus reproduces v1's decision. The exact Jaccard similarity with the colliding row is also
    computed and reported (``verified_jaccard_ge_0_90``);
 5. ``unexplained``: none of the above.
+
+Every classified CVE is written to the store's ``v1_comparison`` table (cve_id, reason, detail).
 """
 from __future__ import annotations
 
@@ -79,8 +82,8 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
     v1_nvd = v1_by_source.get("NVD", set())
 
     st = sqlite3.connect(f"file:{Path(store_db).as_posix()}?mode=ro", uri=True)
-    rows = st.execute("SELECT cve_id, state, searchable, published, sources, description, description_source "
-                      "FROM cve").fetchall()
+    rows = st.execute("SELECT cve_id, state, searchable, published, sources, description, description_source, "
+                      "json_extract(dates, '$.nvd.published'), nvd_status FROM cve").fetchall()
     st.close()
     universe = {r[0]: r for r in rows}
     missing = sorted(c for c in universe if c not in v1_cves)
@@ -90,10 +93,13 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
     cls: dict[str, str] = {}
     to_check: list[tuple[str, str]] = []
     for c in missing:
-        _, state, searchable, published, sources, desc, dsrc = universe[c]
+        _, state, searchable, published, sources, desc, dsrc, nvd_pub, _st = universe[c]
         has_nvd = "nvd" in sources.split(",")
         if published and published > v1_date:
             cls[c] = "published_after_v1_build"
+            continue
+        if has_nvd and nvd_pub and nvd_pub[:10] > v1_date:
+            cls[c] = "nvd_record_after_v1_build"
             continue
         if not has_nvd:
             if state == "rejected":
@@ -119,6 +125,7 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
     verified = 0
     examples = []
     jac_hist = Counter()
+    detail: dict[str, str] = {}
     for (c, text), sig in zip(to_check, q_sigs):
         m = MinHash(num_perm=NUM_PERM, scheme="legacy", hashvalues=np.frombuffer(sig, dtype=np.uint64))
         hits = [i for i in lsh.query(m) if base(v1_rows[i][0]) != c]
@@ -129,12 +136,23 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
         sh = _shingles(text)
         best_i = max(hits, key=lambda i: _jac(sh, _shingles(v1_texts[i])))
         best = _jac(sh, _shingles(v1_texts[best_i]))
+        detail[c] = f"{v1_rows[best_i][0]} jaccard={best:.3f}"
         jac_hist["1.00" if best == 1.0 else ">=0.95" if best >= 0.95 else ">=0.90" if best >= 0.90
                  else ">=0.80" if best >= 0.80 else "<0.80"] += 1
         verified += best >= THRESHOLD
         if len(examples) < 10:
             examples.append({"cve_id": c, "blocked_by_v1_doc": v1_rows[best_i][0], "jaccard": round(best, 3)})
     counts = Counter(cls.values())
+    unexpl = [c for c, k in cls.items() if k == "unexplained"]
+    unexpl_month = Counter((universe[c][3] or "unknown")[:7] for c in unexpl)
+    unexpl_status = Counter(universe[c][8] or "no NVD record" for c in unexpl)
+    st = sqlite3.connect(Path(store_db))
+    st.execute("CREATE TABLE IF NOT EXISTS v1_comparison (cve_id TEXT PRIMARY KEY, reason TEXT NOT NULL, detail TEXT)"
+               " WITHOUT ROWID")
+    st.execute("DELETE FROM v1_comparison")
+    st.executemany("INSERT INTO v1_comparison VALUES (?,?,?)", [(c, k, detail.get(c)) for c, k in sorted(cls.items())])
+    st.commit()
+    st.close()
     dropped = [c for c, k in cls.items() if k == "likely_dropped_by_near_duplicate_filter"]
     searchable_dropped = sum(1 for c in dropped if universe[c][2])
 
@@ -158,6 +176,8 @@ def compare_v1(store_db: Path, v1_db: Path, kev_rows: dict, epss_rows: dict, nvd
         "likely_near_duplicate_drops": {"count": len(dropped), "searchable_in_store": searchable_dropped,
                                         "verified_jaccard_ge_0_90": verified,
                                         "best_jaccard_histogram": dict(jac_hist), "examples": examples},
+        "unexplained_by_published_month": dict(sorted(unexpl_month.items())[-15:]),
+        "unexplained_by_nvd_status": dict(unexpl_status.most_common()),
         "v1_cves_not_in_store": len(v1_cves - set(universe)),
         "kev_cves_without_v1_nvd_row": {"v1_kev_rows_without_nvd_row": gap(kev_v1_no_nvd),
                                         "current_kev_catalogue": gap(kev_feed_no_v1_nvd)},

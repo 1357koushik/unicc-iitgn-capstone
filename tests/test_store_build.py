@@ -8,6 +8,7 @@ import pytest
 from threat_retrieval_engine.store import Store
 from threat_retrieval_engine.store import aliases as A
 from threat_retrieval_engine.store import build as B
+from threat_retrieval_engine.store.text import alias_norm
 
 from store_fixtures import make_feeds, make_sources
 
@@ -97,6 +98,17 @@ def test_aliases_from_allowed_sources_only(db):
     assert not {r[3] for r in rows} & A.QUERY_SIDE_SOURCES
     assert not any("LeakedQueryName" in r[1] for r in rows)  # present only in the query-side fixture source
     assert db.execute("SELECT aliases FROM cve WHERE cve_id = 'CVE-2021-44228'").fetchone()[0] == "Log4Shell"
+
+
+def test_weak_evidence_needs_corroboration(db):
+    rows = db.execute("SELECT cve_id, alias, source FROM aliases WHERE kind = 'nickname'").fetchall()
+    assert ("CVE-2021-44228", "Log4Shell", "poc_in_github") in {(c, a.title() if a.islower() else a, s)
+                                                                 for c, a, s in rows}
+    assert any(c == "CVE-2021-0004" and alias_norm(a) == "widgetsmash" for c, a, _ in rows)  # two owners
+    assert not any(alias_norm(a) == "lonelyname" for _, a, _ in rows)                       # one owner only
+    reasons = dict(((s, r), n) for s, r, n in db.execute(
+        "SELECT source, record_id, reason FROM rejected_records WHERE source = 'poc_in_github'"))
+    assert reasons.get(("poc_in_github", "erin/CVE-2018-6116-Lonelyname")) == "no_corroborated_alias"
 
 
 def test_query_side_source_directory_is_never_opened(built):

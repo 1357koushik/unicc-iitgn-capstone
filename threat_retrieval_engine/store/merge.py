@@ -84,6 +84,7 @@ def vendor_product(nvd: dict | None, cl: dict | None, kev: dict | None,
     evidence: list[dict] = []
 
     def add(label: str, ev: dict) -> bool:
+        label = label.replace(";", ",")  # "; " separates pairs in the text column
         k = name_key(label)
         if not k or k in keys:
             return False
@@ -280,11 +281,13 @@ def dense_text(title: str | None, vp_labels: list[str], description: str, wnames
     t = strip_cve_ids(title or "")
     if t and t.casefold().rstrip(". ") not in low:
         parts.append(_sentence(t))
-    vp = [x for x in vp_labels if x.casefold() not in low]
+    vp = [strip_cve_ids(x) for x in vp_labels if x.casefold() not in low]
+    vp = [x for x in vp if x]
     if vp:
         parts.append(_sentence(", ".join(vp)))
     parts.append(_sentence(desc))
-    w = [x for x in wnames if x.casefold() not in low]
+    w = [strip_cve_ids(x) for x in wnames if x.casefold() not in low]
+    w = [x for x in w if x and x.casefold() not in low]
     if w:
         parts.append(_sentence("; ".join(w)))
     return " ".join(p for p in parts if p)

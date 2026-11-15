@@ -9,6 +9,10 @@ An alias is a short human name for a CVE taken from public exploit and advisory 
 * ``kev``                - CISA KEV vulnerability names
 * ``cve_list``           - CVE List (CNA) titles
 * ``cve_description``    - "aka X" / "known as X" phrases in the CVE's own English description
+* ``poc_in_github``      - PoC-in-GitHub repository names and descriptions (community naming; untrusted, so
+                           only as corroborated evidence, see below)
+* ``cve_references``     - words of the CVE's own reference URLs (dedicated sites such as drownattack.com,
+                           exploit-archive slugs, write-up slugs; only as corroborated evidence)
 
 Benchmark query sources (ghsa_reviewed, et_open_rules, sigma_rules, acsc_advisories, ncsc_uk_advisories,
 cisa_advisories) and anything under data/benchmark/ are never read: `candidates_from_record` refuses any
@@ -34,6 +38,11 @@ rest is decided from the data, in two steps:
    CVEs it names must cluster in time (a coined name belongs to one disclosure), a bare CamelCase token
    must not be a known CPE product name, and a CVE that only shares a multi-CVE exploit record with the
    CVE the name really belongs to is dropped (relative support).
+
+PoC-in-GitHub names and reference-URL words are weak evidence: anyone can name a repository, and a URL
+word may be a product, a person or a page title. They are used only when the same name (by alias key) is
+attested by at least two independent units for the same CVE: distinct repository owners, distinct
+reference hosts, or one of the strong sources above. Researcher handles in code-hosting paths are skipped.
 """
 from __future__ import annotations
 
@@ -44,7 +53,11 @@ from typing import Iterable
 
 from .text import alias_norm, clean_text, find_span
 
-ALLOWED_SOURCES = ("exploitdb", "metasploit_modules", "nuclei_templates", "kev", "cve_list", "cve_description")
+ALLOWED_SOURCES = ("exploitdb", "metasploit_modules", "nuclei_templates", "kev", "cve_list", "cve_description",
+                   "poc_in_github", "cve_references")
+WEAK_SOURCES = frozenset({"poc_in_github", "cve_references"})
+WEAK_POSITIONS = frozenset({"camel", "poc_repo", "reference"})
+MIN_WEAK_UNITS = 2              # independent evidence units (PoC owners, reference hosts, strong sources)
 QUERY_SIDE_SOURCES = frozenset({"ghsa_reviewed", "et_open_rules", "sigma_rules", "acsc_advisories",
                                 "ncsc_uk_advisories", "cisa_advisories"})
 TITLE_KIND_SOURCES = frozenset({"exploitdb", "metasploit_modules", "nuclei_templates"})
@@ -85,6 +98,7 @@ html http https tcp udp ftp smtp dns ssh tls ssl smb rdp ldap xp vista nt me r2 
 new old latest beta alpha final full partial edition pro professional enterprise community free
 part one two three dtls support supported add adding added remove change manipulation products product
 url uri argument arguments array session sessions activex control controls listener manager console
+spoofing tampering leakage leak leaks hijack hijacking takeover weakening connection token tokens
 """.split())
 _ID_LIKE = re.compile(r"\d.*\d.*\d")    # a token with three or more digits is an identifier, not a name
 _SERVICE_PACK = re.compile(r"^(?:sp\d+|r\d|v\d+[a-z]?|build\d*|rc\d*|update\d*)$", re.IGNORECASE)
@@ -291,6 +305,144 @@ def description_candidates(cve_id: str, desc_texts: list[str]) -> list[Candidate
     return list(out.values())
 
 
+# --------------------------------------------------------------------------- weak evidence
+URL_STOP = frozenset("""
+www com org net edu gov io co uk de fr jp cn ru kr au in br it es nl eu info html htm shtml php asp aspx jsp do
+cgi pl txt pdf md xml json rss index default home main en us en-us view show details detail display article
+articles post posts blog blogs news story stories entry entries page pages wiki docs doc documentation help kb
+knowledgebase support security securityadvisories advisory advisories alert alerts bulletin bulletins notice
+notices note notes bug bugs bugzilla issue issues ticket tickets pull pulls commit commits compare blob tree
+master main raw src source sources files file download downloads release releases changelog changes archive
+archives lists list mailing msg message messages thread threads forum forums topic topics discussion
+question questions cve cves nvd vuln vulns vulndb vulnerability vulnerabilities exploit exploits packetstorm
+packetstormsecurity securityfocus bid osvdb exploitdb edb seclists fulldisclosure bugtraq oss openwall
+securitytracker xforce proof concept concepts poc readme summary writeup research analysis report reports
+paper whitepaper presentation slides video watch tag tags category categories update updates patch patches
+fix fixed fixes version versions critical high medium low important moderate disclosure disclosed
+the of in and for a an to with on by from via its is how what why new about our your this that
+""".split())
+HOSTING = frozenset({"github.com", "gitlab.com", "bitbucket.org", "blogspot.com", "wordpress.com", "medium.com",
+                     "github.io", "gitlab.io", "sourceforge.net", "twitter.com", "x.com", "youtube.com",
+                     "google.com", "pastebin.com", "gist.github.com", "substack.com", "linkedin.com",
+                     "reddit.com", "hackerone.com", "huntr.dev", "huntr.com", "gitee.com", "notion.site"})
+_HANDLE_HOSTS = ("github.com", "gitlab.com", "bitbucket.org", "twitter.com", "x.com", "medium.com", "gitee.com",
+                 "huntr.dev", "huntr.com", "hackerone.com", "youtube.com", "linkedin.com")
+_SEG_SPLIT = re.compile(r"[-_+.~,;=%\s]+")
+_WEAK_TOKEN = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+_HEXISH = re.compile(r"^[0-9a-f]{7,}$", re.IGNORECASE)
+_MONTHS = frozenset("january february march april may june july august september october november december "
+                    "jan feb mar apr jun jul aug sep sept oct nov dec".split())
+
+
+def _weak_ok(tok: str, min_len: int = 4) -> bool:
+    t = tok.lower()
+    if len(t) < min_len or not _WEAK_TOKEN.match(tok) or sum(ch.isdigit() for ch in t) > 2:
+        return False
+    if _HEXISH.match(t) or t in URL_STOP or t in GENERIC_WORDS or t in _MONTHS:
+        return False
+    return sum(ch.isalpha() for ch in t) >= 3
+
+
+def _display(tok: str) -> str:
+    return tok if any(ch.isupper() for ch in tok) else tok[:1].upper() + tok[1:]
+
+
+def _phrases(tokens: list[str]) -> list[str]:
+    """Unigrams and bigrams of a token run that may be names (each bigram word at least 2 letters)."""
+    out = [t for t in tokens if _weak_ok(t)]
+    for a, b in zip(tokens, tokens[1:]):
+        if (_WEAK_TOKEN.match(a) and _WEAK_TOKEN.match(b) and len(a) >= 2 and len(b) >= 2
+                and (_weak_ok(a, 3) or _weak_ok(b, 3)) and not (a.isdigit() or b.isdigit())):
+            out.append(f"{_display(a)} {_display(b)}")
+    return out
+
+
+_SITE_SUFFIX = re.compile(r"^([a-z0-9]+?)-?(?:attacks?|bugs?|vuln|exploit|flaw)$")
+_SECOND_LEVEL = frozenset({"co", "com", "ac", "org", "net", "gov", "edu", "ne", "or", "go"})
+
+
+def registrable_domain(host: str) -> str:
+    """Approximate registrable domain: last two labels, or three under a second-level label (co.uk, com.au)."""
+    labels = host.split(".")
+    if len(labels) >= 3 and labels[-2] in _SECOND_LEVEL and len(labels[-1]) == 2:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def url_phrases(url: str) -> tuple[str, list[str]]:
+    """(registrable-domain unit, candidate phrases) of one reference URL."""
+    from urllib.parse import unquote, urlsplit
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "", []
+    host = (parts.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if not host:
+        return "", []
+    labels = host.split(".")
+    phrases: list[str] = []
+    reg = registrable_domain(host)
+    if reg not in HOSTING and host not in HOSTING and len(labels) >= 2:
+        for lab in labels[:-1]:
+            if lab in URL_STOP:
+                continue
+            phrases += _phrases(_SEG_SPLIT.split(lab))
+            m = _SITE_SUFFIX.match(lab)
+            if m and len(m.group(1)) >= 4:
+                phrases.append(m.group(1))  # drownattack.com -> drown
+    segs = [unquote(x) for x in parts.path.split("/") if x]
+    if any(host == h or host.endswith("." + h) for h in _HANDLE_HOSTS) and segs:
+        segs = segs[1:]  # skip the account / researcher handle
+    unit = reg
+    for seg in segs:
+        seg = re.sub(r"\.(?:html?|php|aspx?|jsp|txt|pdf|md|shtml|cgi)$", "", seg, flags=re.IGNORECASE)
+        phrases += _phrases([t for t in _SEG_SPLIT.split(seg) if t])
+    return unit, phrases
+
+
+def poc_phrases(full_name: str, description: str) -> list[str]:
+    name = (full_name or "").split("/", 1)[-1]
+    out = _phrases([t for t in _SEG_SPLIT.split(name) if t])
+    out += [span for span, _ in nickname_spans(description or "") + known_as_spans(description or "")]
+    return out
+
+
+def weak_candidates(cve_id: str, ref_urls: list[str], pocs: list[tuple[str, str]],
+                    strong_norms: frozenset[str]) -> list[Candidate]:
+    """Corroborated weak-evidence candidates for one CVE: a name needs MIN_WEAK_UNITS independent units
+    (distinct PoC owners, distinct reference hosts; a strong-source candidate of the same key counts as one)."""
+    units: dict[str, set[str]] = defaultdict(set)
+    rows: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
+    for url in ref_urls:
+        host, phrases = url_phrases(url)
+        for ph in dict.fromkeys(phrases):
+            k = alias_norm(ph)
+            if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
+                units[k].add(f"host:{host}")
+                rows[k].append((ph, "cve_references", url, "reference"))
+    for full_name, desc in pocs:
+        owner = (full_name or "").split("/", 1)[0].lower()
+        for ph in dict.fromkeys(poc_phrases(full_name, desc)):
+            k = alias_norm(ph)
+            if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
+                units[k].add(f"owner:{owner}")
+                rows[k].append((ph, "poc_in_github", full_name, "poc_repo"))
+    out = []
+    for k, us in units.items():
+        n = len(us) + (1 if k in strong_norms else 0)
+        if n < MIN_WEAK_UNITS:
+            continue
+        seen: set[tuple[str, str]] = set()
+        for ph, src, rid, pos in rows[k]:
+            if (src, rid) in seen:
+                continue
+            seen.add((src, rid))
+            out.append(Candidate(cve_id, _display(ph) if " " not in ph else ph, k, "nickname", src, rid, pos, 1))
+    return out
+
+
 def own_name_tokens(names: Iterable[str]) -> frozenset[str]:
     """Lower-case tokens of a CVE's own vendor and product names (CPE slugs, CNA/KEV names)."""
     toks: set[str] = set()
@@ -354,7 +506,7 @@ def select(candidates: list[tuple[Candidate, str]], product_vocabulary: frozense
             reasons[f"accepted_{c.kind}"] += 1
     for norm, cs in nick.items():
         positions = {c.position for c in cs}
-        if positions == {"camel"} and norm in product_vocabulary:
+        if positions <= WEAK_POSITIONS and norm in product_vocabulary:
             reasons["product_name"] += len(cs)
             rejected_names[norm] = "product_name"
             continue

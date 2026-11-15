@@ -226,6 +226,13 @@ def make_sources(root: Path) -> Path:
         {"template_id": "CVE-2021-44228", "name": "Apache Log4j2 - Remote Code Execution (Log4Shell)",
          "cve_ids": ["CVE-2021-44228"]},
     ])
+    source_dir(src, "poc_in_github", "expansion", [
+        {"full_name": "alice/log4shell-poc", "cve_id": "CVE-2021-44228", "description": "Log4Shell exploit"},
+        {"full_name": "bob/CVE-2021-44228-scanner", "cve_id": "CVE-2021-44228", "description": "Scanner for Log4Shell"},
+        {"full_name": "carol/CVE-2021-0004-Widgetsmash", "cve_id": "CVE-2021-0004", "description": "PoC"},
+        {"full_name": "dave/widgetsmash", "cve_id": "CVE-2021-0004", "description": None},
+        {"full_name": "erin/CVE-2018-6116-Lonelyname", "cve_id": "CVE-2018-6116", "description": "poc"},
+    ])
     source_dir(src, "cwe_catalog", "expansion", [
         {"cwe_id": "CWE-476", "name": "NULL Pointer Dereference", "kind": "weakness", "status": "Stable"},
         {"cwe_id": "CWE-502", "name": "Deserialization of Untrusted Data", "kind": "weakness", "status": "Draft"},
