@@ -1,0 +1,62 @@
+{
+  "config": {
+    "adapter": "inprocess",
+    "factory": "threat_retrieval_engine.lexical.eval_adapter:make",
+    "options": {
+      "k": 100
+    }
+  },
+  "created_at": "2026-11-15T09:22:57Z",
+  "sessions": [
+    {
+      "abort_reason": null,
+      "already_done": 0,
+      "concurrency": 1,
+      "ended_at": "2026-11-15T09:23:50Z",
+      "errors": 0,
+      "harness_commit": "7ff5f1a",
+      "harness_version": "b4-1",
+      "host": "Actually-Koushik",
+      "load_average_end": null,
+      "load_average_start": null,
+      "pause_after_error_s": 0.0,
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.10",
+      "selected": 1489,
+      "sent": 1489,
+      "service_info": {
+        "build_id": "20261115T091556Z-b096c83510",
+        "component": "lexical",
+        "documents": 405013,
+        "index_sha256": "709c16670b5c4fc0c9d8fc7dadd47ec48714b2f880edaccebc145ce30b373dd6",
+        "ranking": {
+          "bm25": {
+            "b": 0.75,
+            "implementation": "sqlite fts5 bm25()",
+            "k1": 1.2
+          },
+          "candidate_budget": 3000,
+          "max_df_ratio": 0.25,
+          "max_query_chars": 20000,
+          "max_terms": 24,
+          "stop_words": "english",
+          "weights": {
+            "aliases": 1.0,
+            "description": 1.0,
+            "exploit_titles": 2.0,
+            "ids": 50.0,
+            "kev_text": 8.0,
+            "title": 0.5,
+            "vendor_product": 2.0,
+            "weakness": 2.0
+          }
+        },
+        "tokenizer": "tre-domain-1-split1-td1-porter2"
+      },
+      "session_id": "2026-11-15T09:22:57Z-25172-ce64d7c1",
+      "started_at": "2026-11-15T09:22:57Z",
+      "status": "complete"
+    }
+  ],
+  "variant": "v2_lexical"
+}

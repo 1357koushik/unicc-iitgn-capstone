@@ -9,7 +9,7 @@ slices, nDCG@10 breaking ties within 0.002), then the best few train settings, c
 weight (train has no identifier queries), are compared on dev macro Recall@50 and the best is selected.
 ``grid``: train and dev metrics of explicit settings (tokenizer builds, stop words, term caps).
 ``k1b``: FTS5's bm25() fixes k1 = 1.2 and b = 0.75; this measures whether other values would help, by
-re-scoring each query's top 1,000 FTS5 candidates with BM25F under a grid of k1 and b (term frequencies from
+re-scoring each query's top 200 FTS5 candidates with BM25F under a grid of k1 and b (term frequencies from
 re-tokenizing the candidate documents of the store). Re-scoring a candidate pool is an approximation (a
 document outside the pool cannot enter); it is reported as such.
 
@@ -66,7 +66,9 @@ def fmt(sm: dict) -> str:
 def cmd_weights(a) -> dict:
     ix = LexicalIndex.open(a.index)
     train, dev = E.load("train"), E.load("dev")
-    base = ix.ranking.with_(weights={c: 1.0 for c in COLUMNS})
+    from .config import RANKING
+    # query-side settings from the code (config.RANKING), not from whatever the index was built with
+    base = RANKING.with_(**json.loads(a.base)).with_(weights={c: 1.0 for c in COLUMNS})
     cur = base
     cache: dict[tuple, tuple] = {}
 
@@ -95,9 +97,7 @@ def cmd_weights(a) -> dict:
         if not changed:
             break
     ranked = sorted(cache.items(), key=lambda kv: (-kv[1][0][0], -kv[1][0][1]))
-    top = [RankingConfig(weights=k, stop_words=base.stop_words, max_df_ratio=base.max_df_ratio,
-                         max_terms=base.max_terms, max_query_chars=base.max_query_chars)
-           for k, _ in ranked[: a.top]]
+    top = [base.with_(weights=dict(zip(COLUMNS, k))) for k, _ in ranked[: a.top]]
     selection = []
     best_dev = None
     for r in top:
@@ -169,7 +169,7 @@ def cmd_k1b(a) -> dict:
             tf_cache[cid] = (dict(wtf), length)
         return tf_cache[cid]
 
-    grid = [(k1, b) for k1 in (0.6, 0.9, 1.2, 1.5, 2.0) for b in (0.3, 0.5, 0.75, 0.9)]
+    grid = [(k1, b) for k1 in (0.9, 1.2, 1.5, 2.0) for b in (0.5, 0.75, 0.9)]
     out = {"pool_depth": a.pool, "grid": {}}
     for split in ("train", "dev"):
         ds, qs = E.load(split)
@@ -212,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--index", required=True)
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--top", type=int, default=4)
+    p.add_argument("--base", default="{}", help="JSON overrides of the query settings")
     p = sub.add_parser("grid")
     p.add_argument("--index", required=True)
     p.add_argument("--configs", default="[{}]")
@@ -220,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("k1b")
     p.add_argument("--index", required=True)
     p.add_argument("--store", required=True)
-    p.add_argument("--pool", type=int, default=1000)
+    p.add_argument("--pool", type=int, default=200)
     for p in sub.choices.values():
         p.add_argument("--out", help="write the result JSON here")
     a = ap.parse_args(argv)

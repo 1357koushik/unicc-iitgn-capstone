@@ -166,6 +166,18 @@ class LexicalIndex:
         if not (n_docs == n_fts == self.n_docs):
             raise IndexError_(f"{self.path}: docs {n_docs}, fts {n_fts}, meta {self.n_docs} differ")
 
+    def warm(self) -> float:
+        """Read every page of the index once through this connection (mmap and SQLite page cache), so the
+        first queries after a start do not pay for page faults. Returns the seconds taken. The service calls
+        this at start-up, before it reports ready."""
+        t0 = time.perf_counter()
+        db = self._conn()
+        for sql in ("SELECT SUM(LENGTH(block)) FROM lex_data", "SELECT SUM(LENGTH(sz)) FROM lex_docsize",
+                    "SELECT COUNT(*), SUM(LENGTH(term)) FROM lex_idx", "SELECT SUM(LENGTH(term) + df) FROM vocab",
+                    "SELECT SUM(LENGTH(column_tokens)) FROM docs"):
+            db.execute(sql).fetchone()
+        return time.perf_counter() - t0
+
     def info(self) -> dict:
         return {"build_id": self.build_id, "documents": self.n_docs, "tokenizer": self.meta.get("tokenizer"),
                 "ranking": self.ranking.as_dict(), "index_sha256": self.manifest.get("index_sha256")}

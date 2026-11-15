@@ -21,7 +21,8 @@ STOP_MODES = ("none", "english")
 @dataclass(frozen=True)
 class RankingConfig:
     # FTS5 bm25() column weights in schema.COLUMNS order (FTS5 bm25 has k1 = 1.2 and b = 0.75).
-    weights: tuple[float, ...] = (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+    # ids title aliases vendor_product description weakness kev_text exploit_titles
+    weights: tuple[float, ...] = (50.0, 0.5, 1.0, 2.0, 1.0, 2.0, 8.0, 2.0)
     stop_words: str = "english"      # query-side stop words: none | english
     max_df_ratio: float = 0.25       # drop query terms present in more than this share of documents
     max_terms: int = 24              # keep at most this many query terms (the rarest ones)

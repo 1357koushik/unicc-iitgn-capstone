@@ -8,6 +8,7 @@ Standard library only (runs on the server with ~/py312/bin/python). Measured, fo
 * ``cold``: a fresh process opens the index and runs every query once; the SQLite page cache is empty. The
   operating system's file cache is not dropped (no root on the server, no equivalent on Windows), so the file
   may already be in memory; the figure is "cold process", stated as such.
+* ``cold_after_warmup``: as ``cold`` but ``LexicalIndex.warm()`` runs at open, as at service start-up.
 * ``warm``: in the same process, after one full warm-up pass, every query again; repeated ``--repeat`` times.
 
 Only query texts are read from the queries file (qid, slice, split, text); a file holding test-split queries
@@ -71,15 +72,17 @@ def one_pass(ix, queries: list[dict], k: int) -> list[float]:
     return out
 
 
-def cold_child(index: str, queries_path: str, k: int) -> None:
-    """Runs in a fresh process: open, one pass, print the per-query times as JSON."""
+def cold_child(index: str, queries_path: str, k: int, warm: bool) -> None:
+    """Runs in a fresh process: open (and, with ``warm``, LexicalIndex.warm() as the service does at start-up),
+    one pass, print the per-query times as JSON."""
     from threat_retrieval_engine.lexical.index import LexicalIndex
     qs = load_queries(Path(queries_path))
     t0 = time.perf_counter()
     ix = LexicalIndex.open(index)
     open_ms = (time.perf_counter() - t0) * 1000.0
+    warm_ms = ix.warm() * 1000.0 if warm else 0.0
     times = one_pass(ix, qs, k)
-    print(json.dumps({"open_ms": open_ms, "times": times}))
+    print(json.dumps({"open_ms": open_ms, "warm_ms": warm_ms, "times": times}))
 
 
 def measure(index: str, queries_path: Path, k: int = 100, repeat: int = 3, label: str = "") -> dict:
@@ -88,14 +91,19 @@ def measure(index: str, queries_path: Path, k: int = 100, repeat: int = 3, label
     env = dict(os.environ)
     root = str(Path(__file__).resolve().parents[2])
     env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    cold_runs = []
-    for _ in range(repeat):
-        p = subprocess.run([sys.executable, "-m", "threat_retrieval_engine.lexical.latency", "--cold-child",
-                            "--index", index, "--queries", str(queries_path), "--k", str(k)],
-                           capture_output=True, text=True, env=env, cwd=root)
-        if p.returncode != 0:
-            raise RuntimeError(f"cold run failed: {p.stderr[-2000:]}")
-        cold_runs.append(json.loads(p.stdout.strip().splitlines()[-1]))
+    cold = {}
+    for mode in ("cold", "cold_after_warmup"):
+        runs = []
+        for _ in range(repeat):
+            cmd = [sys.executable, "-m", "threat_retrieval_engine.lexical.latency", "--cold-child",
+                   "--index", index, "--queries", str(queries_path), "--k", str(k)]
+            if mode == "cold_after_warmup":
+                cmd.append("--warm-start")
+            p = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=root)
+            if p.returncode != 0:
+                raise RuntimeError(f"cold run failed: {p.stderr[-2000:]}")
+            runs.append(json.loads(p.stdout.strip().splitlines()[-1]))
+        cold[mode] = runs
     ix = LexicalIndex.open(index, verify=True)
     one_pass(ix, qs, k)  # warm-up
     warm_runs = [one_pass(ix, qs, k) for _ in range(repeat)]
@@ -116,9 +124,13 @@ def measure(index: str, queries_path: Path, k: int = 100, repeat: int = 3, label
                   "documents": ix.n_docs, "ranking": ix.ranking.as_dict()},
         "queries": {"path": str(queries_path), "n": len(qs)}, "k": k, "repeat": repeat,
         "what": "LexicalIndex.search: query building + FTS5 MATCH (MaxScore plan) + top-k fetch, one query at a time",
-        "cold": {**med([c["times"] for c in cold_runs]),
-                 "open_ms": statistics.median(c["open_ms"] for c in cold_runs),
-                 "note": "fresh process, empty SQLite page cache; OS file cache not dropped"},
+        "cold": {**med([c["times"] for c in cold["cold"]]),
+                 "open_ms": statistics.median(c["open_ms"] for c in cold["cold"]),
+                 "note": "fresh process, first pass, no warm-up; OS file cache not dropped"},
+        "cold_after_warmup": {**med([c["times"] for c in cold["cold_after_warmup"]]),
+                              "warm_ms": statistics.median(c["warm_ms"] for c in cold["cold_after_warmup"]),
+                              "note": "fresh process, LexicalIndex.warm() at open (the service start-up path), "
+                                      "first pass"},
         "warm": med(warm_runs),
         "warm_by_slice": {s: summary(v) for s, v in sorted(by_slice.items())},
         "load_average_end": load_average(),
@@ -134,16 +146,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--label", default="")
     ap.add_argument("--out")
     ap.add_argument("--cold-child", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--warm-start", action="store_true", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
     if a.cold_child:
-        cold_child(a.index, a.queries, a.k)
+        cold_child(a.index, a.queries, a.k, a.warm_start)
         return 0
     res = measure(a.index, Path(a.queries), a.k, a.repeat, a.label)
     txt = json.dumps(res, indent=1)
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(txt, encoding="utf-8", newline="\n")
-    print(json.dumps({"cold": res["cold"]["median"], "warm": res["warm"]["median"]}))
+    print(json.dumps({"cold": res["cold"]["median"], "cold_after_warmup": res["cold_after_warmup"]["median"],
+                      "warm": res["warm"]["median"]}))
     return 0
 
 

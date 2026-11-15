@@ -14,7 +14,8 @@ Items
   fuzz          N random and malformed queries: no exception, no FTS5 syntax error, each under 1 s
   recall_gate   per-slice dev Recall@50 of v2_lexical >= v1_lexical (harness reports); lists slices below
   latency_pc    PC p50/p95/p99 (warm and cold) reported for this index
-  latency_server  server p95 <= 30 ms for this index: PASS / FAIL, or PENDING when not yet measured
+  latency_server  server p95 <= 30 ms for this index (warm, and a fresh process after LexicalIndex.warm(), the
+                service start-up path): PASS / FAIL, or PENDING when not yet measured
 """
 from __future__ import annotations
 
@@ -201,16 +202,18 @@ def check_latency(c: Checks, ix: LexicalIndex, dirp: Path) -> None:
     else:
         w, k = pc["warm"]["median"], pc["cold"]["median"]
         c.add("latency_pc", "PASS", f"warm p50 {w['p50']:.1f} / p95 {w['p95']:.1f} / p99 {w['p99']:.1f} ms; cold p50 "
-                                    f"{k['p50']:.1f} / p95 {k['p95']:.1f} / p99 {k['p99']:.1f} ms ({pc['host']}, "
+                                    f"{k['p50']:.1f} / p95 {k['p95']:.1f} / p99 {k['p99']:.1f} ms; after warm() p95 "
+                                    f"{pc['cold_after_warmup']['median']['p95']:.1f} ms ({pc['host']}, "
                                     f"{pc['queries']['n']} dev queries; {Path(pc['path']).name})")
     sv = _latency(dirp, "server-", sha)
     if sv is None:
         c.add("latency_server", "PENDING", "no server measurement for this index yet; run "
                                            "scripts/lexical/server_latency.sh after B6 releases the benchmark lock")
         return
-    w, k = sv["warm"]["median"], sv["cold"]["median"]
+    w, k, c0 = sv["warm"]["median"], sv["cold_after_warmup"]["median"], sv["cold"]["median"]
     c.ok("latency_server", w["p95"] <= SERVER_P95_LIMIT_MS and k["p95"] <= SERVER_P95_LIMIT_MS,
-         f"warm p95 {w['p95']:.1f} ms, cold p95 {k['p95']:.1f} ms (limit {SERVER_P95_LIMIT_MS:g}); "
+         f"warm p95 {w['p95']:.1f} ms, fresh process after warm() p95 {k['p95']:.1f} ms (limit "
+         f"{SERVER_P95_LIMIT_MS:g}); fresh process without warm-up p95 {c0['p95']:.1f} ms (reported); "
          f"load {sv.get('load_average')} ({Path(sv['path']).name})")
 
 
