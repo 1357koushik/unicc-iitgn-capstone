@@ -21,7 +21,7 @@ import json
 from typing import Any
 
 from .feeds import cpe_parts, reference_key
-from .text import (clean_text, description_kind, display_name, find_span, is_na, name_key, slug_tokens,
+from .text import (CVE_IN_TEXT, clean_text, description_kind, display_name, find_span, is_na, name_key, slug_tokens,
                    strip_cve_ids, strip_disputed_marker, vendor_product_label)
 
 VENDOR_PRODUCT_CAP = 10
@@ -156,10 +156,22 @@ def own_names(nvd: dict | None, cl: dict | None, kev: dict | None) -> list[str]:
 
 
 # --------------------------------------------------------------------------- weaknesses, CVSS, references
-def weaknesses(nvd: dict | None, cl: dict | None, kev: dict | None,
-               cwe_names: dict[str, str]) -> tuple[list[str], list[dict], str]:
-    """(sorted CWE IDs, weakness entries with names and sources, weakness text)."""
+def weaknesses(nvd: dict | None, cl: dict | None, kev: dict | None, cwe_names: dict[str, str],
+               cve_id: str = "") -> tuple[list[str], list[dict], str, list[dict]]:
+    """(sorted CWE IDs, weakness entries with names and sources, weakness text, related CVEs).
+
+    CNA problem-type text sometimes names other CVEs ("incomplete fix for CVE-2008-5313"); those IDs are
+    moved to the related-CVE list and removed from the weakness text, so an ID query cannot match the wrong
+    CVE through it."""
     by_id: dict[str, dict] = {}
+    related: list[dict] = []
+
+    def take_ids(text: str, origin: str) -> str:
+        for m in CVE_IN_TEXT.finditer(text or ""):
+            rid = m.group(0).upper()
+            if rid != cve_id and not any(r["cve_id"] == rid and r["source"] == origin for r in related):
+                related.append({"cve_id": rid, "source": origin, "text": text[:300]})
+        return strip_cve_ids(text) if CVE_IN_TEXT.search(text or "") else text
     free_text: dict[str, dict] = {}
     nvd_categories: set[str] = set()
 
@@ -168,7 +180,7 @@ def weaknesses(nvd: dict | None, cl: dict | None, kev: dict | None,
         if origin not in e["sources"]:
             e["sources"].append(origin)
         if e["name"] is None and text:
-            t = clean_text(text)
+            t = take_ids(clean_text(text), origin)
             if t.upper().startswith(cid.upper()):
                 t = t[len(cid):].strip(" :-")
             if t:
@@ -189,8 +201,11 @@ def weaknesses(nvd: dict | None, cl: dict | None, kev: dict | None,
                 if p.get("id"):
                     add_id(p["id"], origin, p.get("text"))
                 elif p.get("text") and not is_na(p["text"]):
-                    k = name_key(p["text"])
-                    e = free_text.setdefault(k, {"id": None, "name": p["text"], "sources": []})
+                    text = take_ids(p["text"], origin)
+                    k = name_key(text)
+                    if not k:
+                        continue
+                    e = free_text.setdefault(k, {"id": None, "name": text, "sources": []})
                     if origin not in e["sources"]:
                         e["sources"].append(origin)
     if kev:
@@ -210,7 +225,7 @@ def weaknesses(nvd: dict | None, cl: dict | None, kev: dict | None,
         e = by_id[i]
         parts.append(f"{i} {e['name']}" if e["name"] else i)
     parts += [e["name"] for e in extra]
-    return ids, entries, "; ".join(parts)
+    return ids, entries, "; ".join(parts), related
 
 
 def weakness_names(entries: list[dict]) -> list[str]:
@@ -386,7 +401,7 @@ def build_row(cid: str, nvd: dict | None, cl: dict | None, kev: dict | None, eps
     fields["vendor_product"] = {"method": vp_method, "pairs": vp_evidence} if vp_method else None
 
     # ---- weakness, CVSS, CPE, references, affected
-    cwe_ids, wentries, wtext = weaknesses(nvd, cl, kev, ctx["cwe_names"])
+    cwe_ids, wentries, wtext, related = weaknesses(nvd, cl, kev, ctx["cwe_names"], cid)
     fields["weakness"] = sorted({s for e in wentries for s in e.get("sources", [])})
     cvss_groups = [(nvd or {}).get("cvss") or [], cna.get("cvss") or []]
     cvss_groups += [a.get("cvss") or [] for a in (cl or {}).get("adp") or []]
@@ -460,6 +475,7 @@ def build_row(cid: str, nvd: dict | None, cl: dict | None, kev: dict | None, eps
         "cvss": cvss,
         "cwe_ids": cwe_ids,
         "weaknesses": wentries,
+        "related_cves": related,
         "cpe": (nvd or {}).get("cpe") or [],
         "affected": affected,
         "kev": kev_json,

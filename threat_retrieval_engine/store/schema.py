@@ -4,14 +4,14 @@ from __future__ import annotations
 STORE_VERSION = "c1-1.0.0"
 
 # Columns stored as JSON text.
-JSON_COLUMNS = ("cvss", "cwe_ids", "weaknesses", "cpe", "affected", "kev", "epss", "references", "tags", "dates",
-                "assigner", "provenance")
+JSON_COLUMNS = ("cvss", "cwe_ids", "weaknesses", "related_cves", "cpe", "affected", "kev", "epss", "references",
+                "tags", "dates", "assigner", "provenance")
 
 CVE_COLUMNS = (
     "cve_id", "state", "searchable", "description_kind", "title", "description", "description_source",
     "vendor_product", "weakness", "aliases", "kev_text", "dense_text", "published", "modified", "nvd_status",
     "sources", "kev_listed", "epss_score", "epss_percentile",
-    "cvss", "cwe_ids", "weaknesses", "cpe", "affected", "kev", "epss", "references", "tags", "dates", "assigner",
+    "cvss", "cwe_ids", "weaknesses", "related_cves", "cpe", "affected", "kev", "epss", "references", "tags", "dates", "assigner",
     "provenance", "content_hash", "similar_group", "store_version",
 )
 
@@ -39,6 +39,7 @@ CREATE TABLE cve (
     cvss               TEXT NOT NULL,          -- JSON: [{version, vector, score, severity, sources:[...]}]
     cwe_ids            TEXT NOT NULL,          -- JSON: ["CWE-79", ...]
     weaknesses         TEXT NOT NULL,          -- JSON: [{id, name, name_source, sources}]
+    related_cves       TEXT NOT NULL,          -- JSON: [{cve_id, source, text}] other CVEs named by CNA problem types
     cpe                TEXT NOT NULL,          -- JSON: NVD CPE matches with configuration structure and role
     affected           TEXT NOT NULL,          -- JSON: CNA / ADP / NVD affected products with versions
     kev                TEXT,                   -- JSON: KEV fields when listed, else NULL
@@ -70,6 +71,26 @@ CREATE TABLE aliases (
 ) WITHOUT ROWID;
 
 CREATE INDEX idx_aliases_norm ON aliases(alias_norm);
+
+-- Nickname candidates awaiting or past vetting. A nickname is served (written to `aliases` with kind
+-- 'nickname') only when its (alias_norm, cve set) has an accept verdict whose evidence hash matches.
+CREATE TABLE alias_candidates (
+    alias_norm       TEXT NOT NULL,
+    group_alias      TEXT NOT NULL,            -- display form of the candidate name
+    group_cves       TEXT NOT NULL,            -- sorted CVE IDs of the candidate, comma-separated
+    evidence_sha256  TEXT NOT NULL,            -- hash of the group's evidence rows
+    status           TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'stale')),
+    cve_id           TEXT NOT NULL,
+    alias            TEXT NOT NULL,            -- the form in this evidence row
+    source           TEXT NOT NULL,
+    source_record_id TEXT NOT NULL,
+    position         TEXT NOT NULL,
+    record_cves      INTEGER NOT NULL,
+    snippet          TEXT,                     -- exploit title, repository, URL or CVE text the name came from
+    PRIMARY KEY (alias_norm, cve_id, source, source_record_id, position, alias)
+) WITHOUT ROWID;
+
+CREATE INDEX idx_alias_candidates_status ON alias_candidates(status);
 
 CREATE TABLE rejected_records (
     source    TEXT NOT NULL,

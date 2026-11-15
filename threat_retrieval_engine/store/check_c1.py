@@ -23,6 +23,8 @@ from pathlib import Path
 
 from . import aliases as A
 from .reader import resolve_build
+
+A_VERDICTS = Path(__file__).resolve().parent / "data" / "nickname_verdicts.jsonl"
 from .text import alias_norm, normalize_cve_id
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -105,6 +107,12 @@ def t2_dev_coverage(db: sqlite3.Connection, bench: Path) -> dict:
         for cid, norm, kind in db.execute(
                 f"SELECT cve_id, alias_norm, kind FROM aliases WHERE cve_id IN ({','.join('?' * len(part))})", part):
             alias_rows[cid].append((norm, kind))
+    cand_rows: dict[str, set[str]] = defaultdict(set)
+    for i in range(0, len(tids), 500):
+        part = tids[i:i + 500]
+        for cid, norm in db.execute(
+                f"SELECT cve_id, alias_norm FROM alias_candidates WHERE cve_id IN ({','.join('?' * len(part))})", part):
+            cand_rows[cid].add(norm)
     texts = {}
     for i in range(0, len(tids), 500):
         part = tids[i:i + 500]
@@ -113,7 +121,7 @@ def t2_dev_coverage(db: sqlite3.Connection, bench: Path) -> dict:
                 part):
             texts[cid] = alias_norm(" ".join(x or "" for x in (t, d, k)))
     per_name: dict[str, dict] = {}
-    exact_q = loose_q = 0
+    exact_q = loose_q = cand_q = 0
     for q in queries:
         name = q["meta"].get("nickname") or q["meta"].get("canonical_name")
         n = alias_norm(name)
@@ -121,15 +129,21 @@ def t2_dev_coverage(db: sqlite3.Connection, bench: Path) -> dict:
         exact = any(norm == n and kind != "title" for t in ts for norm, kind in alias_rows.get(t, []))
         loose = exact or any(n in norm for t in ts for norm, _ in alias_rows.get(t, [])) or \
             any(n and n in texts.get(t, "") for t in ts)
+        cand = any(n in cand_rows.get(t, set()) for t in ts)
         exact_q += exact
         loose_q += loose
-        e = per_name.setdefault(name, {"queries": 0, "exact": exact, "loose": loose, "targets": sorted(ts)})
+        cand_q += cand
+        e = per_name.setdefault(name, {"queries": 0, "exact": exact, "loose": loose, "cand": cand,
+                                       "targets": sorted(ts)})
         e["queries"] += 1
     names = len(per_name)
     return {
         "dev_queries": len(queries), "distinct_names": names,
         "query_coverage_exact_alias": round(exact_q / max(1, len(queries)), 4),
         "query_coverage_alias_or_text": round(loose_q / max(1, len(queries)), 4),
+        "query_coverage_nickname_candidates": round(cand_q / max(1, len(queries)), 4),
+        "name_coverage_nickname_candidates": round(sum(v["cand"] for v in per_name.values()) / max(1, names), 4),
+        "missing_from_candidates": sorted(k for k, v in per_name.items() if not v["cand"]),
         "name_coverage_exact_alias": round(sum(v["exact"] for v in per_name.values()) / max(1, names), 4),
         "name_coverage_alias_or_text": round(sum(v["loose"] for v in per_name.values()) / max(1, names), 4),
         "missing_exact": sorted(k for k, v in per_name.items() if not v["exact"]),
@@ -290,6 +304,46 @@ def main(argv: list[str] | None = None) -> int:
     info("aliases", f"{al['rows']} rows {al['rows_by_kind']}; CVEs with any alias {al['cves_with_any_alias']}, with "
                     f"nickname/advisory ID {al['cves_with_nickname_or_advisory_id']}, distinct nicknames "
                     f"{al['distinct_nicknames']}; by source {al['rows_by_source']}")
+    # nickname vetting: only accepted (alias, CVE set) pairs with a matching evidence hash are served
+    vet = rp.get("nickname_vetting") or {}
+    verdict_path = Path(vet.get("verdict_file") or A_VERDICTS)
+    verdicts = A.load_verdicts(verdict_path) if verdict_path.is_file() else None
+    report(verdicts is not None, "nickname verdict file present and well-formed", str(verdict_path))
+    groups: dict[tuple[str, str], dict] = {}
+    for norm, gcves, sha, st, cid, alias, src, rid, pos in db.execute(
+            "SELECT alias_norm, group_cves, evidence_sha256, status, cve_id, alias, source, source_record_id, position "
+            "FROM alias_candidates"):
+        g = groups.setdefault((norm, gcves), {"sha": sha, "status": st, "rows": []})
+        g["rows"].append(A.Candidate(cid, alias, norm, "nickname", src, rid, pos, 1))
+    bad_hash = sum(1 for g in groups.values() if A.evidence_sha256(g["rows"]) != g["sha"])
+    report(bad_hash == 0, "candidate evidence hashes reproduce", f"{bad_hash} of {len(groups)} differ")
+    served = defaultdict(set)
+    for cid, norm in db.execute("SELECT cve_id, alias_norm FROM aliases WHERE kind = 'nickname'"):
+        served[norm].add(cid)
+    unvetted = []
+    for norm, cids in served.items():
+        ok = False
+        for (gnorm, gcves), g in groups.items():
+            if gnorm != norm or set(gcves.split(",")) != cids or g["status"] != "accepted":
+                continue
+            v = (verdicts or {}).get((norm, tuple(gcves.split(","))))
+            ok = v is not None and v["verdict"] == "accept" and v["evidence_sha256"] == g["sha"] == \
+                A.evidence_sha256(g["rows"])
+        if not ok:
+            unvetted.append(norm)
+    report(not unvetted, "every served nickname has an accept verdict with a matching evidence hash",
+           f"{len(served)} served names; {len(unvetted)} without" + (f" e.g. {unvetted[:5]}" if unvetted else ""))
+    st = Counter(g["status"] for g in groups.values())
+    info("nickname vetting", f"{len(groups)} candidate groups: {dict(st)}; verdicts {vet.get('verdicts')}, "
+                             f"verdicts without a current candidate {vet.get('verdicts_without_candidate')}")
+    bad_frag = [n for (n, _), g in groups.items()
+                if any(A._IDENT_PREFIX.match(t) or A._SHORT_ALNUM.match(t) for t in
+                       (x.lower() for x in A._tokens(g["rows"][0].alias)))]
+    report(not bad_frag, "no identifier fragments (apsb20, GHSA w3hj ...) among nickname candidates",
+           f"{len(bad_frag)}" + (f" e.g. {bad_frag[:5]}" if bad_frag else ""))
+    wid = q("SELECT COUNT(*) FROM cve WHERE weakness LIKE '%CVE-%'")
+    rel = q("SELECT COUNT(*) FROM cve WHERE related_cves != '[]'")
+    report(wid == 0, "no CVE IDs in weakness text (moved to related_cves)", f"{wid} rows; {rel} rows with related_cves")
     srcs = {r[0] for r in db.execute("SELECT DISTINCT source FROM aliases")}
     report(srcs <= set(A.ALLOWED_SOURCES) and not srcs & A.QUERY_SIDE_SOURCES,
            "leakage guard: alias rows only from expansion sources, none from query-side sources", f"{sorted(srcs)}")
@@ -299,7 +353,9 @@ def main(argv: list[str] | None = None) -> int:
         report(t2["dev_queries"] > 0, "T2 dev alias coverage reported",
                f"{t2['dev_queries']} dev queries / {t2['distinct_names']} names: exact alias "
                f"{t2['query_coverage_exact_alias']:.1%} of queries ({t2['name_coverage_exact_alias']:.1%} of names); "
-               f"alias or record text {t2['query_coverage_alias_or_text']:.1%}")
+               f"alias or record text {t2['query_coverage_alias_or_text']:.1%}; nickname candidates (unvetted) "
+               f"{t2['query_coverage_nickname_candidates']:.1%} of queries")
+        info("T2 dev names not among the nickname candidates", ", ".join(t2["missing_from_candidates"]) or "none")
         info("T2 dev names without an exact alias", ", ".join(t2["missing_exact"]) or "none")
         info("T2 dev names found nowhere (alias or record text)", ", ".join(t2["missing_even_in_text"]) or "none")
     else:

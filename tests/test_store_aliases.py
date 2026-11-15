@@ -24,7 +24,7 @@ def test_span_cleaning_keeps_leading_name_and_drops_parameters_and_packaging():
                                   "Linux Kernel 2.6.22 < 3.9 - 'Dirty COW /proc/self/mem' Race Condition (Metasploit)")
     assert ("Dirty COW", "quoted") in nick(cs)
     cs = A.candidates_from_record("exploitdb", "1", ["CVE-2006-2667"], "WordPress Core 2.0.2 - 'cache' Remote Shell Injection")
-    assert nick(cs) == {("WordPress", "camel")}  # 'cache' is a parameter; WordPress is filtered later (product)
+    assert nick(cs) == {("WordPress", "camel")}  # 'cache' is a parameter; a head with a version is a product
     cs = A.candidates_from_record("exploitdb", "2", ["CVE-2007-1286"], "PHP 4.4.6 - 'unserialize()' Overflow (PoC)")
     assert nick(cs) == {("PoC", "paren")}  # function names never; packaging is removed later as generic
     t = [c.alias for c in cs if c.kind == "title"]
@@ -81,66 +81,109 @@ def _c(cid, alias, rid, n=1, pos="quoted", src="exploitdb"):
     return (A.Candidate(cid, alias, alias_norm(alias), "nickname", src, rid, pos, n), "keep")
 
 
-def test_select_rejects_wide_spread_and_year_spread_and_weak_support():
-    cands = [x for i in range(20) for x in (_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}"),
-                                            _c(f"CVE-2010-{i:04d}", "Widgetron", f"s{i}", src="cve_description"))]
-    cands += [x for y in ("2005", "2012", "2019") for x in (_c(f"CVE-{y}-0001", "Oldname", "a"),
-                                                         _c(f"CVE-{y}-0001", "Oldname", "b", src="cve_description"))]
+VOC = A.Vocabulary(dictionary=frozenset({"review", "found", "again", "dirty", "pipe", "records", "policy"}),
+                   names=frozenset({"debian", "freebsd", "ubuntulinux", "sharepoint"}),
+                   name_tokens=frozenset({"ubuntu", "desktop", "debian", "linux"}))
+
+
+def groups(sel):
+    return {g.norm: g.cve_ids for g in sel.groups}
+
+
+def test_title_head_is_a_candidate():
+    cs = A.candidates_from_record("nuclei_templates", "CVE-2023-4966", ["CVE-2023-4966"],
+                                  "Citrix Bleed - Leaking Session Tokens")
+    assert ("Citrix Bleed", "head") in nick(cs)
+    sel = A.select([(c, "keep") for c in cs if c.kind == "nickname"], VOC)
+    assert groups(sel) == {"citrixbleed": ("CVE-2023-4966",)}   # one structured unit is enough to propose
+
+
+@pytest.mark.parametrize("alias,pos,src,why", [
+    ("review", "reference", "cve_references", "dictionary_word"),
+    ("Found again", "reference", "cve_references", "dictionary_word"),
+    ("w3hj", "reference", "cve_references", "identifier_fragment"),
+    ("apsb20", "reference", "cve_references", "identifier_fragment"),
+    ("APSB22", "paren", "exploitdb", "identifier_fragment"),
+    ("debian", "reference_host", "cve_references", "vendor_product_vocabulary"),
+    ("ubuntu desktop", "poc_repo", "poc_in_github", "vendor_product_vocabulary"),
+    ("SharePoint", "camel", "exploitdb", "vendor_product_vocabulary"),
+])
+def test_prefilters_reject_words_fragments_and_vocabulary(alias, pos, src, why):
+    rows = [_c("CVE-2021-0001", alias, f"r{i}", pos=pos, src=src) for i in range(3)]
+    rows = [(A.Candidate(c.cve_id, c.alias, c.norm, c.kind, c.source, f"https://h{i}.example/{alias}" if
+                         src == "cve_references" else c.record_id, c.position, 1), d) for i, (c, d) in enumerate(rows)]
+    sel = A.select(rows, VOC)
+    assert sel.groups == [] and sel.rejected_names[alias_norm(alias)] == why
+
+
+def test_quoted_exploit_title_name_is_exempt_from_dictionary_filter():
+    sel = A.select([_c("CVE-2022-0847", "Dirty Pipe", "50808")], VOC)  # 'dirty' and 'pipe' are words
+    assert groups(sel) == {"dirtypipe": ("CVE-2022-0847",)}
+    sel = A.select([_c("CVE-2022-0847", "Dirty Pipe", "50808", pos="head")], VOC)
+    assert groups(sel) == {}
+
+
+def test_weak_evidence_needs_two_units_and_dedicated_site_needs_one():
+    one = [_c("CVE-2021-4034", "PwnKit", "alice/pwnkit", pos="poc_repo", src="poc_in_github")]
+    assert groups(A.select(one, VOC)) == {}
+    two = one + [_c("CVE-2021-4034", "pwnkit", "https://www.qualys.com/2022/01/25/cve-2021-4034/pwnkit.txt",
+                    pos="reference", src="cve_references")]
+    assert groups(A.select(two, VOC)) == {"pwnkit": ("CVE-2021-4034",)}
+    krack = [_c(f"CVE-2017-{13077 + i}", "krack", "https://www.krackattacks.com/", pos="reference_site",
+                src="cve_references") for i in range(10)]
+    info = {"krackattacks.com": [10, 2017, 2017], "redhat.com": [90000, 1999, 2026]}
+    g = groups(A.select(krack, VOC, info))
+    assert g["krack"] == tuple(f"CVE-2017-{13077 + i}" for i in range(10))
+    not_dedicated = [_c("CVE-2017-0001", "Redhatnews", "https://redhat.com/", pos="reference_site", src="cve_references")]
+    assert groups(A.select(not_dedicated, VOC, info)) == {}  # a widely cited domain is not a dedicated site
+
+
+def test_spread_years_and_relative_support():
+    cands = [_c(f"CVE-2010-{i:04d}", "Widgetron", f"r{i}") for i in range(20)]
+    cands += [_c(f"CVE-{y}-0001", "Oldname", f"a{y}") for y in ("2005", "2012", "2019")]
     cands += [_c("CVE-2014-6271", "Shellshock", f"m{i}") for i in range(4)]
-    cands += [_c("CVE-2014-6271", "Shellshock", "n1", src="cve_description")]
-    cands += [_c(c, "Shellshock", r, n=3, src=s) for c in ("CVE-2014-6271", "CVE-2014-3659")
-              for r, s in (("e1", "exploitdb"), ("k1", "kev"))]
-    cands += [_c("CVE-2021-44228", "Log4Shell", "x", pos="camel"), _c("CVE-2021-44228", "Log4Shell", "y/l4s",
-                                                                       src="poc_in_github", pos="poc_repo")]
-    cands += [_c("CVE-2021-0100", "SharePoint", "y", pos="camel"), _c("CVE-2021-0100", "SharePoint", "z", pos="camel",
-                                                                       src="nuclei_templates")]
-    cands += [_c("CVE-2017-8478", "NtQueryInformationJobObject", "42000"),    # exploit family only
-              _c("CVE-2017-8478", "NtQueryInformationJobObject", "exploit/windows/local/x", src="metasploit_modules")]
-    sel = A.select(cands, frozenset({"sharepoint"}))
-    got = {(c.cve_id, c.alias) for c in sel.rows}
-    assert ("CVE-2014-6271", "Shellshock") in got and ("CVE-2021-44228", "Log4Shell") in got
-    assert not any(a == "Widgetron" for _, a in got)
-    assert not any(a == "Oldname" for _, a in got)
-    assert ("CVE-2014-3659", "Shellshock") not in got  # only shares multi-CVE exploit records
-    assert ("CVE-2021-0100", "SharePoint") not in got   # bare CamelCase that is a CPE product name
-    assert ("CVE-2017-8478", "NtQueryInformationJobObject") not in got  # a single unit of evidence
+    cands += [_c(c, "Shellshock", "e1", n=3) for c in ("CVE-2014-6271", "CVE-2014-3659", "CVE-2014-3671")]
+    sel = A.select(cands, VOC)
+    assert groups(sel)["shellshock"] == ("CVE-2014-6271",)   # 3659/3671 only share a multi-CVE exploit record
     assert sel.rejected_names[alias_norm("Widgetron")] == "spread_too_wide"
     assert sel.rejected_names[alias_norm("Oldname")] == "spread_over_years"
-    assert sel.rejected_names[alias_norm("NtQueryInformationJobObject")] == "uncorroborated"
-    assert sel.reasons["low_relative_support"] >= 1
 
 
-def test_relative_support_keeps_a_cve_with_its_own_evidence():
-    cands = [_c("CVE-2017-0144", "EternalBlue", f"edb{i}") for i in range(6)]
-    cands += [_c(c, "EternalBlue", "msf", n=3, src="metasploit_modules") for c in
-              ("CVE-2017-0143", "CVE-2017-0144", "CVE-2017-0145")]
-    cands += [(A.Candidate("CVE-2017-0143", "eternalblue", "eternalblue", "nickname", "poc_in_github", f"u{i}/eb",
-                           "poc_repo", 1), "keep") for i in range(2)]
-    cands += [_c("CVE-2017-0144", "EternalBlue", "p1", src="poc_in_github", pos="poc_repo")]
-    got = {c.cve_id for c in A.select(cands, frozenset()).rows}
-    assert got == {"CVE-2017-0143", "CVE-2017-0144"}  # 0145 is only co-listed; 0143 has its own PoC repos
+def test_cna_advisory_page_is_not_independent_of_the_cna_title():
+    cs = A.weak_candidates("CVE-2026-0001", ["https://www.vulncheck.com/advisories/shop-idor-in-useraddresscontroller"],
+                           [], frozenset({"useraddresscontroller"}), assigner="VulnCheck")
+    assert cs and {A.evidence_unit(c) for c in cs} == {"cna"}
+    title = A.Candidate("CVE-2026-0001", "UserAddressController", "useraddresscontroller", "nickname", "cve_list",
+                        "CVE-2026-0001#title", "camel", 1)
+    rows = [(title, "keep")] + [(c, "keep") for c in cs if c.norm == "useraddresscontroller"]
+    assert A.select(rows, VOC).groups == []   # CNA title camel + CNA page = one unit
 
 
-def test_select_weak_only_names_must_be_rare_or_have_a_dedicated_site():
-    def w(cid, alias, rid, src="poc_in_github", pos="poc_repo"):
-        return (A.Candidate(cid, alias, alias_norm(alias), "nickname", src, rid, pos, 1), "keep")
-    cands = [w("CVE-2021-4034", "pwnkit", "alice/pwnkit"),
-             w("CVE-2021-4034", "pwnkit", "https://www.qualys.com/2022/01/25/cve-2021-4034/pwnkit.txt",
-               "cve_references", "reference")]
-    cands += [w("CVE-2021-0001", "segfault", "alice/segfault"),
-              w("CVE-2021-0001", "segfault", "https://example.org/segfault", "cve_references", "reference")]
-    cands += [w("CVE-2021-0003", "Lonely", "alice/lonely"), w("CVE-2021-0003", "Lonely", "bob/lonely")]  # poc only
-    cands += [w("CVE-2016-0800", "drown", "https://drownattack.com", "cve_references", "reference"),
-              w("CVE-2016-0800", "drown", "https://access.redhat.com/security/vulnerabilities/drown",
-                "cve_references", "reference")]
-    cands += [w("CVE-2021-0002", "review and", "alice/review-and"), w("CVE-2021-0002", "review and", "bob/review-and")]
-    df = {"pwnkit": 0, "segfault": 400, "drown": 80, "review": 3000, "and": 300000, "lonely": 0}
-    sel = A.select(cands, frozenset(), df, {"drownattack.com": 1, "redhat.com": 20000, "qualys.com": 400,
-                                            "example.org": 900})
-    got = {c.norm for c in sel.rows}
-    assert got == {"pwnkit", "drown"}  # drown is common-ish but has a dedicated site
-    assert sel.reasons["weak_common_word"] >= 2
-    assert sel.reasons["single_family"] >= 2   # two PoC owners alone are one family
+def test_verdicts_serve_only_matching_accepts(tmp_path):
+    sel = A.select([_c("CVE-2014-0160", "Heartbleed", "32745"), _c("CVE-2014-6271", "Shellshock", "34766")], VOC)
+    hb, ss = sorted(sel.groups, key=lambda g: g.norm)
+    import json
+    vf = tmp_path / "v.jsonl"
+    common = {"judge": "sonnet", "adjudicator": "opus", "date": "2026-11-15"}
+    vf.write_text("\n".join(json.dumps(x) for x in (
+        {"alias_norm": hb.norm, "cve_ids": list(hb.cve_ids), "verdict": "accept", "evidence_sha256": hb.evidence_sha256,
+         **common},
+        {"alias_norm": ss.norm, "cve_ids": list(ss.cve_ids), "verdict": "accept", "evidence_sha256": "0" * 64,
+         **common})) + "\n", encoding="utf-8")
+    st = A.apply_verdicts(sel.groups, A.load_verdicts(vf))
+    assert st[(hb.norm, hb.cve_ids)] == "accepted" and st[(ss.norm, ss.cve_ids)] == "stale"
+    assert A.apply_verdicts(sel.groups, {})[(hb.norm, hb.cve_ids)] == "pending"
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text(json.dumps({"alias_norm": "x", "cve_ids": ["CVE-2014-0160"], "verdict": "maybe", **common}) + "\n",
+                   encoding="utf-8")
+    with pytest.raises(ValueError):
+        A.load_verdicts(bad)
+    leak = tmp_path / "leak.jsonl"
+    leak.write_text(json.dumps({"alias_norm": hb.norm, "cve_ids": list(hb.cve_ids), "verdict": "accept",
+                                "evidence_sha256": hb.evidence_sha256, "qid": "T2-0004", **common}) + "\n",
+                    encoding="utf-8")
+    with pytest.raises(ValueError):
+        A.load_verdicts(leak)   # benchmark fields are refused
 
 
 @pytest.mark.parametrize("source", sorted(A.QUERY_SIDE_SOURCES))
@@ -164,29 +207,15 @@ def test_url_phrases_skip_handles_and_strip_site_suffix():
     assert A.registrable_domain("ccsinjection.lepidum.co.jp") == "lepidum.co.jp"
 
 
-def test_weak_candidates_require_two_independent_units():
-    refs = ["https://drownattack.com", "https://access.redhat.com/security/vulnerabilities/drown"]
-    cs = A.weak_candidates("CVE-2016-0800", refs, [], frozenset())
-    assert {c.norm for c in cs} == {"drown"} and {c.source for c in cs} == {"cve_references"}
-    assert A.weak_candidates("CVE-2016-0800", refs[:1], [], frozenset()) == []
-    one = A.weak_candidates("CVE-2016-0800", refs[:1], [], frozenset({"drown"}))  # a strong source agrees
-    assert {c.norm for c in one} == {"drown"}
-    same_host = ["https://access.redhat.com/a/drown", "https://bugzilla.redhat.com/drown"]
-    assert A.weak_candidates("CVE-2016-0800", same_host, [], frozenset()) == []  # one registrable domain
-    pocs = [("alice/pwnkit", ""), ("bob/CVE-2021-4034-PwnKit", "PwnKit exploit")]
-    assert {c.norm for c in A.weak_candidates("CVE-2021-4034", [], pocs, frozenset())} == {"pwnkit"}
-
-
 def test_code_host_urls_use_repository_name_only():
     _, ph = A.url_phrases("https://github.com/acme/widgetron/blob/main/src/MainController.php")
     assert ph == ["widgetron"]
 
 
-def test_cna_advisory_page_is_not_independent_of_the_cna_title():
-    cs = A.weak_candidates("CVE-2026-0001", ["https://www.vulncheck.com/advisories/shop-idor-in-useraddresscontroller"],
-                           [], frozenset({"useraddresscontroller"}), assigner="VulnCheck")
-    assert cs and {A.evidence_unit(c) for c in cs} == {"cna"}
-    title = A.Candidate("CVE-2026-0001", "UserAddressController", "useraddresscontroller", "nickname", "cve_list",
-                        "CVE-2026-0001#title", "camel", 1)
-    sel = A.select([(title, "keep")] + [(c, "keep") for c in cs if c.norm == "useraddresscontroller"], frozenset())
-    assert sel.rows == []
+def test_weak_candidates_count_registrable_domains():
+    refs = ["https://drownattack.com", "https://access.redhat.com/security/vulnerabilities/drown"]
+    assert "drown" in {c.norm for c in A.weak_candidates("CVE-2016-0800", refs, [], frozenset())}
+    same = ["https://access.redhat.com/a/drown", "https://bugzilla.redhat.com/drown"]
+    assert A.weak_candidates("CVE-2016-0800", same, [], frozenset()) == []
+    assert {c.position for c in A.weak_candidates("CVE-2017-13077", ["https://www.krackattacks.com/"], [],
+                                                  frozenset())} == {"reference_site"}

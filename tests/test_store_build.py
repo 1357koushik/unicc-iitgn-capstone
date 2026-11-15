@@ -15,10 +15,24 @@ from store_fixtures import make_feeds, make_sources
 
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
+    """Two builds: the first without verdicts (every nickname pending), the second with an accept verdict for
+    Log4Shell taken from the first build's nickname_candidates.jsonl."""
     root = tmp_path_factory.mktemp("c1")
     feeds, sources = make_feeds(root), make_sources(root)
-    out = B.build(feeds, sources, root / "store", workers=1, build_id="test-build", log=lambda m: None)
-    return {"root": root, "feeds": feeds, "sources": sources, "dir": out}
+    empty = root / "no_verdicts.jsonl"
+    empty.write_text("", encoding="utf-8")
+    first = B.build(feeds, sources, root / "store0", workers=1, build_id="test-build", log=lambda m: None,
+                    verdicts_path=empty)
+    cands = [json.loads(x) for x in (first / "nickname_candidates.jsonl").read_text(encoding="utf-8").splitlines()]
+    l4s = next(c for c in cands if c["alias_norm"] == "log4shell")
+    verdicts = root / "verdicts.jsonl"
+    verdicts.write_text(json.dumps({"alias_norm": "log4shell", "cve_ids": l4s["cve_ids"], "verdict": "accept",
+                                    "judge": "test", "adjudicator": "test", "date": "2026-11-15",
+                                    "evidence_sha256": l4s["evidence_sha256"]}) + "\n", encoding="utf-8")
+    out = B.build(feeds, sources, root / "store", workers=1, build_id="test-build", log=lambda m: None,
+                  verdicts_path=verdicts)
+    return {"root": root, "feeds": feeds, "sources": sources, "dir": out, "first": first, "candidates": cands,
+            "verdicts": verdicts}
 
 
 @pytest.fixture()
@@ -93,23 +107,46 @@ def test_dense_text_clean(db):
 
 def test_aliases_from_allowed_sources_only(db):
     rows = db.execute("SELECT cve_id, alias, kind, source FROM aliases").fetchall()
-    assert ("CVE-2021-44228", "Log4Shell", "nickname", "exploitdb") in rows
+    assert ("CVE-2021-44228", "Log4Shell", "nickname", "exploitdb") in rows   # accepted by the verdict
     assert {r[3] for r in rows} <= set(A.ALLOWED_SOURCES)
     assert not {r[3] for r in rows} & A.QUERY_SIDE_SOURCES
     assert not any("LeakedQueryName" in r[1] for r in rows)  # present only in the query-side fixture source
     assert db.execute("SELECT aliases FROM cve WHERE cve_id = 'CVE-2021-44228'").fetchone()[0] == "Log4Shell"
 
 
-def test_weak_evidence_needs_corroboration(db):
-    rows = db.execute("SELECT cve_id, alias, source FROM aliases WHERE kind = 'nickname'").fetchall()
-    assert ("CVE-2021-44228", "Log4Shell", "poc_in_github") in {(c, a.title() if a.islower() else a, s)
-                                                                 for c, a, s in rows}
-    assert not any(alias_norm(a) == "widgetsmash" for _, a, _ in rows)  # two PoC owners: one family only
-    assert not any(alias_norm(a) == "lonelyname" for _, a, _ in rows)   # one owner only
+def test_unvetted_nicknames_are_candidates_never_served(built):
+    con = sqlite3.connect(built["first"] / "store.sqlite")
+    assert con.execute("SELECT COUNT(*) FROM aliases WHERE kind = 'nickname'").fetchone()[0] == 0
+    st = dict(con.execute("SELECT alias_norm, status FROM alias_candidates"))
+    con.close()
+    assert st["log4shell"] == "pending" and st["widgetsmash"] == "pending"   # two PoC owners: proposed
+    norms = {c["alias_norm"] for c in built["candidates"]}
+    assert "lonelyname" not in norms                                          # one owner only
+    l4s = next(c for c in built["candidates"] if c["alias_norm"] == "log4shell")
+    assert l4s["cve_ids"] == ["CVE-2021-44228"] and {e["source"] for e in l4s["evidence"]} >= {"exploitdb"}
+    assert l4s["cves"][0]["title"] and len(l4s["evidence_sha256"]) == 64
+
+
+def test_accepted_verdict_is_served_and_others_stay_pending(db):
+    served = db.execute("SELECT DISTINCT alias_norm FROM aliases WHERE kind = 'nickname'").fetchall()
+    assert served == [("log4shell",)]
+    st = dict(db.execute("SELECT alias_norm, status FROM alias_candidates"))
+    assert st["log4shell"] == "accepted" and st["widgetsmash"] == "pending"
     reasons = dict(((s, r), n) for s, r, n in db.execute(
         "SELECT source, record_id, reason FROM rejected_records WHERE source = 'poc_in_github'"))
     assert reasons.get(("poc_in_github", "erin/CVE-2018-6116-Lonelyname")) == "no_corroborated_alias"
-    assert reasons.get(("poc_in_github", "dave/widgetsmash")) == "no_alias_accepted:corpus_rules"
+
+
+def test_export_tool_regenerates_candidates(built, tmp_path):
+    from threat_retrieval_engine.store.export_candidates import main as export_main
+    out = tmp_path / "c.jsonl"
+    export_main(["--store", str(built["first"]), "--out", str(out)])
+    assert out.read_text(encoding="utf-8") == (built["first"] / "nickname_candidates.jsonl").read_text(encoding="utf-8")
+
+
+def test_related_cves_moved_out_of_weakness_text(db):
+    for w, r in db.execute("SELECT weakness, related_cves FROM cve"):
+        assert "CVE-" not in (w or "")
 
 
 def test_query_side_source_directory_is_never_opened(built):
@@ -121,13 +158,14 @@ def test_reconciliation_failure_on_unexplained_record(built, monkeypatch, tmp_pa
     """A record that is read but neither stored nor rejected must fail the build."""
     monkeypatch.setattr(B, "pick_nvd", lambda recs: (max(recs, key=lambda r: r["index"]) if recs else None, []))
     with pytest.raises(B.ReconciliationError, match="nvd"):
-        B.build(built["feeds"], built["sources"], tmp_path / "store", workers=1, build_id="bad", log=lambda m: None)
+        B.build(built["feeds"], built["sources"], tmp_path / "store", workers=1, build_id="bad", log=lambda m: None,
+                verdicts_path=built["verdicts"])
     assert not (tmp_path / "store" / "bad").exists()  # nothing published
 
 
 def test_idempotent_rebuild_same_content_hashes(built, tmp_path):
     out2 = B.build(built["feeds"], built["sources"], tmp_path / "store2", workers=1, build_id="test-build",
-                   log=lambda m: None, previous=built["dir"])
+                   log=lambda m: None, previous=built["dir"], verdicts_path=built["verdicts"])
     a = dict(sqlite3.connect(built["dir"] / "store.sqlite").execute("SELECT cve_id, content_hash FROM cve"))
     b = dict(sqlite3.connect(out2 / "store.sqlite").execute("SELECT cve_id, content_hash FROM cve"))
     assert a == b

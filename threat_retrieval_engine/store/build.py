@@ -38,13 +38,14 @@ from . import feeds as F
 from . import similar
 from .merge import build_row, content_hash, pick_cvelist, pick_nvd
 from .schema import CVE_COLUMNS, DDL, JSON_COLUMNS, STORE_VERSION
-from .text import alias_norm, cve_sort_key, name_key
+from .text import alias_norm, cve_sort_key, name_key, slug_tokens
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALIAS_INPUTS = ("exploitdb", "metasploit_modules", "nuclei_templates")
 POC_INPUT = "poc_in_github"
 CWE_INPUT = "cwe_catalog"
 READ_THREADS = 12
+VERDICTS_PATH = Path(__file__).resolve().parent / "data" / "nickname_verdicts.jsonl"
 WORD_RE = re.compile(r"[A-Za-z0-9]+")
 
 
@@ -153,6 +154,7 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
     by_cve: dict[str, list[A.Candidate]] = defaultdict(list)
     ledger: dict[str, dict[str, list[str]]] = {}
     pocs: dict[str, list[tuple[str, str]]] = {}
+    snippets: dict[tuple[str, str], str] = {}
     info = {}
     for name, d in alias_dirs.items():
         led: dict[str, list[str]] = {}
@@ -169,6 +171,7 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
                 led[rid] = cves
                 for c in cves:
                     pocs.setdefault(c, []).append((rid, r.get("description") or ""))
+                snippets[(name, rid)] = (rid + " " + (r.get("description") or "")).strip()[:300]
                 continue
             if name == "exploitdb":
                 rid, title, desc = str(r.get("edb_id")), r.get("title") or "", ""
@@ -179,6 +182,7 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
             rid = rid if rid not in led else f"{rid}@line{line_no}"
             cves = sorted({c for c in (F.normalize_cve_id(x) for x in r.get("cve_ids") or []) if c})
             led[rid] = cves
+            snippets[(name, rid)] = title[:300]
             for c in A.candidates_from_record(name, rid, cves, title, desc):
                 by_cve[c.cve_id].append(c)
         ledger[name] = led
@@ -188,6 +192,8 @@ def alias_prepass(alias_dirs: dict[str, Path], kev_rows: dict[str, dict]) -> tup
     for cid, k in kev_rows.items():
         for c in A.candidates_from_record("kev", cid, [cid], k.get("vulnerability_name") or ""):
             by_cve[cid].append(c)
+        snippets[("kev", cid)] = (k.get("vulnerability_name") or "")[:300]
+    info["_snippets"] = snippets
     return dict(by_cve), pocs, ledger, info
 
 
@@ -230,6 +236,7 @@ def process_group(job: dict) -> dict:
     cl_by_id: dict[str, list[dict]] = defaultdict(list)
     inputs: list[dict] = []
     vocab: set[str] = set()
+    vocab_tokens: set[str] = set()
 
     # ---- NVD
     for fp in job["nvd_files"]:
@@ -254,6 +261,9 @@ def process_group(job: dict) -> dict:
                 if parts:
                     vocab.add(name_key(parts[1]))
                     vocab.add(name_key(parts[2]))
+                    vocab_tokens.update(slug_tokens(parts[1]))
+                    if parts[0] == "o":  # operating systems and distributions
+                        vocab_tokens.update(slug_tokens(parts[2]))
         counts["nvd"]["read"] += n
         inputs.append({"name": f"nvd_cve_data/{p.name}", "bytes": p.stat().st_size, "sha256": h.hexdigest(),
                        "records": n})
@@ -315,7 +325,7 @@ def process_group(job: dict) -> dict:
     shard.execute("CREATE TABLE v1side (cve_id TEXT, nvd_desc TEXT)")
     insert = f"INSERT INTO cve VALUES ({', '.join('?' * len(cols))})"
     decisions: list[tuple] = []
-    domain_cves: Counter = Counter()
+    domain_info: dict[str, list[int]] = {}
     batch, sigs, v1rows = [], [], []
     nvd_conflicts = 0
     for cid in ids:
@@ -359,7 +369,14 @@ def process_group(job: dict) -> dict:
         # weak evidence: PoC-in-GitHub repositories and the CVE's own reference URLs, corroborated only
         ref_urls = [r["url"] for r in row["references"]]
         for dom in {A.evidence_unit(A.Candidate(cid, "", "", "", "cve_references", u, "", 1)) for u in ref_urls}:
-            domain_cves[dom[4:]] += 1
+            y = _year(cid)
+            e = domain_info.get(dom[4:])
+            if e is None:
+                domain_info[dom[4:]] = [1, y, y]
+            else:
+                e[0] += 1
+                e[1] = min(e[1], y)
+                e[2] = max(e[2], y)
         weak = A.weak_candidates(cid, ref_urls, job["pocs"].get(cid, []), frozenset(strong_keep),
                                  (row["assigner"] or {}).get("short_name") or "")
         if weak:
@@ -388,7 +405,8 @@ def process_group(job: dict) -> dict:
         "counts": {k: dict(v) for k, v in counts.items()}, "inputs": inputs,
         "cl_files": len(cl_hash_entries),
         "cl_hash": hashlib.sha256("\n".join(cl_hash_entries).encode("utf-8")).hexdigest(),
-        "alias_decisions": decisions, "vocab": sorted(v for v in vocab if v), "domain_cves": dict(domain_cves),
+        "alias_decisions": decisions, "vocab": sorted(v for v in vocab if v),
+        "vocab_tokens": sorted(v for v in vocab_tokens if v), "domain_info": domain_info,
         "state_conflicts": nvd_conflicts,
         "seconds": {"parse": round(t_parse, 1), "total": round(time.time() - t0, 1)},
     }
@@ -418,8 +436,12 @@ def _ledger_rejects(ledger: dict[str, dict[str, list[str]]], stored: dict[str, s
 
 
 def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpus: Path | None = None,
-          previous: Path | None = None, build_id: str | None = None, log=print) -> Path:
+          previous: Path | None = None, build_id: str | None = None, log=print,
+          verdicts_path: Path | None = None) -> Path:
     t_start = time.time()
+    verdicts_path = Path(verdicts_path) if verdicts_path is not None else VERDICTS_PATH
+    if not verdicts_path.is_file():
+        raise FileNotFoundError(f"nickname verdict file missing: {verdicts_path}")
     timings: dict[str, float] = {}
     started = datetime.now(timezone.utc)
     inp = resolve_inputs(feeds, sources)
@@ -503,49 +525,74 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         # ---------------------------------------------------------- aliases
         t = time.time()
         vocab = frozenset(v for res in results for v in res["vocab"])
+        vocab_tokens = frozenset(v for res in results for v in res["vocab_tokens"])
         decisions = [(A.Candidate(*ct), d) for res in results for ct, d in res["alias_decisions"]]
-        domain_cves: Counter = Counter()
+        domain_info: dict[str, list[int]] = {}
         for res in results:
-            domain_cves.update(res["domain_cves"])
-        words = A.weak_words(decisions)
-        df: Counter = Counter()
+            for dom, (n, lo, hi) in res["domain_info"].items():
+                e = domain_info.setdefault(dom, [0, lo, hi])
+                e[0] += n
+                e[1], e[2] = min(e[1], lo), max(e[2], hi)
+        # corpus dictionary: candidate words written in lower case in at least DICTIONARY_MIN_DOCS descriptions
+        words = A.candidate_words(decisions)
+        lower_docs: Counter = Counter()
         for (desc,) in db.execute("SELECT description FROM cve WHERE searchable = 1"):
-            for w in {t.lower() for t in WORD_RE.findall(desc)} & words:
-                df[w] += 1
-        sel = A.select(decisions, vocab, dict(df), dict(domain_cves))
-        del domain_cves, df
+            for w in {t for t in WORD_RE.findall(desc) if t.islower()} & words:
+                lower_docs[w] += 1
+        voc = A.Vocabulary(dictionary=frozenset(w for w, n in lower_docs.items() if n >= A.DICTIONARY_MIN_DOCS),
+                           names=vocab, name_tokens=vocab_tokens)
+        sel = A.select(decisions, voc, domain_info)
+        del lower_docs
+        verdicts = A.load_verdicts(verdicts_path)
+        status = A.apply_verdicts(sel.groups, verdicts)
+        served = [c for g in sel.groups if status[(g.norm, g.cve_ids)] == "accepted" for c in g.rows]
+        alias_rows = sel.rows + [c for c in served if c.cve_id in universe]
         db.executemany("INSERT OR IGNORE INTO aliases VALUES (?,?,?,?,?,?,?,?)",
                        [(c.cve_id, c.alias, c.norm, c.kind, c.source, c.record_id, c.position, c.record_cves)
-                        for c in sel.rows if c.cve_id in universe])
-        per_cve: dict[str, dict[str, tuple[float, str]]] = defaultdict(dict)
-        best_form: dict[tuple[str, str], tuple] = {}
-        for c in sel.rows:
+                        for c in alias_rows if c.cve_id in universe])
+        snippets = alias_info.pop("_snippets")
+        cand_rows = []
+        for g in sel.groups:
+            gcves = ",".join(g.cve_ids)
+            for c in g.rows:
+                cand_rows.append((g.norm, g.alias, gcves, g.evidence_sha256, status[(g.norm, g.cve_ids)], c.cve_id,
+                                  c.alias, c.source, c.record_id, c.position, c.record_cves,
+                                  _snippet(c, snippets, db)))
+        db.executemany("INSERT OR IGNORE INTO alias_candidates VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", cand_rows)
+        # served names column: accepted nicknames and bulletin IDs, best supported first
+        per_cve: dict[str, dict[str, list]] = defaultdict(dict)
+        display = {g.norm: g.alias for g in sel.groups}
+        for c in alias_rows:
             if c.kind in ("nickname", "advisory_id"):
-                rank = (c.source not in A.WEAK_SOURCES, any(ch.isupper() for ch in c.alias[1:]), -len(c.alias))
-                key = (c.cve_id, c.norm)
-                if key not in best_form or rank > best_form[key][0]:
-                    best_form[key] = (rank, c.alias)
-        for c in sel.rows:
-            if c.kind in ("nickname", "advisory_id"):
-                w, _ = per_cve[c.cve_id].get(c.norm, (0.0, ""))
-                per_cve[c.cve_id][c.norm] = (w + 1.0 / max(1, c.record_cves), best_form[(c.cve_id, c.norm)][1])
+                e = per_cve[c.cve_id].setdefault(c.norm, [0.0, display.get(c.norm, c.alias)])
+                e[0] += 1.0 / max(1, c.record_cves)
         db.executemany("UPDATE cve SET aliases = ? WHERE cve_id = ?",
                        [("; ".join(name for _, (w, name) in sorted(d.items(), key=lambda kv: (-kv[1][0], kv[0]))), cid)
                         for cid, d in per_cve.items()])
         db.commit()
         stored_records: dict[str, set[str]] = defaultdict(set)
-        for c in sel.rows:
+        for c in alias_rows:
             stored_records[c.source].add(c.record_id)
+        for g in sel.groups:  # candidate evidence is stored (alias_candidates), served or not
+            for c in g.rows:
+                stored_records[c.source].add(c.record_id)
         record_reason: dict[tuple[str, str], str] = {}
         for c, d in decisions:
             key = (c.source, c.record_id)
             if d != "keep":
                 record_reason.setdefault(key, f"no_alias_accepted:{d}")
             else:
-                record_reason.setdefault(key, "no_alias_accepted:corpus_rules")
+                record_reason.setdefault(key, f"no_alias_accepted:{sel.rejected_names.get(c.norm, 'corpus_rules')}")
+        vet = Counter(status.values())
+        vetting = {"verdict_file": str(verdicts_path), "verdict_file_sha256": sha256_file(verdicts_path),
+                   "verdicts": len(verdicts), "candidate_groups": len(sel.groups),
+                   "candidate_rows": len(cand_rows), "accepted": vet["accepted"], "rejected": vet["rejected"],
+                   "pending": vet["pending"], "stale": vet["stale"],
+                   "verdicts_without_candidate": sum(1 for k in verdicts if k not in status)}
         alias_rejects, alias_recon = _ledger_rejects(ledger, stored_records, universe, record_reason)
         timings["aliases_s"] = round(time.time() - t, 1)
-        log(f"aliases: {len(sel.rows)} rows; reasons {sel.reasons}")
+        log(f"aliases: {len(alias_rows)} served rows; {len(sel.groups)} nickname candidate groups; vetting {vetting}; "
+            f"reasons {sel.reasons}")
 
         # ---------------------------------------------------------- similar groups
         t = time.time()
@@ -611,6 +658,7 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         from .report import store_report
         report = store_report(db, kev_rows, epss_rows)
         report["aliases"] = alias_report(db, sel)
+        report["nickname_vetting"] = vetting
         report["similar_groups"] = sim_stats
         report["rejected_by_source_and_reason"] = {
             f"{s}/{r}": n for (s, r), n in sorted(Counter((x.source, x.reason) for x in all_rejects).items())}
@@ -663,6 +711,9 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
             "timings": timings,
             "store_bytes": db_path.stat().st_size,
         }
+        from .export_candidates import write_candidates
+        manifest["nickname_candidates"] = {"file": "nickname_candidates.jsonl",
+                                           "groups": write_candidates(db_path, tmp / "nickname_candidates.jsonl")}
         if v1_corpus is not None:
             from .v1_compare import compare_v1
             t = time.time()
@@ -691,6 +742,18 @@ def build(feeds: Path, sources: Path, out_root: Path, workers: int = 6, v1_corpu
         raise
 
 
+def _snippet(c: A.Candidate, snippets: dict, db: sqlite3.Connection) -> str:
+    """Short evidence text for the judges: the exploit title, PoC repository, URL or the CVE's own text."""
+    if c.source == "cve_references":
+        return c.record_id
+    if c.source in ("cve_list", "cve_description"):
+        row = db.execute("SELECT title, description FROM cve WHERE cve_id = ?", (c.cve_id,)).fetchone()
+        text = (row[0] if c.source == "cve_list" else row[1]) or ""
+        i = text.lower().find(c.alias.lower())
+        return text[max(0, i - 120): i + 180] if i >= 0 else text[:300]
+    return snippets.get((c.source, c.record_id), "")
+
+
 def alias_report(db: sqlite3.Connection, sel: A.Selection) -> dict:
     q = lambda s: db.execute(s).fetchone()[0]  # noqa: E731
     by_src = dict(db.execute("SELECT source, COUNT(*) FROM aliases GROUP BY source ORDER BY source").fetchall())
@@ -703,6 +766,8 @@ def alias_report(db: sqlite3.Connection, sel: A.Selection) -> dict:
         "cves_with_nickname_or_advisory_id": q("SELECT COUNT(DISTINCT cve_id) FROM aliases WHERE kind != 'title'"),
         "cves_with_nickname": q("SELECT COUNT(DISTINCT cve_id) FROM aliases WHERE kind = 'nickname'"),
         "distinct_nicknames": q("SELECT COUNT(DISTINCT alias_norm) FROM aliases WHERE kind = 'nickname'"),
+        "nickname_candidate_groups": len(sel.groups),
+        "nickname_candidate_cves": len({c for g in sel.groups for c in g.cve_ids}),
         "candidate_decisions": sel.reasons,
     }
 
@@ -732,12 +797,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--v1-corpus", type=Path, default=None, help="v1 corpus_store.db for the comparison report")
     ap.add_argument("--previous", type=Path, default=None, help="earlier build directory to diff content hashes")
     ap.add_argument("--build-id", default=None, help="override the build ID (tests)")
+    ap.add_argument("--verdicts", type=Path, default=VERDICTS_PATH, help="nickname verdict file (JSONL)")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     try:
         build(a.feeds, a.sources, a.out, workers=a.workers, v1_corpus=a.v1_corpus, previous=a.previous,
-              build_id=a.build_id, log=lambda m: print(m, flush=True))
+              build_id=a.build_id, log=lambda m: print(m, flush=True), verdicts_path=a.verdicts)
     except ReconciliationError as e:
         print(f"BUILD FAILED: {e}", file=sys.stderr)
         return 1
