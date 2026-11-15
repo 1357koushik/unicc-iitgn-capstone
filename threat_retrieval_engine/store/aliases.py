@@ -45,8 +45,9 @@ different families (a kernel function quoted in an exploit title and repeated in
 module, or a class named in a CNA title, is not a nickname). Units: each Exploit-DB record, Metasploit
 module, nuclei template and KEV row; the CNA's title and description together; each distinct reference
 domain; each distinct PoC-in-GitHub owner. Families: ``exploit`` (Exploit-DB, Metasploit, nuclei and
-exploit-archive references such as Packet Storm), ``cna``, ``kev``, ``poc``, ``refs`` (other reference
-domains) and ``site`` (a dedicated site, see below).
+exploit-archive references such as Packet Storm), ``cna`` (also the assigning CNA's own advisory pages,
+which repeat its title), ``kev``, ``poc``, ``refs`` (other reference domains) and ``site`` (a dedicated
+site, see below).
 PoC-in-GitHub names and reference-URL words are weak evidence: anyone can name a repository, and a URL
 word may be a product, a person or a page title. A name attested only by weak evidence must also be rare
 in the corpus (every word in at most DF_MAX CVE descriptions, one word in at most DF_RARE), unless one of
@@ -66,7 +67,7 @@ from .text import alias_norm, clean_text, find_span
 ALLOWED_SOURCES = ("exploitdb", "metasploit_modules", "nuclei_templates", "kev", "cve_list", "cve_description",
                    "poc_in_github", "cve_references")
 WEAK_SOURCES = frozenset({"poc_in_github", "cve_references"})
-WEAK_POSITIONS = frozenset({"camel", "poc_repo", "reference"})
+WEAK_POSITIONS = frozenset({"camel", "poc_repo", "reference", "reference_cna"})
 MIN_UNITS = 2                   # independent evidence units a nickname needs for one CVE
 MIN_WEAK_UNITS = MIN_UNITS
 DF_MAX = 50                     # weak-only names: no word may occur in more CVE descriptions than this ...
@@ -113,6 +114,7 @@ new old latest beta alpha final full partial edition pro professional enterprise
 part one two three dtls support supported add adding added remove change manipulation products product
 url uri argument arguments array session sessions activex control controls listener manager console
 spoofing tampering leakage leak leaks hijack hijacking takeover weakening connection token tokens
+toctou xsrf bxss lpe sqlinj premium limited lite secure object providers success
 """.split())
 _ID_LIKE = re.compile(r"\d.*\d.*\d")    # a token with three or more digits is an identifier, not a name
 _SERVICE_PACK = re.compile(r"^(?:sp\d+|r\d|v\d+[a-z]?|build\d*|rc\d*|update\d*)$", re.IGNORECASE)
@@ -430,18 +432,22 @@ def poc_phrases(full_name: str, description: str) -> list[str]:
 
 
 def weak_candidates(cve_id: str, ref_urls: list[str], pocs: list[tuple[str, str]],
-                    strong_norms: frozenset[str]) -> list[Candidate]:
+                    strong_norms: frozenset[str], assigner: str = "") -> list[Candidate]:
     """Corroborated weak-evidence candidates for one CVE: a name needs MIN_WEAK_UNITS independent units
     (distinct PoC owners, distinct reference hosts; a strong-source candidate of the same key counts as one)."""
     units: dict[str, set[str]] = defaultdict(set)
     rows: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
+    akey = alias_norm(assigner or "")
     for url in ref_urls:
         host, phrases = url_phrases(url)
+        label = alias_norm(host.split(".")[0]) if host else ""
+        # the assigning CNA's own advisory page repeats the CNA title: same source, not corroboration
+        pos = "reference_cna" if akey and len(label) >= 3 and (label in akey or akey in label) else "reference"
         for ph in dict.fromkeys(phrases):
             k = alias_norm(ph)
             if MIN_ALIAS_CHARS <= len(k) <= MAX_ALIAS_CHARS:
-                units[k].add(f"ref:{host}")
-                rows[k].append((ph, "cve_references", url, "reference"))
+                units[k].add("cna" if pos == "reference_cna" else f"ref:{host}")
+                rows[k].append((ph, "cve_references", url, pos))
     for full_name, desc in pocs:
         owner = (full_name or "").split("/", 1)[0].lower()
         for ph in dict.fromkeys(poc_phrases(full_name, desc)):
@@ -515,6 +521,8 @@ def evidence_family(unit: str, domain_cves: dict[str, int]) -> str:
 def evidence_unit(c: Candidate) -> str:
     """The independent unit of evidence a candidate row represents (see the module docstring)."""
     if c.source in ("cve_list", "cve_description"):
+        return "cna"
+    if c.source == "cve_references" and c.position == "reference_cna":
         return "cna"
     if c.source == "cve_references":
         from urllib.parse import urlsplit

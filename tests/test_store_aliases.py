@@ -180,3 +180,13 @@ def test_weak_candidates_require_two_independent_units():
 def test_code_host_urls_use_repository_name_only():
     _, ph = A.url_phrases("https://github.com/acme/widgetron/blob/main/src/MainController.php")
     assert ph == ["widgetron"]
+
+
+def test_cna_advisory_page_is_not_independent_of_the_cna_title():
+    cs = A.weak_candidates("CVE-2026-0001", ["https://www.vulncheck.com/advisories/shop-idor-in-useraddresscontroller"],
+                           [], frozenset({"useraddresscontroller"}), assigner="VulnCheck")
+    assert cs and {A.evidence_unit(c) for c in cs} == {"cna"}
+    title = A.Candidate("CVE-2026-0001", "UserAddressController", "useraddresscontroller", "nickname", "cve_list",
+                        "CVE-2026-0001#title", "camel", 1)
+    sel = A.select([(title, "keep")] + [(c, "keep") for c in cs if c.norm == "useraddresscontroller"], frozenset())
+    assert sel.rows == []

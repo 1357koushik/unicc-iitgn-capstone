@@ -360,7 +360,8 @@ def process_group(job: dict) -> dict:
         ref_urls = [r["url"] for r in row["references"]]
         for dom in {A.evidence_unit(A.Candidate(cid, "", "", "", "cve_references", u, "", 1)) for u in ref_urls}:
             domain_cves[dom[4:]] += 1
-        weak = A.weak_candidates(cid, ref_urls, job["pocs"].get(cid, []), frozenset(strong_keep))
+        weak = A.weak_candidates(cid, ref_urls, job["pocs"].get(cid, []), frozenset(strong_keep),
+                                 (row["assigner"] or {}).get("short_name") or "")
         if weak:
             if own_tokens is None:
                 own = side["own_names"]
