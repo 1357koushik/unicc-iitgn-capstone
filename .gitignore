@@ -279,3 +279,6 @@ data/lexical/
 data/v1_server/
 # C2 run files are large (13 MB per variant); reports carry their sha256
 results/lexical/runs/*.jsonl
+data/dense/
+data/models/
+results/dense/runs/*.jsonl
