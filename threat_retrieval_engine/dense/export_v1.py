@@ -169,9 +169,11 @@ def collapse(rows: dict, searchable: list[str], how: str) -> dict:
         g = None
     else:
         raise ValueError(f"unknown collapse {how!r}")
-    if how != "mean":  # Qdrant stores cosine vectors normalised; renormalise in float64 to remove drift
-        n = np.linalg.norm(vec.astype(np.float64), axis=1, keepdims=True)
-        vec = (vec.astype(np.float64) / n).astype(np.float32)
+    if how != "mean":  # Qdrant stores cosine vectors normalised; renormalise in float64 (blockwise) to remove drift
+        vec = np.array(vec, dtype=np.float32, copy=True)
+        for a in range(0, vec.shape[0], 65536):
+            blk = vec[a:a + 65536].astype(np.float64)
+            vec[a:a + 65536] = (blk / np.linalg.norm(blk, axis=1, keepdims=True)).astype(np.float32)
     covered = set(cves)
     return {"vectors": np.ascontiguousarray(vec), "doc_ids": cves, "groups": g,
             "stats": {"points": int(len(rows["doc_ids"])), "rows_used": int(vec.shape[0]), "cves": len(cves),

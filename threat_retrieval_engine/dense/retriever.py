@@ -17,6 +17,7 @@ that changes no result).
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 from collections import OrderedDict
@@ -41,7 +42,7 @@ class DenseResult:
 class DenseRetriever:
     def __init__(self, index: DenseIndex, encoder=None, query_format: str = "documented",
                  query_max_tokens: int | None = None, cache_size: int = 4096, torch_threads: int | None = None,
-                 blas_threads: int | None = None, model_root: str | None = None):
+                 blas_threads: int | None = None, model_root: str | None = None, disk_cache_dir: str | None = None):
         from .encoder import Encoder
         self.index = index
         im = index.model
@@ -61,6 +62,10 @@ class DenseRetriever:
         if query_max_tokens is None:
             query_max_tokens = spec.max_position_tokens if query_format == "v1" else M.QUERY_MAX_TOKENS
         self.query_max_tokens = int(min(query_max_tokens, spec.max_position_tokens))
+        if torch_threads is None and os.environ.get("TRE_TORCH_THREADS"):
+            torch_threads = int(os.environ["TRE_TORCH_THREADS"])
+        if blas_threads is None and os.environ.get("TRE_BLAS_THREADS"):
+            blas_threads = int(os.environ["TRE_BLAS_THREADS"])
         self.encoder = encoder or Encoder.load(name, model_root=model_root, threads=torch_threads, batch_size=1)
         if self.encoder.spec.name != name:
             raise ValueError(f"encoder {self.encoder.spec.name} differs from the index model {name}")
@@ -69,7 +74,18 @@ class DenseRetriever:
         self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
         self._cache_size = int(cache_size)
         self._lock = threading.Lock()
-        self.stats = {"queries": 0, "cache_hits": 0}
+        self.stats = {"queries": 0, "cache_hits": 0, "disk_cache_hits": 0}
+        cdir = disk_cache_dir if disk_cache_dir is not None else os.environ.get("TRE_QUERY_VECTOR_CACHE")
+        self.disk = QueryVectorStore(cdir, self.cache_identity()) if cdir else None
+
+    def cache_identity(self) -> str:
+        """Everything a query vector depends on besides the model input text."""
+        import hashlib
+        import json
+        s = self.encoder.spec
+        return hashlib.sha256(json.dumps({"repo": s.repo, "revision": s.revision, "pooling": s.pooling,
+                                          "weights": s.weights_sha256, "prefix": self.prefix,
+                                          "max_tokens": self.query_max_tokens}, sort_keys=True).encode()).hexdigest()[:20]
 
     @classmethod
     def open(cls, path=None, **kw) -> "DenseRetriever":
@@ -89,9 +105,15 @@ class DenseRetriever:
                 self._cache.move_to_end(key)
                 self.stats["cache_hits"] += 1
                 return v, True
-        ids = self.encoder.tokenizer([key], truncation=True, max_length=self.query_max_tokens, padding=False,
-                                     return_attention_mask=False, return_token_type_ids=False)["input_ids"]
-        v = self.encoder.encode_ids(ids)[0]
+        v = self.disk.get(key) if self.disk is not None else None
+        if v is not None:
+            self.stats["disk_cache_hits"] += 1
+        else:
+            ids = self.encoder.tokenizer([key], truncation=True, max_length=self.query_max_tokens, padding=False,
+                                         return_attention_mask=False, return_token_type_ids=False)["input_ids"]
+            v = self.encoder.encode_ids(ids)[0]
+            if self.disk is not None:
+                self.disk.put(key, v)
         with self._lock:
             self._cache[key] = v
             if len(self._cache) > self._cache_size:
@@ -112,4 +134,43 @@ class DenseRetriever:
     def info(self) -> dict:
         return {"index": self.index.info(), "encoder": self.encoder.info(), "query_format": self.query_format,
                 "query_prefix": self.prefix, "query_max_tokens": self.query_max_tokens, "blas": self.blas,
-                "cache_size": self._cache_size}
+                "cache_size": self._cache_size,
+                "disk_cache": None if self.disk is None else {"path": str(self.disk.path),
+                                                              "identity": self.cache_identity()}}
+
+
+class QueryVectorStore:
+    """Offline evaluation aid: query vectors persisted per encoding configuration (SQLite, one file per
+    configuration identity), so variants that share an encoder (e.g. several indexes built with one model) encode
+    each benchmark query once. A stored vector is the encoder's own output for exactly that model input, so
+    results are unchanged (check_c3 verifies that encoding is deterministic); timings of cache hits are not
+    latency measurements. Enabled only by ``TRE_QUERY_VECTOR_CACHE`` or ``disk_cache_dir``; the service never
+    sets it."""
+
+    def __init__(self, root: str, identity: str):
+        import sqlite3
+        from pathlib import Path
+        Path(root).mkdir(parents=True, exist_ok=True)
+        self.path = Path(root) / f"qvec-{identity}.sqlite"
+        self._db = sqlite3.connect(str(self.path), check_same_thread=False, timeout=60)
+        self._db.execute("CREATE TABLE IF NOT EXISTS v (k TEXT PRIMARY KEY, dim INTEGER, vec BLOB)")
+        self._db.commit()
+        self._lock = threading.Lock()
+
+    def get(self, model_input: str) -> np.ndarray | None:
+        import hashlib
+        k = hashlib.sha256(model_input.encode("utf-8")).hexdigest()
+        with self._lock:
+            row = self._db.execute("SELECT dim, vec FROM v WHERE k = ?", (k,)).fetchone()
+        if row is None:
+            return None
+        v = np.frombuffer(row[1], dtype=np.float32)
+        return v.copy() if len(v) == row[0] else None
+
+    def put(self, model_input: str, vec: np.ndarray) -> None:
+        import hashlib
+        k = hashlib.sha256(model_input.encode("utf-8")).hexdigest()
+        v = np.ascontiguousarray(vec, dtype=np.float32)
+        with self._lock:
+            self._db.execute("INSERT OR REPLACE INTO v VALUES (?, ?, ?)", (k, len(v), v.tobytes()))
+            self._db.commit()
