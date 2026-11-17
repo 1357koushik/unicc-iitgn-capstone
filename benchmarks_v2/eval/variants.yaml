@@ -193,6 +193,21 @@ variants:
     factory: threat_retrieval_engine.dense.eval_adapter:make_dense
     options: {index: compare/gte-large, k: 100, kinds: all}
 
+  cmp_bge-m3_q512:
+    adapter: inprocess
+    description: as cmp_bge-m3 with queries capped at 512 tokens instead of 256 (query-cap ablation)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-m3, k: 100, kinds: all, query_max_tokens: 512}
+
+  cmp_bge-m3_v1cover:
+    adapter: inprocess
+    description: as cmp_bge-m3 restricted (mask) to the CVEs the v1 vectors cover in the reduced corpus, no ATT&CK
+      (separates the model and text from v1's coverage gaps)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-m3, k: 100, kinds: cve, restrict_to: compare/v1}
+
   cmp_v1:
     adapter: inprocess
     description: reduced corpus (its CVE part), exported v1 vectors with the selected collapse, BGE-M3 queries in the

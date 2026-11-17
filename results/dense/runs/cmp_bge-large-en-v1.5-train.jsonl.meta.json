@@ -1,0 +1,124 @@
+{
+  "config": {
+    "adapter": "inprocess",
+    "factory": "threat_retrieval_engine.dense.eval_adapter:make_dense",
+    "options": {
+      "index": "compare/bge-large-en-v1.5",
+      "k": 100,
+      "kinds": "all"
+    }
+  },
+  "created_at": "2026-11-17T18:10:08Z",
+  "sessions": [
+    {
+      "abort_reason": null,
+      "already_done": 0,
+      "concurrency": 1,
+      "ended_at": "2026-11-17T18:23:05Z",
+      "errors": 0,
+      "harness_commit": "de2e675",
+      "harness_version": "b4-1",
+      "host": "localhost.localdomain",
+      "load_average_end": [
+        22.94,
+        22.36,
+        21.59
+      ],
+      "load_average_start": [
+        20.31,
+        21.06,
+        20.66
+      ],
+      "pause_after_error_s": 0.0,
+      "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+      "python": "3.12.16",
+      "selected": 920,
+      "sent": 920,
+      "service_info": {
+        "blas": {
+          "blas": [
+            {
+              "internal_api": "openblas",
+              "num_threads": 4,
+              "version": "0.3.29"
+            },
+            {
+              "internal_api": "openblas",
+              "num_threads": 4,
+              "version": "0.3.29.dev"
+            }
+          ],
+          "mechanism": "threadpoolctl",
+          "requested": 4
+        },
+        "cache_size": 4096,
+        "component": "dense",
+        "disk_cache": {
+          "identity": "5f8a78190f1be41a1f6b",
+          "path": "/home/koushik.moram/team2/dense/qvec/qvec-5f8a78190f1be41a1f6b.sqlite"
+        },
+        "encoder": {
+          "batch_size": 1,
+          "batch_tokens": 8192,
+          "device": "cpu",
+          "load_seconds": 6.5,
+          "model": {
+            "card_note": "CLS pooling, normalised; query instruction for short-query passage retrieval",
+            "dim": 1024,
+            "files": [
+              "config.json",
+              "tokenizer.json",
+              "tokenizer_config.json",
+              "special_tokens_map.json"
+            ],
+            "licence": "mit",
+            "max_position_tokens": 512,
+            "name": "bge-large-en-v1.5",
+            "passage_prefix": "",
+            "pooling": "cls",
+            "query_prefix": "Represent this sentence for searching relevant passages: ",
+            "repo": "BAAI/bge-large-en-v1.5",
+            "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+            "weights_file": "model.safetensors",
+            "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+          },
+          "path": "/home/koushik.moram/team2/models/bge-large-en-v1.5",
+          "tokenizer": "BertTokenizer",
+          "torch": "2.6.0+cu124",
+          "torch_threads": 4,
+          "transformers": "5.22.2",
+          "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+        },
+        "index": {
+          "build_id": "20261117T174800Z-d52a9b07d3",
+          "collapse": null,
+          "counts": {
+            "attack": 1827,
+            "cve": 144852
+          },
+          "dim": 1024,
+          "documents": 146679,
+          "load_seconds": 2.47,
+          "memory_mib": 573.0,
+          "model": {
+            "config_key": "815ca1defcd075ff",
+            "name": "bge-large-en-v1.5",
+            "repo": "BAAI/bge-large-en-v1.5",
+            "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09"
+          },
+          "rows": 146679,
+          "source": "encoded",
+          "vectors_sha256": "4882fb31df328f763c33fec3af95b2b65fa8b8a34625b27acdef1eaab80be59b"
+        },
+        "kinds": "all",
+        "query_format": "documented",
+        "query_max_tokens": 256,
+        "query_prefix": "Represent this sentence for searching relevant passages: "
+      },
+      "session_id": "2026-11-17T18:10:08Z-147808-e780bc71",
+      "started_at": "2026-11-17T18:10:08Z",
+      "status": "complete"
+    }
+  ],
+  "variant": "cmp_bge-large-en-v1.5"
+}
