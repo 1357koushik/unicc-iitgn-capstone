@@ -164,6 +164,18 @@ def test_retriever(tiny, tmp_path):
         assert isinstance(r.search(weird, k=3).hits, list)
     with pytest.raises(TypeError):
         r.search(None)
+    # the offline query-vector store returns exactly the encoder's vectors, per encoding configuration
+    store_dir = tmp_path / "qvec"
+    r1 = DenseRetriever.open(bdir, torch_threads=2, disk_cache_dir=str(store_dir))
+    a = r1.search("buffer overflow in router firmware", k=10, kinds=None)
+    r2 = DenseRetriever.open(bdir, torch_threads=2, disk_cache_dir=str(store_dir))
+    b = r2.search("buffer overflow in router firmware", k=10, kinds=None)
+    assert r2.stats["disk_cache_hits"] == 1 and a.hits == b.hits
+    assert np.array_equal(r1.encode("buffer overflow in router firmware")[0], r2.encode("buffer overflow in router firmware")[0])
+    r3 = DenseRetriever.open(bdir, torch_threads=2, disk_cache_dir=str(store_dir), query_max_tokens=32)
+    assert r3.cache_identity() != r1.cache_identity()
+    r3.search("buffer overflow in router firmware", k=10)
+    assert r3.stats["disk_cache_hits"] == 0
     with pytest.raises(ValueError):
         DenseRetriever(DenseIndex.open(bdir), query_format="v1")  # only for the exported v1 vectors
     other = Encoder.load("tiny-cls", threads=2)

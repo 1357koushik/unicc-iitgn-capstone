@@ -152,7 +152,7 @@ def measure_search(index: str, queries: Path, blas_threads: list[int], repeat: i
 
 
 def measure_encode(models: list[str], queries: Path, torch_threads: list[int], n_sample: int, repeat: int,
-                   full_model: str | None, max_tokens: int) -> dict:
+                   full_model: str | None, max_tokens: int, sweep_repeat: int = 1) -> dict:
     import torch
     from threat_retrieval_engine.dense.encoder import Encoder, set_torch_threads
     qs = load_queries(queries)
@@ -160,7 +160,8 @@ def measure_encode(models: list[str], queries: Path, torch_threads: list[int], n
     la0 = load_average()
     out: dict = {"what": "query encoding, batch 1, tokenization + forward + pooling + normalisation, cache off",
                  **host(), "load_average": la0, "queries": {"path": str(queries), "n": len(qs), "sample": len(sm)},
-                 "max_tokens": max_tokens, "repeat": repeat, "torch": torch.__version__, "models": {}}
+                 "max_tokens": max_tokens, "repeat": repeat, "sweep_repeat": sweep_repeat, "torch": torch.__version__,
+                 "models": {}}
 
     def one_pass(enc, items):
         ms = []
@@ -176,7 +177,7 @@ def measure_encode(models: list[str], queries: Path, torch_threads: list[int], n
         for tt in torch_threads:
             set_torch_threads(tt)
             one_pass(enc, sm[:20])
-            sweep[str(tt)] = med([one_pass(enc, sm) for _ in range(repeat)])
+            sweep[str(tt)] = med([one_pass(enc, sm) for _ in range(sweep_repeat)])
         chosen = min(torch_threads, key=lambda t: (sweep[str(t)]["median"]["p95"], t))
         entry = {"thread_sweep_sample": sweep, "torch_threads_chosen": chosen,
                  "sample_at_chosen": sweep[str(chosen)]["median"], "encoder": enc.info()}
@@ -194,9 +195,67 @@ def measure_encode(models: list[str], queries: Path, torch_threads: list[int], n
     return out
 
 
+def synthetic_build(documents: Path, out_root: Path, dim: int, seed: int = 20261117) -> Path:
+    """A build with the full corpus's document IDs and kinds and seeded random unit vectors: the size a full
+    re-embed (C3b) produces, for measuring search latency before those vectors exist. Its manifest says so."""
+    from .build import write_build
+    from .sources import DocumentSet
+    ds = DocumentSet.read(documents)
+    rng = np.random.default_rng(seed)
+    v = np.empty((len(ds), dim), dtype=np.float32)
+    for a in range(0, len(ds), 65536):
+        blk = rng.standard_normal((min(65536, len(ds) - a), dim))
+        v[a:a + len(blk)] = (blk / np.linalg.norm(blk, axis=1, keepdims=True)).astype(np.float32)
+    man = {"source": "synthetic", "model": {"name": "bge-m3"}, "note": "random unit vectors for latency only",
+           "inputs": {"documents_sha256": ds.sha256(), **ds.inputs}}
+    return write_build(out_root, v, ds.doc_ids, ds.kinds, man, {"synthetic": ds.sha256(), "dim": dim, "seed": seed})
+
+
+def measure_search_vectors(index: str, n: int, blas_threads: list[int], repeat: int, seed: int = 7) -> dict:
+    """Search latency with seeded random unit query vectors (for the synthetic full-size build)."""
+    from threat_retrieval_engine.dense.index import DenseIndex, set_blas_threads
+    ix = DenseIndex.open(index)
+    rng = np.random.default_rng(seed)
+    q = rng.standard_normal((n, ix.dim))
+    vecs = [(x / np.linalg.norm(x)).astype(np.float32) for x in q]
+    la0 = load_average()
+    sweep = {}
+    for kinds_name, kinds in (("cve", ("cve",)), ("all", None)):
+        sweep[kinds_name] = {}
+        for bt in blas_threads:
+            info = set_blas_threads(bt)
+            for v in vecs[:50]:
+                ix.search(v, k=100, kinds=kinds)
+            runs = []
+            for _ in range(repeat):
+                ms = []
+                for v in vecs:
+                    t = time.perf_counter()
+                    ix.search(v, k=100, kinds=kinds)
+                    ms.append((time.perf_counter() - t) * 1000)
+                runs.append(ms)
+            sweep[kinds_name][str(bt)] = {**med(runs), "blas": info}
+    chosen = min(blas_threads, key=lambda b: (sweep["cve"][str(b)]["median"]["p95"], b))
+    return {"what": "DenseIndex.search(v, k=100) on a synthetic full-size build, random unit query vectors",
+            **host(), "load_average": la0, "load_average_end": load_average(), "index": ix.info(),
+            "queries": {"n": n, "kind": "random unit vectors"}, "repeat": repeat, "blas_sweep": sweep,
+            "blas_threads_chosen": chosen,
+            "chosen": {"cve": sweep["cve"][str(chosen)]["median"], "all": sweep["all"][str(chosen)]["median"]}}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("synthetic-build")
+    p.add_argument("--documents", required=True, type=Path)
+    p.add_argument("--out", required=True, type=Path)
+    p.add_argument("--dim", type=int, default=1024)
+    p = sub.add_parser("search-random")
+    p.add_argument("--index", required=True)
+    p.add_argument("--n", type=int, default=1500)
+    p.add_argument("--blas-threads", default="1,2,4,8,12,16,24")
+    p.add_argument("--repeat", type=int, default=3)
+    p.add_argument("--out", type=Path)
     p = sub.add_parser("search")
     p.add_argument("--index", required=True)
     p.add_argument("--queries", required=True, type=Path)
@@ -212,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repeat", type=int, default=3)
     p.add_argument("--full", help="model measured on every query at its chosen thread count")
     p.add_argument("--max-tokens", type=int, default=256)
+    p.add_argument("--sweep-repeat", type=int, default=1, help="repetitions per thread count of the sample sweep")
     p.add_argument("--out", type=Path)
     p = sub.add_parser("open-child")
     p.add_argument("--index", required=True)
@@ -219,13 +279,19 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "open-child":
         open_child(a.index)
         return 0
-    if a.cmd == "search":
+    if a.cmd == "synthetic-build":
+        print(synthetic_build(a.documents, a.out, a.dim))
+        return 0
+    if a.cmd == "search-random":
+        res = measure_search_vectors(a.index, a.n, [int(x) for x in a.blas_threads.split(",")], a.repeat)
+        brief = {"blas_threads_chosen": res["blas_threads_chosen"], **res["chosen"]}
+    elif a.cmd == "search":
         res = measure_search(a.index, a.queries, [int(x) for x in a.blas_threads.split(",")], a.repeat, a.torch_threads)
         brief = {"blas_threads_chosen": res["blas_threads_chosen"], **res["chosen"],
                  "open_ms": res["open_fresh_process"]["median_ms"]}
     else:
         res = measure_encode(a.models.split(","), a.queries, [int(x) for x in a.torch_threads.split(",")], a.sample,
-                             a.repeat, a.full, a.max_tokens)
+                             a.repeat, a.full, a.max_tokens, a.sweep_repeat)
         brief = {m: {"threads": e["torch_threads_chosen"], **e["sample_at_chosen"],
                      **({"all": e["all_queries_at_chosen"]["median"]} if "all_queries_at_chosen" in e else {})}
                  for m, e in res["models"].items()}

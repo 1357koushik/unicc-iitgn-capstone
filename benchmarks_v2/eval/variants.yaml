@@ -140,6 +140,23 @@ variants:
     factory: threat_retrieval_engine.dense.eval_adapter:make_dense
     options: {index: v1/primary, k: 100, kinds: cve}
 
+  # C3 fusion: weighted RRF of the C2 lexical index and the dense index, 100 candidates per list; depth, k and
+  # weights tuned on dev (results/dense/tuning/fusion-dayone*.json; lexical weight 1). Retune when the dense index
+  # changes (C3b, C6).
+  v2_fused:
+    adapter: inprocess
+    description: RRF(lexical, dense) over CVE documents, depth 100, k 1, weights lexical 1 / dense 0.25, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_fused
+    options: {k: 100, kinds: cve, weights: [1.0, 0.25], rrf_k: 1, depth: 100, candidates: 100}
+
+  v2_fused_attack:
+    adapter: inprocess
+    description: as v2_fused over CVE and ATT&CK documents (lexical index built with --attack)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_fused
+    options: {k: 100, kinds: all, weights: [1.0, 0.25], rrf_k: 1, depth: 100, candidates: 100}
+
   # Embedding-model comparison on the reduced corpus (plan 4.5): builds under $TRE_DENSE_DIR/compare/<name>.
   cmp_bge-m3:
     adapter: inprocess

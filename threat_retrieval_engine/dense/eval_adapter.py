@@ -24,19 +24,33 @@ def _index_path(index: str | None) -> Path:
 
 
 class DenseSystem:
+    """``restrict_to``: another dense build; only documents that build also holds are searched (a mask), e.g.
+    a comparison model restricted to the CVEs the v1 vectors cover, to separate model quality from coverage."""
+
     def __init__(self, index: str | None = None, k: int = 100, kinds: str = "cve", query_format: str = "documented",
-                 query_max_tokens: int | None = None, torch_threads: int | None = None, blas_threads: int | None = None):
-        self.r = DenseRetriever(DenseIndex.open(_index_path(index)), query_format=query_format,
-                                query_max_tokens=query_max_tokens, torch_threads=torch_threads,
-                                blas_threads=blas_threads)
+                 query_max_tokens: int | None = None, torch_threads: int | None = None, blas_threads: int | None = None,
+                 restrict_to: str | None = None):
+        import numpy as np
+        ix = DenseIndex.open(_index_path(index))
+        self.r = DenseRetriever(ix, query_format=query_format, query_max_tokens=query_max_tokens,
+                                torch_threads=torch_threads, blas_threads=blas_threads)
         self.k = int(k)
         self.kinds = _kinds(kinds)
+        self.mask = None
+        self.restrict = None
+        if restrict_to:
+            other = DenseIndex.open(_index_path(restrict_to), verify=True)
+            keep = set(other.doc_ids)
+            self.mask = np.fromiter((d in keep for d in ix.doc_ids), dtype=bool, count=ix.n_docs)
+            self.restrict = {"build_id": other.build_id, "documents_kept": int(self.mask.sum()),
+                             "documents_masked": int((~self.mask).sum())}
+            del other
 
     def search(self, text: str) -> list[tuple[str, float]]:
-        return self.r.search(text, k=self.k, kinds=self.kinds).hits
+        return self.r.search(text, k=self.k, kinds=self.kinds, mask=self.mask).hits
 
     def info(self) -> dict:
-        return {"component": "dense", "kinds": self.kinds or "all", **self.r.info()}
+        return {"component": "dense", "kinds": self.kinds or "all", "restrict_to": self.restrict, **self.r.info()}
 
 
 class FusedSystem:

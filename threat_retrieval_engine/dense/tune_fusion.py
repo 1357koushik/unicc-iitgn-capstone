@@ -26,8 +26,9 @@ from pathlib import Path
 from .fusion import RRFConfig, rrf
 
 DEPTHS = (10, 20, 30, 50, 75, 100)
-KS = (1, 5, 10, 20, 40, 60, 100)
-WEIGHTS = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0)  # dense weight; lexical weight 1
+KS = (0, 1, 2, 5, 10, 20, 40, 60, 100)
+# dense weight (lexical weight 1); 0 is lexical alone, so the grid also shows whether fusion helps at all
+WEIGHTS = (0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.35, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0)
 METRICS = ("recall@50", "recall@100", "ndcg@10", "recall@10", "mrr@10", "success@1")
 
 
