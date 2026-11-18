@@ -1,9 +1,9 @@
-# C7 calibration (provisional)
+# C7 calibration
 
-Labels: benchmark answer key only (unjudged = not relevant). Rows: 23679 top-10 results (1636 relevant) of 2396 dev+train questions. Out-of-fold (5 folds by question) on dev: ECE 0.0069.
+Labels: answer key + 918 judged relevant pairs (agreed.jsonl). Rows: 23679 top-10 results (2464 relevant) of 2396 dev+train questions. Out-of-fold (5 folds by question) on dev: ECE 0.0269.
 
 | Tier | Threshold | Results (dev, OOF) | Precision in tier | Precision at or above |
 |---|---|---|---|---|
-| STRONG | 0.9144 | 30 | 0.9667 | 0.9667 |
-| PARTIAL | 0.6122 | 409 | 0.6797 | 0.6993 |
-| WEAK | 0.076 | 1994 | 0.2121 | 0.3 |
+| STRONG | 1.01 | 0 | None | None |
+| PARTIAL | 0.4446 | 791 | 0.7004 | 0.7004 |
+| WEAK | 0.0819 | 3673 | 0.2137 | 0.3 |

@@ -1,5 +1,5 @@
 {
- "version": "c7-provisional",
+ "version": "c7",
  "features": [
   "rerank_logit",
   "margin_next",
@@ -16,56 +16,56 @@
  "weights": [
   0.0,
   0.0,
-  -0.19056778173816794,
-  3.439466903083862,
-  1.2745682594067553,
-  1.327320619313149,
-  -4.549200539215278,
-  4.403773772458581,
-  3.1250622291326806,
-  0.967061936904778,
-  0.2698493146630104
+  -0.777178475968733,
+  3.5143583885142884,
+  1.2060714996038178,
+  1.6914690578597926,
+  -3.662437826707085,
+  2.816039747199796,
+  3.2857056207163393,
+  1.2005412902670898,
+  0.08006985067173887
  ],
- "bias": -5.7248155780553684,
+ "bias": -4.283572879012534,
  "tiers": [
   [
    "STRONG",
-   0.9144
+   1.01
   ],
   [
    "PARTIAL",
-   0.6122
+   0.4446
   ],
   [
    "WEAK",
-   0.076
+   0.0819
   ]
  ],
- "label_source": "benchmark answer key only (unjudged = not relevant)",
+ "label_source": "answer key + 918 judged relevant pairs (agreed.jsonl)",
  "rows": 23679,
- "positives": 1636,
+ "positives": 2464,
  "questions": 2396,
- "oof_ece_dev": 0.0069,
+ "oof_ece_dev": 0.0269,
  "oof_tier_stats_dev": [
   {
    "tier": "STRONG",
-   "threshold": 0.9144,
-   "results_in_tier": 30,
-   "precision_in_tier": 0.9667,
-   "precision_at_or_above": 0.9667
+   "threshold": 1.01,
+   "results_in_tier": 0,
+   "precision_in_tier": null,
+   "precision_at_or_above": null
   },
   {
    "tier": "PARTIAL",
-   "threshold": 0.6122,
-   "results_in_tier": 409,
-   "precision_in_tier": 0.6797,
-   "precision_at_or_above": 0.6993
+   "threshold": 0.4446,
+   "results_in_tier": 791,
+   "precision_in_tier": 0.7004,
+   "precision_at_or_above": 0.7004
   },
   {
    "tier": "WEAK",
-   "threshold": 0.076,
-   "results_in_tier": 1994,
-   "precision_in_tier": 0.2121,
+   "threshold": 0.0819,
+   "results_in_tier": 3673,
+   "precision_in_tier": 0.2137,
    "precision_at_or_above": 0.3
   }
  ]
