@@ -91,3 +91,50 @@ def effective_threads() -> dict[str, object]:
         except Exception:  # pragma: no cover - defensive
             info["torch_num_threads"] = None
     return info
+
+
+# ---------------------------------------------------------------------------------------------- PoC credentials
+POC_CREDENTIAL_KEYS = ("BLUESKY_HANDLE", "BLUESKY_APP_PASSWORD", "GITHUB_TOKEN", "GITHUB_PAT",
+                       "MASTODON_ACCESS_TOKEN", "MASTODON_INSTANCE_URL")
+
+
+def _env_files() -> list:
+    from pathlib import Path
+    files = []
+    if os.environ.get("TRE_ENV_FILE", "").strip():
+        files.append(Path(os.path.expanduser(os.environ["TRE_ENV_FILE"].strip())))
+    files.append(Path(__file__).resolve().parents[1] / ".env")
+    return files
+
+
+def load_poc_credentials(files=None) -> list:
+    """Read the PoC source credentials (Bluesky, GitHub, Mastodon) from an env file into ``os.environ``.
+
+    Only the keys in ``POC_CREDENTIAL_KEYS`` are read; a variable already set in the environment is never
+    replaced. Files: ``$TRE_ENV_FILE`` if set, then ``.env`` at the repository root. Values are never logged.
+    Returns the names that were set."""
+    done = []
+    for path in files or _env_files():
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if key.startswith("export "):
+                key = key[len("export "):].strip()
+            if key not in POC_CREDENTIAL_KEYS or os.environ.get(key):
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            if value:
+                os.environ[key] = value
+                done.append(key)
+    if done:
+        logger.info("PoC credentials loaded from env file: %s", ", ".join(sorted(set(done))))
+    return done

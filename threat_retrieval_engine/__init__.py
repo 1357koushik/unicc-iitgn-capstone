@@ -22,3 +22,8 @@ except ImportError:
 from threat_retrieval_engine.runtime import apply_thread_env as _apply_thread_env  # noqa: E402
 
 _apply_thread_env()
+
+# PoC source credentials (Bluesky, GitHub, Mastodon) from $TRE_ENV_FILE or the repository's .env
+from threat_retrieval_engine.runtime import load_poc_credentials as _load_poc_credentials  # noqa: E402
+
+_load_poc_credentials()
