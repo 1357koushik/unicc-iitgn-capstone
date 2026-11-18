@@ -47,6 +47,7 @@ class _Retriever:
     texts = _Texts()
     nick = _route()
     reranker = object()
+    rerank_weight = 0.0
     lexical = type("L", (), {"build_id": "lex-test"})()
     dense = type("D", (), {"index": type("I", (), {"build_id": "dense-test"})()})()
 
@@ -131,3 +132,23 @@ def test_match_endpoint_uses_v2(monkeypatch):
     assert body["pipeline_version"] == "v2" and body["top_matches"][0]["confidence_tier"] == "EXACT"
     assert body["top_matches"][1]["matched_names"] == ["EternalBlue"]
     assert client.get("/api/v1/health").json()["pipeline_version"] == "v2"
+
+
+@pytest.mark.parametrize("text,ids", [
+    ("cve  2024-45593", ["CVE-2024-45593"]), ("CVE_2017_0144 and CVE:2012-0083", ["CVE-2017-0144", "CVE-2012-0083"]),
+    ("CVE2015-0703", ["CVE-2015-0703"]), ("CVE 2026 92627", ["CVE-2026-92627"]), ("CVE–2019–7127", ["CVE-2019-7127"]),
+    ("xCVE-2020-12345", []), ("CVE-1990-0001", []),
+])
+def test_loose_cve_ids(text, ids):
+    from threat_retrieval_engine.v2.retriever import CVE_LOOSE
+    from threat_retrieval_engine.store.text import normalize_cve_id
+    got = [x for x in (normalize_cve_id(f"CVE-{a}-{b}") for a, b in (m.groups() for m in CVE_LOOSE.finditer(text))) if x]
+    assert got == ids
+
+
+def test_blend_weights():
+    from threat_retrieval_engine.v2.retriever import blend
+    head = [Hit("a", rerank_logit=0.0), Hit("b", rerank_logit=1.0), Hit("c", rerank_logit=5.0)]
+    assert [h.doc_id for h in blend(head, 0.0)] == ["a", "b", "c"]
+    assert [h.doc_id for h in blend(head, float("inf"))] == ["c", "b", "a"]
+    assert [h.doc_id for h in blend(head, 1.0)][0] in ("a", "c")

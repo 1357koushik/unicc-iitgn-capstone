@@ -31,8 +31,14 @@ def _attack_store(path=None):
     return AttackStore.open(p)
 
 
-def open_system(store=None, lexical=None, dense=None, attack=None, rerank: bool = True, rerank_depth: int = 10,
-                fusion: dict | None = None, torch_threads: int | None = None, rerank_threads: int | None = None):
+def rerank_weight_default() -> float:
+    """`TRE_RERANK_WEIGHT`: blend weight of the reranker's order (0 = off, the default; inf = reranker alone)."""
+    return float(os.environ.get("TRE_RERANK_WEIGHT", "0"))
+
+
+def open_system(store=None, lexical=None, dense=None, attack=None, rerank: bool | None = None, rerank_depth: int = 10,
+                fusion: dict | None = None, torch_threads: int | None = None, rerank_threads: int | None = None,
+                rerank_weight: float | None = None):
     from ..dense.index import DenseIndex, default_root
     from ..dense.retriever import DenseRetriever
     from ..lexical import LexicalIndex
@@ -48,19 +54,25 @@ def open_system(store=None, lexical=None, dense=None, attack=None, rerank: bool 
     den = DenseRetriever(DenseIndex.open(dpath), torch_threads=torch_threads)
     f = dict(FUSION, **(fusion or {}))
     cfg = RRFConfig(weights=tuple(float(w) for w in f["weights"]), k=float(f["k"]), depth=int(f["depth"]))
-    rr = Int8Reranker.load(threads=rerank_threads) if rerank else None
+    w = rerank_weight_default() if rerank_weight is None else float(rerank_weight)
+    if rerank is False:
+        w = 0.0
+    rr = Int8Reranker.load(threads=rerank_threads) if w > 0 else None
     return V2Retriever(st, lex, den, cfg, reranker=rr, nicknames=NicknameRoute.from_store(st), attack_store=atk,
-                       texts=DocTexts(st, atk), rerank_depth=rerank_depth)
+                       texts=DocTexts(st, atk), rerank_depth=rerank_depth, rerank_weight=w)
 
 
 class V2System:
     """Benchmark adapter: ``search(text) -> [(doc_id, score)]`` with score = descending rank order."""
 
-    def __init__(self, k: int = 100, rerank: bool = True, rerank_depth: int = 10, features_depth: int = 20,
+    def __init__(self, k: int = 100, rerank: bool | None = None, rerank_depth: int = 10, features_depth: int = 20,
+                 rerank_weight: float | None = None,
                  lexical: str | None = None, dense: str | None = None, store: str | None = None,
                  attack: str | None = None, torch_threads: int | None = None, rerank_threads: int | None = None):
+        if rerank and rerank_weight is None:
+            rerank_weight = float("inf")      # variant v2_full: the reranker's order, as measured
         self.r = open_system(store, lexical, dense, attack, rerank=rerank, rerank_depth=rerank_depth,
-                             torch_threads=torch_threads, rerank_threads=rerank_threads)
+                             torch_threads=torch_threads, rerank_threads=rerank_threads, rerank_weight=rerank_weight)
         self.k = int(k)
         self.features_depth = int(features_depth)
         out = os.environ.get("TRE_V2_FEATURES_OUT")

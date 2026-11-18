@@ -72,6 +72,8 @@ class Calibration:
             "inv_lexical_rank": 1.0 / h.lexical_rank if h.lexical_rank else 0.0,
             "inv_dense_rank": 1.0 / h.dense_rank if h.dense_rank else 0.0,
             "both_lists": 1.0 if (h.lexical_rank and h.dense_rank) else 0.0,
+            "inv_fused_rank": 1.0 / h.fused_rank if h.fused_rank else 0.0,
+            "inv_rank": 1.0 / h.rank if h.rank else 0.0,
             "nickname_hit": 1.0 if h.route == "nickname" else 0.0,
             "entity_hit": 1.0 if h.route == "entity" else 0.0,
             "log_query_words": math.log1p(len(query.split())),
@@ -255,10 +257,11 @@ class V2Service:
         return {"status": "healthy", "pipeline_version": PIPELINE_VERSION, "components": {
             "store": r.store.build_dir.name, "lexical": r.lexical.build_id, "dense": r.dense.index.build_id,
             "attack": r.attack.build_id if r.attack is not None else "unavailable",
-            "reranker": "available" if r.reranker is not None else "degraded",
+            "reranker": (("available" if r.reranker is not None else "degraded") if r.rerank_weight > 0
+                         else "off (TRE_RERANK_WEIGHT=0)"),
             "nicknames": len(r.nick) if r.nick is not None else 0,
             "confidence_model": "calibrated" if self.calib is not None else "uncalibrated"},
-            "degraded_components": [] if r.reranker is not None else ["reranker"],
+            "degraded_components": [] if (r.reranker is not None or r.rerank_weight == 0) else ["reranker"],
             "hard_limit_s": self.hard_limit}
 
 

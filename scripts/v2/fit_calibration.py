@@ -4,7 +4,8 @@
         --dataset data/benchmark/v2.0 [--judged data/judging/round1/agreed.jsonl] \
         --out threat_retrieval_engine/v2/calibration.json --report results/v2/calibration.md
 
-Rows: every non-EXACT result in the top 10 of every dev and train question that the reranker scored. Label:
+Rows: every non-EXACT result in the top 10 of every dev and train question, in the served order (``--order
+served``: reranker off, the default service; signals that need a rerank logit are then constant). Label:
 relevant (1) when graded 2 in the benchmark answer key or in the judged pairs (``--judged``: {pair_id, grade}
 with pair_id "<qid>|<doc_id>"); everything else 0. Without judged pairs an unjudged result counts as not
 relevant, so precision is under-estimated: the tiers are conservative until judging round 1 is merged.
@@ -37,27 +38,41 @@ TIERS = (("STRONG", 0.95), ("PARTIAL", 0.70), ("WEAK", 0.30))
 MIN_SUPPORT = 30
 
 
-def load_rows(feature_files, queries, rel):
+def load_rows(feature_files, queries, rel, served=True):
     by_text = defaultdict(list)
     for q in queries:
         by_text[q["text"]].append(q)
     X, y, groups, meta = [], [], [], []
     feats = None
-    for f in feature_files:
+    last = {}
+    for f in feature_files:              # a question logged twice (a re-run) counts once: its last record
         for line in open(f, encoding="utf-8"):
             r = json.loads(line)
+            last[r["query"]] = r
+    for r in last.values():
+        if True:
             qs = by_text.get(r["query"])
             if not qs:
                 continue
             q = qs[0]
+            raw = r["hits"]
+            if served:   # the served order (TRE_RERANK_WEIGHT=0): the head in its incoming order, no logits
+                head = [h for h in raw if h["rerank_logit"] is not None]
+                if head:
+                    pos = [i for i, h in enumerate(raw) if h["rerank_logit"] is not None]
+                    pre = sorted(head, key=lambda h: (h["route"] == "fused", h["fused_rank"] or 10**6))
+                    raw = list(raw)
+                    for p_, h in zip(pos, pre):
+                        raw[p_] = h
+                raw = [dict(h, rerank_logit=None, rank=i) for i, h in enumerate(raw, 1)]
             hits = []
-            for i, h in enumerate(r["hits"], 1):
+            for i, h in enumerate(raw, 1):
                 hh = Hit(h["doc_id"], rank=h.get("rank", i), route=h["route"], rerank_logit=h["rerank_logit"],
                          fused_rank=h["fused_rank"], lexical_rank=h["lexical_rank"], dense_rank=h["dense_rank"],
                          dense_cosine=h["dense_cosine"])
                 hits.append(hh)
             for h in hits[:10]:
-                if h.route == "exact_id" or h.rerank_logit is None:
+                if h.route == "exact_id" or (not served and h.rerank_logit is None):
                     continue
                 v = Calibration.vector(h, hits, r["query"])
                 feats = feats or list(v)
@@ -126,6 +141,8 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--report", type=Path)
     ap.add_argument("--seed", type=int, default=20261118)
+    ap.add_argument("--order", choices=["served", "reranked"], default="served",
+                    help="served: the order with the reranker off (default service); reranked: the reranker's order")
     a = ap.parse_args()
     queries = [json.loads(l) for l in open(a.dataset / "queries.jsonl", encoding="utf-8")]
     queries = [q for q in queries if q["split"] in ("dev", "train")]
@@ -144,7 +161,7 @@ def main():
                 rel[qid].add(doc)
                 n += 1
         label_source = f"answer key + {n} judged relevant pairs ({a.judged.name})"
-    X, y, groups, meta, feats = load_rows(a.features, queries, rel)
+    X, y, groups, meta, feats = load_rows(a.features, queries, rel, served=a.order == "served")
     uq = sorted(set(groups))
     random.Random(a.seed).shuffle(uq)
     fold = {q: i % 5 for i, q in enumerate(uq)}

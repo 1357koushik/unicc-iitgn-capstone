@@ -4,24 +4,43 @@
     2. named entities: ATT&CK group / software / technique names (C9 gazetteer) -> candidates
     3. nicknames (C4): every CVE of a matched name -> candidates
     4. free text: C2 lexical + C3 dense over CVE and ATT&CK documents, fused by weighted RRF (tuned on dev)
-    5. rerank (C5): the int8 cross-encoder orders the first ``depth`` candidates (route candidates, then the
-       fused list); the rest keep the fused order
+    5. rerank (C5): the int8 cross-encoder scores the first ``depth`` candidates (route candidates, then the
+       fused list), and ``rerank_weight`` blends its order with the incoming order (``blend``); 0 turns the
+       reranker off. Measured on dev and train with the benchmark answer keys, the reranker's order lowers
+       macro nDCG@10 (dev 0.682 without it, 0.685 at weight 0.5, 0.642 alone; train 0.512 / 0.511 / 0.456),
+       so the served default is 0 until judging round 1 settles it on judged labels
 Every stage checks the deadline; a skipped stage is named in ``skipped``. Per-document signals (rerank logit,
 fused / lexical / dense rank, dense cosine, route hits) are returned for the calibrated confidence (C7).
 """
 from __future__ import annotations
 
 import math
+import re
 import time
 from dataclasses import dataclass, field
 
 from ..dense.fusion import RRFConfig, rrf
-from ..store.text import CVE_IN_TEXT, normalize_cve_id
+from ..store.text import normalize_cve_id
 
+# CVE IDs as people type them: "CVE-2024-45593", "cve 2024-45593", "CVE_2024_45593", "CVE–2024–45593"
+CVE_LOOSE = re.compile(r"(?<![A-Za-z0-9])CVE[\s_\-‐-―:]*(\d{4})[\s_\-‐-―:]+(\d{4,7})(?![0-9])",
+                       re.IGNORECASE)
 RERANK_DEPTH = 10
+BLEND_K = 2.0
 MAX_ROUTE_RERANK = 20      # a name naming many CVEs (FragAttacks: 12) is reranked whole, up to this many
 CANDIDATES = 100
 RERANK_BUDGET_S = 1.2      # rerank only when at least this much of the deadline is left
+
+
+def blend(head: list, weight: float) -> list:
+    """Order of the reranked head: each result scores 1/(K + its place in the list the reranker received) +
+    weight/(K + its place by rerank logit), K = 2. weight inf is the reranker's order alone; 0 keeps the order."""
+    if math.isinf(weight):
+        return sorted(head, key=lambda h: -h.rerank_logit)
+    rp = {id(h): i + 1 for i, h in enumerate(sorted(head, key=lambda h: -h.rerank_logit))}
+    sc = {id(h): 1 / (BLEND_K + i + 1) + weight / (BLEND_K + rp[id(h)]) for i, h in enumerate(head)}
+    pos = {id(h): i for i, h in enumerate(head)}
+    return sorted(head, key=lambda h: (-sc[id(h)], pos[id(h)]))
 
 
 @dataclass
@@ -54,7 +73,8 @@ class Retrieval:
 
 class V2Retriever:
     def __init__(self, store, lexical, dense, rrf_cfg: RRFConfig, reranker=None, nicknames=None, attack_store=None,
-                 texts=None, rerank_depth: int = RERANK_DEPTH, candidates: int = CANDIDATES):
+                 texts=None, rerank_depth: int = RERANK_DEPTH, candidates: int = CANDIDATES,
+                 rerank_weight: float = math.inf):
         self.store = store
         self.lexical = lexical
         self.dense = dense
@@ -64,12 +84,14 @@ class V2Retriever:
         self.attack = attack_store
         self.texts = texts
         self.rerank_depth = int(rerank_depth)
+        self.rerank_weight = float(rerank_weight)
         self.candidates = int(candidates)
         self._gaz = attack_store.gazetteer() if attack_store is not None else None
 
     # ------------------------------------------------------------------ identifiers
     def _cve_ids(self, q: str) -> tuple[list[str], list[str]]:
-        ids = list(dict.fromkeys(x for x in (normalize_cve_id(m.group(0)) for m in CVE_IN_TEXT.finditer(q)) if x))
+        ids = list(dict.fromkeys(x for x in (normalize_cve_id(f"CVE-{m.group(1)}-{m.group(2)}")
+                                             for m in CVE_LOOSE.finditer(q)) if x))
         if not ids:
             return [], []
         rows = dict(self.store._db.execute(
@@ -142,11 +164,15 @@ class V2Retriever:
             if e["doc_id"] not in exact:
                 route.setdefault(e["doc_id"], mk(e["doc_id"], "entity")).matched.append(e["surface"])
         rest = [mk(d, "fused") for d, _ in fused if d not in exact and d not in route]
-        cands = list(route.values()) + rest
+        # route candidates in fused order (those the fused list does not hold last), then the fused list
+        routed = sorted(route.values(), key=lambda h: h.fused_rank or 10**6)
+        cands = routed + rest
 
         n = min(max(self.rerank_depth, min(len(route), MAX_ROUTE_RERANK)), len(cands))
         if not rerank:
             skipped.append("rerank")
+        elif self.rerank_weight == 0:
+            pass                                  # reranker off by configuration: not a skipped stage
         elif self.reranker is not None and self.texts is not None and n:
             if left() >= RERANK_BUDGET_S:
                 t3 = time.perf_counter()
@@ -155,8 +181,7 @@ class V2Retriever:
                 logits, info = self.reranker.score(query, [self._rerank_text(h, rows) for h in head])
                 for h, lg in zip(head, logits):
                     h.rerank_logit = lg
-                head.sort(key=lambda h: -h.rerank_logit)
-                cands = head + cands[n:]
+                cands = blend(head, self.rerank_weight) + cands[n:]
                 T["rerank"] = (time.perf_counter() - t3) * 1000
             else:
                 skipped.append("rerank")
@@ -186,7 +211,7 @@ class V2Retriever:
         return text
 
     def info(self) -> dict:
-        return {"rrf": self.cfg.as_dict(), "rerank_depth": self.rerank_depth, "candidates": self.candidates,
+        return {"rrf": self.cfg.as_dict(), "rerank_depth": self.rerank_depth, "rerank_weight": self.rerank_weight, "candidates": self.candidates,
                 "lexical": self.lexical.info(), "dense": self.dense.info(),
                 "reranker": self.reranker.info() if self.reranker is not None else None,
                 "nicknames": self.nick.info() if self.nick is not None else None}
