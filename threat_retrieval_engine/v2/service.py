@@ -90,7 +90,8 @@ class Calibration:
 
 
 class V2Service:
-    def __init__(self, retriever=None, poc_finder=None, calibration=None, hard_limit_s: float | None = None):
+    def __init__(self, retriever=None, poc_finder=None, calibration=None, hard_limit_s: float | None = None,
+                 techniques=None):
         from .system import open_system
         self.r = retriever or open_system()
         self.calib = calibration if calibration is not None else Calibration.load()
@@ -98,6 +99,7 @@ class V2Service:
         self.poc_finder = poc_finder
         self.store = self.r.store
         self.attack = self.r.attack
+        self.techniques = techniques if techniques is not None else load_technique_ranker(self.attack)
         self.ready = True
 
     # ------------------------------------------------------------------ helpers
@@ -170,7 +172,8 @@ class V2Service:
         }
 
     # ------------------------------------------------------------------ endpoints
-    def match(self, query: str, top_k: int = 5, include_pocs: bool = False) -> dict[str, Any]:
+    def match(self, query: str, top_k: int = 5, include_pocs: bool = False,
+              include_techniques: bool | None = None) -> dict[str, Any]:
         t0 = time.perf_counter()
         deadline = t0 + self.hard_limit * 0.85
         notices: list[dict] = []
@@ -192,6 +195,19 @@ class V2Service:
         cin = set(res.cve_ids_in_query) | {e["doc_id"] for e in res.entities if e.get("matched_by") == "id"}
         matches = [self._match(h, rows.get(h.doc_id, {}), hits, query, cin) for h in hits[:top_k]]
         t2 = time.perf_counter()
+        skipped = list(res.skipped)
+        techniques: list[dict] = []
+        tech_ms = 0.0
+        if include_techniques is None:
+            include_techniques = techniques_default()
+        if include_techniques and self.techniques is not None and not only_iocs:
+            t3 = time.perf_counter()
+            th, info = self.techniques.rank(query, k=TECHNIQUES_K, deadline=deadline)
+            skipped += info["skipped"]
+            techniques = [self._technique(h) for h in th]
+            tech_ms = (time.perf_counter() - t3) * 1000
+        elif include_techniques and self.techniques is None:
+            skipped.append("techniques")
         poc_ms = 0.0
         if include_pocs and self.poc_finder is not None:
             poc_ms = self._attach_pocs(matches, res.cve_ids_in_query)
@@ -204,17 +220,25 @@ class V2Service:
                 "vector_database_ms": round(T.get("lexical", 0) + T.get("dense_encode", 0) + T.get("dense_search", 0), 2),
                 "knowledge_graph_ms": 0.0,
                 "scoring_ms": round(T.get("rerank", 0.0), 2),
+                "technique_ms": round(tech_ms, 2),
                 "citation_ms": round((t2 - t1) * 1000, 2),
                 "poc_discovery_ms": round(poc_ms, 2),
                 "total_ms": round((time.perf_counter() - t0) * 1000, 2),
             },
-            "degraded_components": [s for s in res.skipped],
-            "deadline_exceeded": bool(res.skipped and time.perf_counter() > deadline),
+            "degraded_components": skipped,
+            "deadline_exceeded": bool(skipped and time.perf_counter() > deadline),
             "pipeline_version": PIPELINE_VERSION,
-            "skipped_stages": res.skipped,
+            "skipped_stages": skipped,
             "notices": notices,
             "nicknames": res.nicknames,
+            "attack_techniques": techniques,
         }
+
+    def _technique(self, h) -> dict[str, Any]:
+        b = self.attack.brief(h.doc_id) if self.attack is not None else None
+        return {"technique_id": (b or {}).get("attack_id") or h.doc_id.split(":", 1)[1], "doc_id": h.doc_id,
+                "name": (b or {}).get("title") or (b or {}).get("name"), "rank": h.rank,
+                "rerank_score": h.rerank_score, "evidence": h.evidence[:300]}
 
     def _attach_pocs(self, matches: list[dict], cves_in_query: list[str]) -> float:
         """PoC lookup with its own deadline (d_poc_seconds): CVEs named in the question plus EXACT/STRONG CVE
@@ -260,9 +284,35 @@ class V2Service:
             "reranker": (("available" if r.reranker is not None else "degraded") if r.rerank_weight > 0
                          else "off (TRE_RERANK_WEIGHT=0)"),
             "nicknames": len(r.nick) if r.nick is not None else 0,
+            "techniques": self.techniques.info() if self.techniques is not None else "unavailable",
             "confidence_model": "calibrated" if self.calib is not None else "uncalibrated"},
             "degraded_components": [] if (r.reranker is not None or r.rerank_weight == 0) else ["reranker"],
             "hard_limit_s": self.hard_limit}
+
+
+TECHNIQUES_K = 10
+
+
+def techniques_default() -> bool:
+    """`TRE_TECHNIQUES`: rank ATT&CK techniques for every match unless the request says otherwise (default on)."""
+    return os.environ.get("TRE_TECHNIQUES", "1") not in ("0", "false", "off")
+
+
+def load_technique_ranker(attack_store):
+    """The technique route from `TRE_TECH_DIR` (a builds directory with LATEST), or None when it is not built.
+    Encoders: `TRE_TECH_ENCODERS` (comma separated); cross-encoder: `TRE_TECH_RERANKER` ("none" turns it off)."""
+    root = os.environ.get("TRE_TECH_DIR")
+    if not root or attack_store is None:
+        return None
+    root = Path(os.path.expanduser(root))
+    if not (root / "LATEST").exists():
+        return None
+    from .techniques import DEFAULT_ENCODERS, DEFAULT_RERANKER, TechniqueRanker
+    enc = [e for e in os.environ.get("TRE_TECH_ENCODERS", ",".join(DEFAULT_ENCODERS)).split(",") if e]
+    rr = os.environ.get("TRE_TECH_RERANKER", DEFAULT_RERANKER)
+    threads = int(os.environ.get("TRE_TORCH_THREADS", "0")) or None
+    return TechniqueRanker(root / (root / "LATEST").read_text().strip(), attack_store, enc, reranker=rr,
+                           threads=threads)
 
 
 _service: V2Service | None = None

@@ -1,0 +1,140 @@
+{
+ "keyword+bge-large+qwen3-emb": {
+  "dev.recall10": [
+   0.571,
+   0.462,
+   0.677
+  ],
+  "dev.mrr10": [
+   0.677,
+   0.568,
+   0.784
+  ],
+  "dev.hit1": [
+   0.589,
+   0.464,
+   0.714
+  ],
+  "text2ttp.recall10": [
+   0.906,
+   0.896,
+   0.915
+  ],
+  "ctid_kev.hit10": [
+   0.73,
+   0.687,
+   0.771
+  ],
+  "ctid_kev.mrr10": [
+   0.403,
+   0.366,
+   0.439
+  ],
+  "cticonnect_atd.hit5": [
+   0.529,
+   0.467,
+   0.586
+  ],
+  "cticonnect_ata.hit5": [
+   0.681,
+   0.606,
+   0.75
+  ],
+  "text2ttp.recall10_no_overlap": [
+   0.906,
+   3530
+  ]
+ },
+ "keyword+bge-large+sentsecbert+qwen3-emb": {
+  "dev.recall10": [
+   0.612,
+   0.504,
+   0.718
+  ],
+  "dev.mrr10": [
+   0.701,
+   0.59,
+   0.806
+  ],
+  "dev.hit1": [
+   0.643,
+   0.518,
+   0.768
+  ],
+  "text2ttp.recall10": [
+   0.908,
+   0.898,
+   0.917
+  ],
+  "ctid_kev.hit10": [
+   0.73,
+   0.687,
+   0.771
+  ],
+  "ctid_kev.mrr10": [
+   0.434,
+   0.395,
+   0.472
+  ],
+  "cticonnect_atd.hit5": [
+   0.513,
+   0.452,
+   0.575
+  ],
+  "cticonnect_ata.hit5": [
+   0.7,
+   0.631,
+   0.769
+  ],
+  "text2ttp.recall10_no_overlap": [
+   0.908,
+   3530
+  ]
+ },
+ "keyword": {
+  "dev.recall10": [
+   0.622,
+   0.518,
+   0.722
+  ],
+  "dev.mrr10": [
+   0.633,
+   0.53,
+   0.737
+  ],
+  "dev.hit1": [
+   0.518,
+   0.393,
+   0.643
+  ],
+  "text2ttp.recall10": [
+   0.827,
+   0.814,
+   0.839
+  ],
+  "ctid_kev.hit10": [
+   0.513,
+   0.465,
+   0.561
+  ],
+  "ctid_kev.mrr10": [
+   0.286,
+   0.25,
+   0.323
+  ],
+  "cticonnect_atd.hit5": [
+   0.395,
+   0.337,
+   0.452
+  ],
+  "cticonnect_ata.hit5": [
+   0.581,
+   0.506,
+   0.656
+  ],
+  "text2ttp.recall10_no_overlap": [
+   0.827,
+   3530
+  ]
+ }
+}

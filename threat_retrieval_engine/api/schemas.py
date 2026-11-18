@@ -32,6 +32,7 @@ class MatchRequest(BaseModel):
     alpha: float = Field(0.5, ge=0.0, le=1.0, description="v1 only: dense/lexical weighting. Ignored by v2, whose fusion weights are tuned on the benchmark dev split")
     allowed_sources: list[str] | None = Field(None, description="List of allowed source_orgs. If None, all are allowed.")
     include_pocs: bool = Field(False, description="Whether to perform live OSINT PoC enrichment. Defaults to False for fast decoupled matching (R34)")
+    include_techniques: bool | None = Field(None, description="v2: also rank the MITRE ATT&CK techniques the text describes (attack_techniques). None uses the server default (on)")
 
 
 class FeatureVectorSchema(BaseModel):
@@ -153,6 +154,7 @@ class PipelineProfileSchema(BaseModel):
     vector_database_ms: float = 0.0
     knowledge_graph_ms: float = 0.0
     scoring_ms: float = 0.0
+    technique_ms: float = 0.0
     citation_ms: float = 0.0
     poc_discovery_ms: float = 0.0
     total_ms: float = 0.0
@@ -168,6 +170,7 @@ class MatchResponse(BaseModel):
     skipped_stages: list[str] = Field(default_factory=list, description="v2: stages skipped to meet the deadline (dense, rerank)")
     notices: list[dict[str, Any]] = Field(default_factory=list, description="v2: not_in_corpus, no_ioc_data_in_corpus, ...")
     nicknames: list[dict[str, Any]] = Field(default_factory=list, description="v2: vulnerability names found in the query and their CVEs")
+    attack_techniques: list[dict[str, Any]] = Field(default_factory=list, description="v2: ATT&CK techniques the text describes, best first ({technique_id, name, rank, rerank_score, evidence})")
 
 
 class PoCFindRequest(BaseModel):

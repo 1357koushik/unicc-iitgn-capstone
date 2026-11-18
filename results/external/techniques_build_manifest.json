@@ -1,0 +1,9 @@
+{
+ "build_id": "20261118T074915Z-9ee875f803",
+ "attack_build": "20261115T190948Z-917121fbde",
+ "attack_version": "20.1",
+ "entries": 18342,
+ "techniques": 706,
+ "procedure_entries": 17636,
+ "entries_sha256": "9ee875f803e3213fca0aca268a37e5f12775564a86b7dac5125bde371159378c"
+}

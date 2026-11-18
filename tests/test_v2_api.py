@@ -152,3 +152,35 @@ def test_blend_weights():
     assert [h.doc_id for h in blend(head, 0.0)] == ["a", "b", "c"]
     assert [h.doc_id for h in blend(head, float("inf"))] == ["c", "b", "a"]
     assert [h.doc_id for h in blend(head, 1.0)][0] in ("a", "c")
+
+
+class _Techniques:
+    def __init__(self):
+        self.calls = 0
+
+    def rank(self, text, k=10, deadline=None, rerank=True):
+        from threat_retrieval_engine.v2.techniques import TechniqueHit
+        self.calls += 1
+        return ([TechniqueHit("attack:T1210", 1, 1, {"keyword": 1}, rerank_score=0.9,
+                              evidence="WannaCry used an exploit of SMBv1 to spread.")], {"skipped": [], "timings_ms": {}})
+
+    def info(self):
+        return {"build": "tech-test"}
+
+
+def test_match_returns_attack_techniques_and_can_skip_them():
+    tech = _Techniques()
+    svc = V2Service(retriever=_Retriever(), calibration=None, hard_limit_s=3.0, techniques=tech)
+    out = svc.match("EternalBlue lateral movement over SMB", top_k=2)
+    t = out["attack_techniques"]
+    assert t[0]["technique_id"] == "T1210" and t[0]["rank"] == 1 and "SMBv1" in t[0]["evidence"]
+    assert out["pipeline_profile"]["technique_ms"] >= 0
+    out = svc.match("EternalBlue lateral movement over SMB", top_k=2, include_techniques=False)
+    assert out["attack_techniques"] == [] and tech.calls == 1
+
+
+def test_missing_technique_route_is_a_skipped_stage():
+    svc = V2Service(retriever=_Retriever(), calibration=None, hard_limit_s=3.0, techniques=None)
+    svc.techniques = None
+    out = svc.match("EternalBlue lateral movement over SMB", top_k=2, include_techniques=True)
+    assert out["attack_techniques"] == [] and "techniques" in out["skipped_stages"]

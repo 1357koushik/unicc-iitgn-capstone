@@ -248,7 +248,8 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
         cfg2 = get_config()
         budget = svc.hard_limit + 0.5 + ((cfg2.d_poc_seconds + 1.0) if request.include_pocs else 0.0)
         return await admission.run(lambda: svc.match(request.query, top_k=request.top_k,
-                                                     include_pocs=request.include_pocs), budget)
+                                                     include_pocs=request.include_pocs,
+                                                     include_techniques=request.include_techniques), budget)
     orchestrator = get_orchestrator()
     current_cfg = get_config()
     try:

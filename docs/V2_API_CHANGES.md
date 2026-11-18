@@ -26,3 +26,16 @@ result), `poc_status` (why PoC lookup did not finish for that result). `match_ty
 `lexical_rank`, `dense_rank`, `fused_rank`.
 
 Results may be ATT&CK objects (`chunk_id` `attack:G0032`, `attack:T1190`, ...) as well as CVEs.
+
+## ATT&CK techniques (added 2026-11-18)
+
+`MatchRequest.include_techniques` (optional; `null` = server default, on). `MatchResponse.attack_techniques`: the
+ATT&CK techniques the text describes, best first, up to 10: `{technique_id, doc_id, name, rank, rerank_score,
+evidence}`; `evidence` is the description or procedure example that matched best. `pipeline_profile.technique_ms`
+gives its time (about 0.3 s). It is separate from `top_matches`, which is unchanged. Results on public benchmarks:
+`docs/EXTERNAL_BENCHMARKS.md`.
+
+Deployment: build the technique knowledge base once per ATT&CK build with
+`python scripts/v2/build_techniques.py --out <dir> --encoders bge-large qwen3-emb`, set `TRE_TECH_DIR=<dir>` (the
+directory holding LATEST) and `TRE_MODEL_DIR` (bge-large-en-v1.5 and Qwen3-Embedding-0.6B). Without `TRE_TECH_DIR`
+the route is off and `techniques` is listed in `skipped_stages` when a request asks for it.
