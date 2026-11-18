@@ -9,6 +9,7 @@ pyjwt==2.15.0
 bcrypt==5.0.0
 requests==2.34.2
 python-dotenv==1.2.3
+httpx==0.28.1               # PoC Discovery asks the retrieval service with it (in Docker too)
 # Report file upload (.txt / .pdf / .docx)
 python-multipart==0.0.32    # lets the server receive uploaded files
 pypdf==6.19.0               # reads the text in PDF files

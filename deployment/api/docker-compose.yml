@@ -10,6 +10,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - DATABASE_URL=sqlite:////data/app.db
       - COOKIE_SECURE=false
+      # Network sensor (Task 5.0): its dataset, trained model and reports, on the app-data volume
+      - NETWORK_SENSOR_DATA_DIR=/data/network_sensor
     volumes:
       - app-data:/data
 

@@ -46,6 +46,7 @@ try:
         MatchAny,
         MatchValue,
         MatchText,
+        SearchParams,
     )
 except ImportError:
     QdrantClient = Any  # type: ignore
@@ -53,14 +54,11 @@ except ImportError:
     FieldCondition = Any  # type: ignore
     Filter = Any  # type: ignore
     MatchAny = Any  # type: ignore
+    SearchParams = Any  # type: ignore
     MatchValue = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.bm25_index import BM25Index
-    from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, search_vectors
-except ImportError:
-    from bm25_index import BM25Index
-    from vector_database import COLLECTION_NAME, search_vectors
+from threat_retrieval_engine.search_engine.bm25_index import BM25Index
+from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, search_vectors
 
 logger = logging.getLogger(__name__)
 
@@ -105,16 +103,9 @@ def build_qdrant_filter(filters: dict[str, Any] | None) -> Filter | None:
                 )
             )
         elif isinstance(value, (list, tuple, set)):
-            if key == "source_org":
-                # MatchText matches substrings/tokens, suitable for comma-separated source_org strings
-                # Actually, MatchText only takes a string, not a list. So we need to OR multiple MatchText conditions
-                or_conditions = [FieldCondition(key=key, match=MatchText(text=str(v))) for v in value]
-                # Filter(should=[...]) acts as an OR
-                conditions.append(Filter(should=or_conditions))
-            else:
-                conditions.append(
-                    FieldCondition(key=key, match=MatchAny(any=list(value)))
-                )
+            conditions.append(
+                FieldCondition(key=key, match=MatchAny(any=[str(v) for v in value]))
+            )
         else:
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=value))
@@ -161,15 +152,21 @@ def resolve_filter_to_ids(
 def reciprocal_rank_fusion(
     ranked_lists: list[list[str]],
     k: int = DEFAULT_RRF_K,
+    weights: list[float] | None = None,
 ) -> dict[str, float]:
     """
-    Fuse several ranked lists of chunk_ids into one score map.
+    Fuse several ranked lists of chunk_ids into one score map with optional weights (R13).
     ``ranked_lists`` is a list of lists, each already ordered best-first.
     """
     scores: dict[str, float] = {}
-    for ranked in ranked_lists:
+    if weights is None or len(weights) != len(ranked_lists):
+        w_list = [1.0] * len(ranked_lists)
+    else:
+        w_list = weights
+
+    for w, ranked in zip(w_list, ranked_lists):
         for rank, chunk_id in enumerate(ranked, start=1):
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + w * (1.0 / (k + rank))
     return scores
 
 
@@ -197,12 +194,21 @@ class HybridSearcher:
         bm25: BM25Index,
         query_encoder: Callable[[str], list[float]],
         rrf_k: int = DEFAULT_RRF_K,
+        hnsw_ef_search: int | None = None,
     ) -> None:
         self.qdrant = qdrant
         self.sqlite = sqlite
         self.bm25 = bm25
         self.query_encoder = query_encoder
         self.rrf_k = rrf_k
+        if hnsw_ef_search is None:
+            try:
+                from threat_retrieval_engine.config import get_config
+                self.hnsw_ef_search = get_config().hnsw_ef_search
+            except Exception:
+                self.hnsw_ef_search = 64
+        else:
+            self.hnsw_ef_search = hnsw_ef_search
 
     def search(
         self,
@@ -211,14 +217,14 @@ class HybridSearcher:
         filters: dict[str, Any] | None = None,
         candidate_k: int = DEFAULT_CANDIDATE_K,
         allowed_sources: list[str] | None = None,
+        alpha: float = 0.5,
     ) -> list[HybridResult]:
         """
-        Run lexical + dense retrieval, fuse with RRF, return the top_k.
+        Run lexical + dense retrieval, fuse with weighted RRF (R13), return the top_k.
         """
         if allowed_sources is not None:
             if filters is None:
                 filters = {}
-            # MatchText allows token matching, which handles comma-separated strings!
             filters["source_org"] = allowed_sources
 
         qfilter = build_qdrant_filter(filters)
@@ -236,6 +242,7 @@ class HybridSearcher:
                     query_dense_vector=dense_vec,
                     top_k=candidate_k,
                     filter_dict=None,          # richer filter already applied via qfilter below
+                    hnsw_ef=self.hnsw_ef_search,
                 ) if qfilter is None else self._dense_search_filtered(dense_vec, candidate_k, qfilter)
                 dense_ranked = [h["chunk_id"] for h in dense_hits if h.get("chunk_id")]
                 dense_meta = {h["chunk_id"]: h for h in dense_hits if h.get("chunk_id")}
@@ -251,8 +258,14 @@ class HybridSearcher:
         lexical_hits = self.bm25.search(query, top_k=candidate_k, allowed_ids=allowed_ids)
         lexical_ranked = [h.chunk_id for h in lexical_hits]
 
-        # --- fuse ---
-        fused = reciprocal_rank_fusion([dense_ranked, lexical_ranked], k=self.rrf_k)
+        # --- fuse (weighted by alpha, R13: dense_w + lex_w = 1.0) ---
+        dense_w = max(0.0, min(1.0, float(alpha)))
+        lex_w = max(0.0, min(1.0, 1.0 - float(alpha)))
+        fused = reciprocal_rank_fusion(
+            [dense_ranked, lexical_ranked],
+            k=self.rrf_k,
+            weights=[dense_w, lex_w],
+        )
 
         dense_pos = {cid: i + 1 for i, cid in enumerate(dense_ranked)}
         lex_pos = {cid: i + 1 for i, cid in enumerate(lexical_ranked)}
@@ -274,11 +287,13 @@ class HybridSearcher:
         self, dense_vec: list[float], candidate_k: int, qfilter: Filter
     ) -> list[dict[str, Any]]:
         """Dense search using the full Qdrant Filter object (not the simple dict path)."""
+        search_params = SearchParams(hnsw_ef=self.hnsw_ef_search) if (self.hnsw_ef_search is not None and SearchParams is not Any) else None
         res = self.qdrant.query_points(
             collection_name=COLLECTION_NAME,
             query=dense_vec,
             using="dense",
             query_filter=qfilter,
+            search_params=search_params,
             limit=candidate_k,
         )
         return [
@@ -302,7 +317,7 @@ def default_query_encoder(vectorizer: Any) -> Callable[[str], list[float]]:
     Build a query-encoder closure over a ``BGEVectorizer`` instance.
     Applies the asymmetric BGE-M3 query prefix at query time.
     """
-    from validator import add_query_prefix
+    from threat_retrieval_engine.search_engine.validator import add_query_prefix
 
     def _encode(query: str) -> list[float]:
         prefixed = add_query_prefix(query)

@@ -26,34 +26,19 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-try:
-    from threat_retrieval_engine.search_engine.validator import (
-        ThreatChunk,
-        build_context,
-        parse_cisa_kev_csv,
-        parse_cvelist_directory,
-        parse_epss_csv,
-        parse_normalized_directory,
-        parse_normalized_jsonl,
-        parse_nvd_directory,
-    )
-    from threat_retrieval_engine.search_engine.duplicate_checker import DuplicateChecker
-    from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
-    from threat_retrieval_engine.search_engine.vector_database import setup_databases, store_chunks
-except ImportError:
-    from validator import (
-        ThreatChunk,
-        build_context,
-        parse_cisa_kev_csv,
-        parse_cvelist_directory,
-        parse_epss_csv,
-        parse_normalized_directory,
-        parse_normalized_jsonl,
-        parse_nvd_directory,
-    )
-    from duplicate_checker import DuplicateChecker
-    from vectorizer import BGEVectorizer
-    from vector_database import setup_databases, store_chunks
+from threat_retrieval_engine.search_engine.validator import (
+    ThreatChunk,
+    build_context,
+    parse_cisa_kev_csv,
+    parse_cvelist_directory,
+    parse_epss_csv,
+    parse_normalized_directory,
+    parse_normalized_jsonl,
+    parse_nvd_directory,
+)
+from threat_retrieval_engine.search_engine.duplicate_checker import DuplicateChecker
+from threat_retrieval_engine.search_engine.vectorizer import BGEVectorizer
+from threat_retrieval_engine.search_engine.vector_database import setup_databases, store_chunks
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -288,6 +273,16 @@ def run_pipeline(
         logger.info("Progress: %d chunks vectorized and persisted.", total_stored)
 
     logger.info("=== Pipeline Complete — %d chunks stored. ===", total_stored)
+    if total_stored > 0 and sqlite is not None:
+        try:
+            from threat_retrieval_engine.config import get_config
+            from threat_retrieval_engine.search_engine.bm25_index import build_from_sqlite
+            cfg = get_config()
+            logger.info("Pre-building BM25 index cache to accelerate server cold start...")
+            build_from_sqlite(sqlite, cache_path=cfg.bm25_cache_file, force_rebuild=True)
+            logger.info("BM25 index cache successfully pre-built at %s.", cfg.bm25_cache_file)
+        except Exception as exc:
+            logger.warning("BM25 index pre-building during ingestion failed: %s", exc)
     return total_stored
 
 

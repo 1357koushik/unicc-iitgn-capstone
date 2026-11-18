@@ -118,7 +118,7 @@ unicc-iitgn-capstone/
 │   │   ├── exact_lookup.py            # Sub-millisecond deterministic IOC lookup
 │   │   ├── hybrid_search.py           # Dense + BM25 RRF fusion with dynamic alpha
 │   │   ├── reranker.py                # Cross-Encoder (bge-reranker-v2-m3)
-│   │   └── mitre_graph.py             # MITRE ATT&CK STIX graph relations
+│   │   └── (ATT&CK graph: see threat_retrieval_engine/attack/)
 │   ├── api/                           # Serving interface (FastAPI REST service)
 │   │   ├── main.py                    # App entry point, unified /match & /pocs/find routes
 │   │   ├── pipeline.py                # End-to-end query router, matcher & PoC enricher
@@ -145,7 +145,6 @@ unicc-iitgn-capstone/
 │   ├── test_exact_lookup.py
 │   ├── test_hybrid_search.py
 │   ├── test_ingestion_pipeline.py
-│   ├── test_mitre_graph.py
 │   ├── test_reranker.py
 │   ├── test_tokenizer.py
 │   ├── test_validator.py
@@ -197,27 +196,50 @@ Team 2 exposes standard HTTP REST interfaces for inter-team microservice integra
 * `POST /api/v1/entities/lookup` — Sub-millisecond deterministic exact lookup for CVEs, hashes, and IPs.
 * `GET /api/v1/health` — Returns status of Qdrant, Neo4j, embedding models, and rerankers.
 
-### Sample Request (`POST /api/v1/threats/match`):
+### Sample Request (`POST /api/v1/threats/match` or `POST /match`):
 ```json
 {
-  "query_threat_id": "OBS-2024-0981",
-  "query_text": "Observed lateral movement using PsExec following exploitation of MS17-010",
-  "observables": {
-    "cves": ["CVE-2017-0144"],
-    "ips": ["198.51.100.24"],
-    "mitre_techniques": ["T1021.002"]
-  },
-  "top_k": 5
+  "query": "Observed lateral movement using PsExec following exploitation of MS17-010 CVE-2017-0144 from 198.51.100.24 technique T1021.002",
+  "top_k": 5,
+  "alpha": 0.5,
+  "include_pocs": false
 }
 ```
 
 #### Response Schema:
 ```json
 {
-  "query_threat_id": "OBS-2024-0981",
-  "total_candidates_evaluated": 50,
+  "query_threat_id": "query_1727654321",
   "top_matches": [
     {
+      "rank": 1,
+      "chunk_id": "chunk_446e0fd5adfb",
+      "composite_score": 0.9625,
+      "confidence_tier": "EXACT",
+      "evidence_record_class": "DESCRIPTION",
+      "citations": [
+        {
+          "doc_id": "CVE-2017-0144_NVD",
+          "doc_title": "NVD Vulnerability Details: CVE-2017-0144",
+          "source_org": "NVD",
+          "published_date": "2017-03-14T00:00:00Z",
+          "provenance_status": "VERIFIED",
+          "text_snippet": "Remote code execution in Microsoft Server Message Block 1.0 (SMBv1)..."
+        }
+      ]
+    }
+  ],
+  "pipeline_profile": {
+    "dense_search_ms": 1.2,
+    "bm25_search_ms": 0.8,
+    "rrf_ms": 0.4,
+    "rerank_ms": 12.5,
+    "confidence_ms": 0.3,
+    "stix_ms": 1.1,
+    "total_retrieval_ms": 16.3
+  }
+}
+```
       "historical_doc_id": "CISA-AA23-145A",
       "historical_doc_title": "APT29 Phishing and Malware Campaign",
       "source_org": "CISA",
@@ -231,8 +253,7 @@ Team 2 exposes standard HTTP REST interfaces for inter-team microservice integra
         "cve_similarity": 1.0
       },
       "stix_relationships": [
-        "APT29 -[uses]-> T1021.002",
-        "APT29 -[targets]-> CVE-2017-0144"
+        "[QUERY_CONTEXT] G0016 (APT29) -[uses]-> T1021.002 (Remote Services: SMB/Windows Admin Shares)"
       ],
       "supporting_evidence_chunks": [
         {

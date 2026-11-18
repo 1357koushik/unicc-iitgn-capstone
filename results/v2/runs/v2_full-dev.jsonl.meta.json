@@ -1,0 +1,353 @@
+{
+  "config": {
+    "adapter": "inprocess",
+    "factory": "threat_retrieval_engine.v2.system:make_v2",
+    "options": {
+      "k": 100,
+      "rerank": true,
+      "rerank_depth": 10
+    }
+  },
+  "created_at": "2026-11-18T02:39:04Z",
+  "sessions": [
+    {
+      "abort_reason": null,
+      "already_done": 0,
+      "concurrency": 1,
+      "ended_at": "2026-11-18T03:14:00Z",
+      "errors": 0,
+      "harness_commit": "unknown",
+      "harness_version": "b4-1",
+      "host": "localhost.localdomain",
+      "load_average_end": [
+        10.01,
+        10.08,
+        13.32
+      ],
+      "load_average_start": [
+        10.52,
+        19.13,
+        19.38
+      ],
+      "pause_after_error_s": 0.0,
+      "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+      "python": "3.12.16",
+      "selected": 1489,
+      "sent": 1489,
+      "service_info": {
+        "candidates": 100,
+        "component": "v2_full",
+        "dense": {
+          "blas": {
+            "blas": [
+              {
+                "internal_api": "openblas",
+                "num_threads": 4,
+                "version": "0.3.29.dev"
+              },
+              {
+                "internal_api": "openblas",
+                "num_threads": 4,
+                "version": "0.3.29"
+              }
+            ],
+            "mechanism": "threadpoolctl",
+            "requested": 4
+          },
+          "cache_size": 4096,
+          "disk_cache": {
+            "identity": "5f8a78190f1be41a1f6b",
+            "path": "/home/koushik.moram/team2/dense/qvec/qvec-5f8a78190f1be41a1f6b.sqlite"
+          },
+          "encoder": {
+            "batch_size": 1,
+            "batch_tokens": 8192,
+            "device": "cpu",
+            "load_seconds": 4.32,
+            "model": {
+              "card_note": "CLS pooling, normalised; query instruction for short-query passage retrieval",
+              "dim": 1024,
+              "files": [
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "special_tokens_map.json"
+              ],
+              "licence": "mit",
+              "max_position_tokens": 512,
+              "name": "bge-large-en-v1.5",
+              "passage_prefix": "",
+              "pooling": "cls",
+              "query_prefix": "Represent this sentence for searching relevant passages: ",
+              "repo": "BAAI/bge-large-en-v1.5",
+              "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+              "weights_file": "model.safetensors",
+              "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+            },
+            "path": "/home/koushik.moram/team2/models/bge-large-en-v1.5",
+            "tokenizer": "BertTokenizer",
+            "torch": "2.6.0+cu124",
+            "torch_threads": 4,
+            "transformers": "5.22.2",
+            "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+          },
+          "index": {
+            "build_id": "20261118T022104Z-ac852d4454",
+            "collapse": null,
+            "counts": {
+              "attack": 1827,
+              "cve": 405013
+            },
+            "dim": 1024,
+            "documents": 406840,
+            "load_seconds": 4.934,
+            "memory_mib": 1589.2,
+            "model": {
+              "config_key": "815ca1defcd075ff",
+              "name": "bge-large-en-v1.5",
+              "repo": "BAAI/bge-large-en-v1.5",
+              "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09"
+            },
+            "rows": 406840,
+            "source": "encoded",
+            "vectors_sha256": "44ca36637b34ea52df576a303bee74fe364cf6ff69f99d3d9ee0229322327430"
+          },
+          "query_format": "documented",
+          "query_max_tokens": 256,
+          "query_prefix": "Represent this sentence for searching relevant passages: "
+        },
+        "lexical": {
+          "build_id": "20261115T203653Z-bfacb4bb1c",
+          "documents": 406840,
+          "impact_bytes": 259774960,
+          "impact_nnz": 20580052,
+          "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+          "ranking": {
+            "bm25": {
+              "b": 0.75,
+              "implementation": "sqlite fts5 bm25()",
+              "k1": 1.2
+            },
+            "max_df_ratio": 1.0,
+            "max_query_chars": 20000,
+            "max_terms": 64,
+            "stop_words": "english",
+            "weights": {
+              "aliases": 8.0,
+              "description": 1.0,
+              "exploit_titles": 2.0,
+              "ids": 50.0,
+              "kev_text": 8.0,
+              "title": 0.5,
+              "vendor_product": 2.0,
+              "weakness": 2.0
+            }
+          },
+          "tokenizer": "tre-domain-1-split1-td1-porter2"
+        },
+        "nicknames": {
+          "names": 589,
+          "names_by_source": {
+            "cve_description": 53,
+            "cve_list": 3,
+            "cve_references": 114,
+            "exploitdb": 342,
+            "metasploit_modules": 136,
+            "nuclei_templates": 9,
+            "poc_in_github": 140,
+            "wikidata": 88
+          }
+        },
+        "rerank_depth": 10,
+        "reranker": {
+          "model": "BAAI/bge-reranker-v2-m3",
+          "pair_max_tokens": 256,
+          "quantization": "torch dynamic int8 (nn.Linear)",
+          "query_max_tokens": 96,
+          "threads": 12
+        },
+        "rrf": {
+          "depth": 100,
+          "k": 2.0,
+          "weights": [
+            1.0,
+            0.35
+          ]
+        }
+      },
+      "session_id": "2026-11-18T02:39:04Z-156131-c52c54be",
+      "started_at": "2026-11-18T02:39:04Z",
+      "status": "complete"
+    },
+    {
+      "abort_reason": null,
+      "already_done": 1452,
+      "concurrency": 1,
+      "ended_at": "2026-11-18T03:14:59Z",
+      "errors": 0,
+      "harness_commit": "unknown",
+      "harness_version": "b4-1",
+      "host": "localhost.localdomain",
+      "load_average_end": [
+        7.51,
+        9.2,
+        12.8
+      ],
+      "load_average_start": [
+        7.13,
+        9.34,
+        12.97
+      ],
+      "pause_after_error_s": 0.0,
+      "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+      "python": "3.12.16",
+      "selected": 1489,
+      "sent": 37,
+      "service_info": {
+        "candidates": 100,
+        "component": "v2_full",
+        "dense": {
+          "blas": {
+            "blas": [
+              {
+                "internal_api": "openblas",
+                "num_threads": 4,
+                "version": "0.3.29"
+              },
+              {
+                "internal_api": "openblas",
+                "num_threads": 4,
+                "version": "0.3.29.dev"
+              }
+            ],
+            "mechanism": "threadpoolctl",
+            "requested": 4
+          },
+          "cache_size": 4096,
+          "disk_cache": {
+            "identity": "5f8a78190f1be41a1f6b",
+            "path": "/home/koushik.moram/team2/dense/qvec/qvec-5f8a78190f1be41a1f6b.sqlite"
+          },
+          "encoder": {
+            "batch_size": 1,
+            "batch_tokens": 8192,
+            "device": "cpu",
+            "load_seconds": 4.29,
+            "model": {
+              "card_note": "CLS pooling, normalised; query instruction for short-query passage retrieval",
+              "dim": 1024,
+              "files": [
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "special_tokens_map.json"
+              ],
+              "licence": "mit",
+              "max_position_tokens": 512,
+              "name": "bge-large-en-v1.5",
+              "passage_prefix": "",
+              "pooling": "cls",
+              "query_prefix": "Represent this sentence for searching relevant passages: ",
+              "repo": "BAAI/bge-large-en-v1.5",
+              "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+              "weights_file": "model.safetensors",
+              "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+            },
+            "path": "/home/koushik.moram/team2/models/bge-large-en-v1.5",
+            "tokenizer": "BertTokenizer",
+            "torch": "2.6.0+cu124",
+            "torch_threads": 4,
+            "transformers": "5.22.2",
+            "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7"
+          },
+          "index": {
+            "build_id": "20261118T022104Z-ac852d4454",
+            "collapse": null,
+            "counts": {
+              "attack": 1827,
+              "cve": 405013
+            },
+            "dim": 1024,
+            "documents": 406840,
+            "load_seconds": 5.052,
+            "memory_mib": 1589.2,
+            "model": {
+              "config_key": "815ca1defcd075ff",
+              "name": "bge-large-en-v1.5",
+              "repo": "BAAI/bge-large-en-v1.5",
+              "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09"
+            },
+            "rows": 406840,
+            "source": "encoded",
+            "vectors_sha256": "44ca36637b34ea52df576a303bee74fe364cf6ff69f99d3d9ee0229322327430"
+          },
+          "query_format": "documented",
+          "query_max_tokens": 256,
+          "query_prefix": "Represent this sentence for searching relevant passages: "
+        },
+        "lexical": {
+          "build_id": "20261115T203653Z-bfacb4bb1c",
+          "documents": 406840,
+          "impact_bytes": 259774960,
+          "impact_nnz": 20580052,
+          "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+          "ranking": {
+            "bm25": {
+              "b": 0.75,
+              "implementation": "sqlite fts5 bm25()",
+              "k1": 1.2
+            },
+            "max_df_ratio": 1.0,
+            "max_query_chars": 20000,
+            "max_terms": 64,
+            "stop_words": "english",
+            "weights": {
+              "aliases": 8.0,
+              "description": 1.0,
+              "exploit_titles": 2.0,
+              "ids": 50.0,
+              "kev_text": 8.0,
+              "title": 0.5,
+              "vendor_product": 2.0,
+              "weakness": 2.0
+            }
+          },
+          "tokenizer": "tre-domain-1-split1-td1-porter2"
+        },
+        "nicknames": {
+          "names": 589,
+          "names_by_source": {
+            "cve_description": 53,
+            "cve_list": 3,
+            "cve_references": 114,
+            "exploitdb": 342,
+            "metasploit_modules": 136,
+            "nuclei_templates": 9,
+            "poc_in_github": 140,
+            "wikidata": 88
+          }
+        },
+        "rerank_depth": 10,
+        "reranker": {
+          "model": "BAAI/bge-reranker-v2-m3",
+          "pair_max_tokens": 256,
+          "quantization": "torch dynamic int8 (nn.Linear)",
+          "query_max_tokens": 96,
+          "threads": 12
+        },
+        "rrf": {
+          "depth": 100,
+          "k": 2.0,
+          "weights": [
+            1.0,
+            0.35
+          ]
+        }
+      },
+      "session_id": "2026-11-18T03:14:29Z-157998-bc44ddad",
+      "started_at": "2026-11-18T03:14:29Z",
+      "status": "complete"
+    }
+  ],
+  "variant": "v2_full"
+}

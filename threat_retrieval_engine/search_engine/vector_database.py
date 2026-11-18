@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ try:
         PointStruct,
         ScalarQuantizationConfig,
         ScalarType,
+        SearchParams,
         SparseVector,
         SparseVectorParams,
         VectorParams,
@@ -126,19 +128,52 @@ def setup_qdrant(qdrant_path: str = DEFAULT_QDRANT_PATH, reset: bool = False) ->
     return client
 
 
+_THREAD_LOCAL = threading.local()
+
+
+def get_thread_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, readonly: bool = False) -> sqlite3.Connection:
+    """
+    Get or create a thread-local SQLite connection (R-4.1).
+    Ensures that concurrent worker threads each have an isolated connection handle,
+    avoiding data races and cursor reentrancy errors.
+    """
+    conns = getattr(_THREAD_LOCAL, "conns", None)
+    if conns is None:
+        conns = {}
+        _THREAD_LOCAL.conns = conns
+
+    key = (str(sqlite_path), readonly)
+    conn = conns.get(key)
+    if conn is None:
+        p = Path(sqlite_path)
+        if readonly and p.is_file():
+            uri = f"file:{p.resolve().as_posix()}?mode=ro"
+            conn = sqlite3.connect(uri, uri=True, timeout=30.0)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(sqlite_path, timeout=30.0)
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA case_sensitive_like=ON;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+        conns[key] = conn
+    return conn
+
+
 def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) -> sqlite3.Connection:
     """
     Open the SQLite corpus store in WAL mode for fast concurrent reads.
-    Creates the table if it does not exist.
+    Creates the table and indexes if they do not exist (R15, R35).
     """
     Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(sqlite_path, check_same_thread=False)
+    conn = sqlite3.connect(sqlite_path, check_same_thread=False, timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA case_sensitive_like=ON;")
+    conn.execute("PRAGMA busy_timeout=30000;")
     if reset:
-        logger.info("Resetting SQLite table 'corpus' …")
+        logger.info("Resetting SQLite tables …")
         conn.execute("DROP TABLE IF EXISTS corpus;")
+        conn.execute("DROP TABLE IF EXISTS entity_index;")
         conn.commit()
 
     conn.execute(
@@ -158,6 +193,18 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) ->
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS entity_index (
+            entity_value TEXT NOT NULL,
+            chunk_id     TEXT NOT NULL,
+            entity_kind  TEXT
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_entity_value ON entity_index(entity_value);")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_entity_chunk_id ON entity_index(chunk_id);")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_corpus_doc_id ON corpus(doc_id);")
     conn.commit()
     logger.info("SQLite corpus store ready at: %s", sqlite_path)
     return conn
@@ -250,19 +297,69 @@ def store_chunks(
         qdrant.upsert(collection_name=COLLECTION_NAME, points=qdrant_points)
         logger.info("Upserted %d vectors into Qdrant.", len(qdrant_points))
 
-    # SQLite insert (ignore duplicates)
+    # SQLite upsert (R15: maintain exact parity with Qdrant on re-ingestion)
     if sqlite_rows:
         sqlite.executemany(
             """
-            INSERT OR IGNORE INTO corpus
+            INSERT INTO corpus
                 (chunk_id, doc_id, doc_title, source_org, published_date,
                  char_start, char_end, text, enriched_text, entities_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chunk_id) DO UPDATE SET
+                doc_id = excluded.doc_id,
+                doc_title = excluded.doc_title,
+                source_org = excluded.source_org,
+                published_date = excluded.published_date,
+                char_start = excluded.char_start,
+                char_end = excluded.char_end,
+                text = excluded.text,
+                enriched_text = excluded.enriched_text,
+                entities_json = excluded.entities_json
             """,
             sqlite_rows,
         )
+
+        # Clear stale entity mappings for these chunks before re-indexing (R15)
+        chunk_ids_to_update = [c.chunk_id for c in chunks if c.chunk_id in chunk_map]
+        if chunk_ids_to_update:
+            for i in range(0, len(chunk_ids_to_update), 500):
+                batch_cids = chunk_ids_to_update[i : i + 500]
+                placeholders = ",".join("?" for _ in batch_cids)
+                sqlite.execute(
+                    f"DELETE FROM entity_index WHERE chunk_id IN ({placeholders})",
+                    batch_cids,
+                )
+
+        # Backfill / update entity_index (R15)
+        entity_rows: list[tuple[str, str, str]] = []
+        for vr in vector_results:
+            chunk = chunk_map.get(vr.chunk_id)
+            if not chunk:
+                continue
+            cid = chunk.chunk_id
+            for cve in chunk.entities.cves or []:
+                entity_rows.append((str(cve).upper(), cid, "cve"))
+            for ttp in chunk.entities.mitre_ttps or []:
+                entity_rows.append((str(ttp).upper(), cid, "mitre"))
+            for actor in chunk.entities.threat_actors or []:
+                entity_rows.append((str(actor).lower(), cid, "actor"))
+            for mal in chunk.entities.malware_families or []:
+                entity_rows.append((str(mal).lower(), cid, "malware"))
+            iocs = getattr(chunk.entities, "iocs", None)
+            if iocs:
+                ioc_dict = iocs.model_dump() if hasattr(iocs, "model_dump") else (iocs if isinstance(iocs, dict) else {})
+                for ikind, ivals in ioc_dict.items():
+                    for iv in ivals or []:
+                        entity_rows.append((str(iv).lower(), cid, ikind))
+
+        if entity_rows:
+            sqlite.executemany(
+                "INSERT INTO entity_index (entity_value, chunk_id, entity_kind) VALUES (?, ?, ?)",
+                entity_rows,
+            )
+
         sqlite.commit()
-        logger.info("Inserted %d rows into SQLite.", len(sqlite_rows))
+        logger.info("Upserted %d rows into SQLite.", len(sqlite_rows))
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +373,7 @@ def search_vectors(
     top_k: int = 10,
     filter_dict: dict[str, Any] | None = None,
     collection_name: str = COLLECTION_NAME,
+    hnsw_ef: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Search the Qdrant index using a dense vector with optional metadata filtering.
@@ -291,11 +389,13 @@ def search_vectors(
         ]
         query_filter = Filter(must=conditions)
 
+    search_params = SearchParams(hnsw_ef=hnsw_ef) if (hnsw_ef is not None and SearchParams is not Any) else None
     res = qdrant.query_points(
         collection_name=collection_name,
         query=query_dense_vector,
         using="dense",
         query_filter=query_filter,
+        search_params=search_params,
         limit=top_k,
     )
     return [

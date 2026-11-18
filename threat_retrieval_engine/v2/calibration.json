@@ -1,0 +1,72 @@
+{
+ "version": "c7",
+ "features": [
+  "rerank_logit",
+  "margin_next",
+  "dense_cosine",
+  "inv_lexical_rank",
+  "inv_dense_rank",
+  "both_lists",
+  "inv_fused_rank",
+  "inv_rank",
+  "nickname_hit",
+  "entity_hit",
+  "log_query_words"
+ ],
+ "weights": [
+  0.0,
+  0.0,
+  -0.171435585909542,
+  3.0589423593046767,
+  1.3559202744677081,
+  1.3278173144807852,
+  -3.794225503024024,
+  3.008705546164443,
+  3.5547239258575853,
+  1.2072296764578068,
+  0.2387335158273134
+ ],
+ "bias": -4.447796927915199,
+ "tiers": [
+  [
+   "STRONG",
+   0.9275
+  ],
+  [
+   "PARTIAL",
+   0.4121
+  ],
+  [
+   "WEAK",
+   0.0884
+  ]
+ ],
+ "label_source": "answer key + 1172 judged relevant pairs (agreed_all.jsonl)",
+ "rows": 23679,
+ "positives": 2718,
+ "questions": 2396,
+ "oof_ece_dev": 0.0334,
+ "oof_tier_stats_dev": [
+  {
+   "tier": "STRONG",
+   "threshold": 0.9275,
+   "results_in_tier": 50,
+   "precision_in_tier": 0.96,
+   "precision_at_or_above": 0.96
+  },
+  {
+   "tier": "PARTIAL",
+   "threshold": 0.4121,
+   "results_in_tier": 816,
+   "precision_in_tier": 0.685,
+   "precision_at_or_above": 0.7009
+  },
+  {
+   "tier": "WEAK",
+   "threshold": 0.0884,
+   "results_in_tier": 4428,
+   "precision_in_tier": 0.2215,
+   "precision_at_or_above": 0.3
+  }
+ ]
+}

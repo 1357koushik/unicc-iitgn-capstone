@@ -9,7 +9,6 @@ from .tokenizer import tokenize, extract_identifiers
 from .duplicate_checker import DuplicateChecker
 from .bm25_index import BM25Index, build_from_sqlite
 from .exact_lookup import exact_lookup, ExactMatch
-from .mitre_graph import MitreAttackGraph, AttackNode, AttackEdge
 
 try:
     from .vectorizer import BGEVectorizer, VectorResult

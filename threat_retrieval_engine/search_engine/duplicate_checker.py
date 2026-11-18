@@ -1,6 +1,15 @@
 """
 duplicate_checker.py
 ====================
+
+DEPRECATED (retrieval v2, work package C1). Do not use for new code.
+Near-duplicate *removal* is the wrong tool for CVE records: distinct CVEs with templated descriptions
+were silently dropped (plan section 3.1 row 15). The v2 document store
+(`threat_retrieval_engine/store/`) identifies records by CVE ID plus content hash, merges sources per CVE
+with provenance, keeps every CVE and only *links* near-identical texts through `similar_group`
+(`threat_retrieval_engine/store/similar.py`). This module is still used by the v1 ingestion path
+(`ingestion_pipeline.py`) and stays unchanged until the v2 pipeline rewrite (C6) replaces it.
+
 Detects near-duplicate threat reports before they are stored in the database.
 
 How it works:
@@ -29,10 +38,7 @@ except ImportError:
     MinHash = Any  # type: ignore
     MinHashLSH = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.validator import ThreatChunk
-except ImportError:
-    from validator import ThreatChunk
+from threat_retrieval_engine.search_engine.validator import ThreatChunk
 
 logger = logging.getLogger(__name__)
 

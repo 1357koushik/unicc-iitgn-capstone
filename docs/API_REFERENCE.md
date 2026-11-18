@@ -27,9 +27,10 @@ http://localhost:8000
 #### Parameters
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `query` | `string` | *(Required)* | Natural language CTI query, IOC list, or incident observation. |
-| `top_k` | `integer` | `5` | Maximum number of ranked candidates to return ($1 \le k \le 100$). |
+| `query` | `string` | *(Required)* | Natural language CTI query, IOC list, or incident observation (max 4,096 chars). |
+| `top_k` | `integer` | `5` | Maximum number of ranked candidates to return ($1 \le k \le 50$). |
 | `alpha` | `float` | `0.5` | Dense vs. sparse weighting factor ($0.0 \le \alpha \le 1.0$). |
+| `include_pocs` | `boolean` | `false` | Whether to perform online PoC intelligence lookup (default false, R34). |
 
 #### Response Schema (`200 OK`)
 ```json
@@ -53,7 +54,7 @@ http://localhost:8000
         "shared_malware": ["PsExec"],
         "matching_mitre_techniques": ["T1021.002"]
       },
-      "stix_relationships": ["APT29 -[uses]-> T1021.002"],
+      "stix_relationships": ["[QUERY_CONTEXT] G0016 (APT29) -[uses]-> T1021.002 (Remote Services: SMB/Windows Admin Shares)"],
       "citations": [
         {
           "doc_id": "CVE-2017-0144_EPSS",

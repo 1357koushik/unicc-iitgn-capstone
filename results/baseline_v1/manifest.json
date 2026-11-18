@@ -1,0 +1,47 @@
+{
+  "tag": "v1-baseline",
+  "commit": "7db46c7",
+  "server_copy_diff": "identical to 7db46c7 for threat_retrieval_engine/ and config/ (excluding __pycache__) after ignoring CRLF/LF line endings; 17 files differ byte-wise only by line endings",
+  "server": "localhost.localdomain (CentOS 7, 10.0.62.212), CPU only (CUDA_VISIBLE_DEVICES=)",
+  "run_log": [
+    "run1 start 2026-11-14T17:55:39+0530  17:55:39 up 555 days, 20:39,  0 users,  load average: 3.17, 6.12, 5.23",
+    "run1 end 2026-11-14T18:07:28+0530  18:07:28 up 555 days, 20:51,  0 users,  load average: 7.00, 7.24, 6.36",
+    "run2 start 2026-11-14T18:07:33+0530  18:07:33 up 555 days, 20:51,  0 users,  load average: 6.44, 7.12, 6.33",
+    "run2 end 2026-11-14T18:19:12+0530  18:19:12 up 555 days, 21:02,  0 users,  load average: 4.47, 6.66, 6.46",
+    "done"
+  ],
+  "packages": {
+    "torch": "2.6.0",
+    "transformers": "5.22.2",
+    "FlagEmbedding": "1.4.2",
+    "qdrant-client": "1.20.0",
+    "sentence-transformers": "6.3.0",
+    "numpy": "2.2.6",
+    "fastapi": "0.162.5"
+  },
+  "python": "~/py312/bin/python (3.12)",
+  "stats": {
+    "run1": {
+      "match_p50": 13.3675,
+      "match_max": 15.032,
+      "match_n": 30,
+      "http504": 9,
+      "nonok": 9,
+      "search_p50": 3.341,
+      "search_max": 5.063,
+      "search_504": 0,
+      "q_match_504": 5
+    },
+    "run2": {
+      "match_p50": 12.8405,
+      "match_max": 15.022,
+      "match_n": 30,
+      "http504": 6,
+      "nonok": 6,
+      "search_p50": 3.627,
+      "search_max": 6.622,
+      "search_504": 0,
+      "q_match_504": 3
+    }
+  }
+}

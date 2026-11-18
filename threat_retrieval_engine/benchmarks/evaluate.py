@@ -33,10 +33,6 @@ _BENCHMARK_DIR = Path(__file__).resolve().parent
 _ENGINE_DIR = _BENCHMARK_DIR.parent
 _REPO_ROOT = _ENGINE_DIR.parent
 
-for p in [_REPO_ROOT, _ENGINE_DIR, _BENCHMARK_DIR, _ENGINE_DIR / "search_engine", _ENGINE_DIR / "api"]:
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
-
 from threat_retrieval_engine.benchmarks.metrics import (
     confusion_matrix,
     hit_at_k,
@@ -44,6 +40,7 @@ from threat_retrieval_engine.benchmarks.metrics import (
     mrr_at_k,
     ndcg_at_k,
 )
+from threat_retrieval_engine.benchmarks.report import compare_reports, render_comparison_markdown
 
 logger = logging.getLogger(__name__)
 _CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
@@ -65,14 +62,20 @@ def initialize_engine(
 ) -> tuple[Any, str]:
     """
     Initialize the ThreatRetrieverEngine with configured storage paths.
+
+    ``retrieval_mode="bm25"`` runs lexical-only: no BGE-M3 download and no
+    cross-encoder, so the suite is usable on CPU / Kaggle without a GPU. The
+    previous revision accepted the flag but always loaded the neural stack.
     """
     from threat_retrieval_engine.api.pipeline import ThreatRetrieverEngine
 
     db_path = str(sqlite_path or DEFAULT_SQLITE_PATH)
     qd_path = str(qdrant_path or DEFAULT_QDRANT_PATH)
+    lexical_only = retrieval_mode == "bm25"
 
     engine = ThreatRetrieverEngine()
-    engine.initialize(qdrant_path=qd_path, sqlite_path=db_path)
+    engine.qdrant = None  # force initialisation to honour the storage path
+    engine.initialize(qdrant_path=qd_path, sqlite_path=db_path, lexical_only=lexical_only)
 
     mode_label = f"ThreatRetrieverEngine ({retrieval_mode.upper()} mode)"
     return engine, mode_label
@@ -83,7 +86,8 @@ async def evaluate_engine(
     engine_name: str,
     dataset: list[dict[str, Any]],
     output_path: Path | None = DEFAULT_OUTPUT,
-) -> bool:
+    baseline_path: Path | None = None,
+) -> tuple[bool, dict[str, Any]]:
     """
     Execute benchmark evaluation over provided queries.
     """

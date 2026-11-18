@@ -5,27 +5,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-
-# ---------------------------------------------------------------------------
-# Regex patterns for query parsing
-# ---------------------------------------------------------------------------
-_CVE_PATTERN = re.compile(r"\bCVE-\d{4}-\d{4,7}\b", re.IGNORECASE)
-_IPV4_PATTERN = re.compile(
-    r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
+from threat_retrieval_engine.api.confidence import classify_confidence_tier
+from threat_retrieval_engine.attack.runtime import canonical_name, entity_names, techniques_for_software
+from threat_retrieval_engine.indicators import (
+    CVE_PATTERN as _CVE_PATTERN,
+    IPV4_PATTERN as _IPV4_PATTERN,
+    MD5_PATTERN as _MD5_PATTERN,
+    MITRE_PATTERN as _MITRE_PATTERN,
+    SHA256_PATTERN as _SHA256_PATTERN,
 )
-_MD5_PATTERN = re.compile(r"\b[a-fA-F0-9]{32}\b")
-_SHA256_PATTERN = re.compile(r"\b[a-fA-F0-9]{64}\b")
-_MITRE_PATTERN = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.IGNORECASE)
-
-# Known high-profile threat actors and tools for keyword extraction
-_COMMON_ACTORS = [
-    "APT29", "APT28", "Cozy Bear", "Fancy Bear", "Lazarus", "FIN7", "Sandworm",
-    "Volt Typhoon", "WannaCry", "Carbanak", "LockBit", "BlackCat"
-]
-_COMMON_MALWARE = [
-    "PsExec", "Mimikatz", "Cobalt Strike", "EternalBlue", "TrickBot", "Emotet",
-    "Qakbot", "BloodHound", "Empire", "Covenant"
-]
 
 
 @dataclass
@@ -47,11 +35,11 @@ def parse_query_entities(query: str) -> ParsedEntities:
     md5 = set(_MD5_PATTERN.findall(query)) - sha256
     hashes = sorted(h.lower() for h in sha256 | md5)
 
-    mitre = sorted({m.upper() for m in _MITRE_PATTERN.findall(query)})
-
-    q_lower = query.lower()
-    actors = [a for a in _COMMON_ACTORS if a.lower() in q_lower]
-    malware = [m for m in _COMMON_MALWARE if m.lower() in q_lower]
+    # Entity names and ATT&CK IDs from the C9 gazetteer (empty when the ATT&CK component is unavailable).
+    names = entity_names(query, query=True)
+    mitre = sorted({m.upper() for m in _MITRE_PATTERN.findall(query)} | set(names["technique_ids"]))
+    actors = names["threat_actors"]
+    malware = names["malware"]
 
     return ParsedEntities(
         cves=cves,
@@ -62,10 +50,6 @@ def parse_query_entities(query: str) -> ParsedEntities:
         malware=malware,
     )
 
-
-# ---------------------------------------------------------------------------
-# Scoring and Classification
-# ---------------------------------------------------------------------------
 
 def jaccard_similarity(a: set[str] | list[str], b: set[str] | list[str]) -> float:
     """Calculate Jaccard similarity between two sets."""
@@ -80,12 +64,6 @@ def jaccard_similarity(a: set[str] | list[str], b: set[str] | list[str]) -> floa
 
 
 CALIBRATED_SCORING_WEIGHTS: tuple[float, float, float, float] = (0.40, 0.20, 0.20, 0.20)
-CALIBRATED_CONFIDENCE_THRESHOLDS: dict[str, float] = {
-    "unsupported_to_weak": 0.10,
-    "weak_to_partial":     0.45,
-    "partial_to_strong":   0.65,
-    "strong_to_exact":     0.85,
-}
 
 
 def calculate_composite_score(
@@ -95,16 +73,7 @@ def calculate_composite_score(
     cve_score: float,
     weights: tuple[float, float, float, float] | list[float] | None = None,
 ) -> float:
-    """
-    Empirically Calibrated 4-factor Composite Scoring Formula:
-      S(w) = w_IOC * IOC + w_TTP * TTP + w_Semantic * Semantic + w_CVE * CVE
-
-    Default Calibrated Ratios:
-      w_IOC      = 0.40 (Definitive network/host IOC matching: IP, SHA256, MD5)
-      w_TTP      = 0.20 (Behavioral TTP / MITRE technique / malware attribution)
-      w_Semantic = 0.20 (Lexical / dense semantic similarity)
-      w_CVE      = 0.20 (Standard vulnerability identifier match)
-    """
+    """Legacy helper maintained for backward compatibility."""
     w = weights if weights is not None else CALIBRATED_SCORING_WEIGHTS
     composite = (
         (ioc_score * w[0])
@@ -114,34 +83,6 @@ def calculate_composite_score(
     )
     return round(float(composite), 4)
 
-
-def classify_confidence_tier(
-    composite_score: float,
-    thresholds: dict[str, float] | None = None,
-) -> str:
-    """
-    Calibrated 5-Tier Confidence Gating:
-      >= 0.85 -> EXACT
-      0.65 - 0.84 -> STRONG
-      0.45 - 0.64 -> PARTIAL
-      0.10 - 0.44 -> WEAK
-      < 0.10 -> UNSUPPORTED
-    """
-    th = thresholds or CALIBRATED_CONFIDENCE_THRESHOLDS
-    if composite_score >= th.get("strong_to_exact", 0.85):
-        return "EXACT"
-    elif composite_score >= th.get("partial_to_strong", 0.65):
-        return "STRONG"
-    elif composite_score >= th.get("weak_to_partial", 0.45):
-        return "PARTIAL"
-    elif composite_score >= th.get("unsupported_to_weak", 0.10):
-        return "WEAK"
-    return "UNSUPPORTED"
-
-
-# ---------------------------------------------------------------------------
-# Attribution & Citations
-# ---------------------------------------------------------------------------
 
 def extract_attribution(
     query_ent: ParsedEntities,
@@ -175,25 +116,18 @@ def extract_attribution(
     query_iocs_norm = {i.lower() for i in (query_ent.ips + query_ent.hashes)}
     matching_iocs = sorted(query_iocs_norm & chunk_iocs_norm)
 
-    # Extract chunk malware
-    chunk_mal = set(entities_data.get("malware_families") or [])
-    for m in _COMMON_MALWARE:
-        if m.lower() in chunk_text.lower():
-            chunk_mal.add(m)
+    # Extract chunk malware: metadata names (canonicalised to the ATT&CK title when they name one software
+    # object) plus software named in the text (C9 gazetteer)
+    chunk_names = entity_names(chunk_text, query=False)
+    chunk_mal = {canonical_name(str(m), ("software",)) or str(m) for m in entities_data.get("malware_families") or []}
+    chunk_mal.update(chunk_names["malware"])
     matching_mal = sorted({m.lower(): m for m in query_ent.malware if m.lower() in {x.lower() for x in chunk_mal}}.values())
 
-    # Extract chunk MITRE TTPs (direct mentions + tool-implemented techniques)
-    _TOOL_TO_TECH = {
-        "psexec": ["T1021.002", "T1569.002"],
-        "mimikatz": ["T1003.001"],
-        "cobalt strike": ["T1071.001", "T1059"],
-        "eternalblue": ["T1210"],
-    }
+    # Extract chunk MITRE TTPs (direct mentions + techniques the chunk's software uses in the ATT&CK graph)
     chunk_ttps = set(entities_data.get("mitre_ttps") or [])
     chunk_ttps.update(_MITRE_PATTERN.findall(chunk_text))
-    for t_name, techs in _TOOL_TO_TECH.items():
-        if t_name in chunk_text.lower() or any(m.lower() == t_name for m in chunk_mal):
-            chunk_ttps.update(techs)
+    chunk_ttps.update(chunk_names["technique_ids"])
+    chunk_ttps.update(techniques_for_software(chunk_mal))
 
     chunk_ttps_norm = {t.upper() for t in chunk_ttps}
     query_ttps_norm = {t.upper() for t in query_ent.mitre_techniques}
@@ -208,26 +142,32 @@ def extract_attribution(
 
 
 def build_citation(chunk_id: str, chunk_meta: dict[str, Any], chunk_text: str) -> dict[str, Any]:
-    """Construct structured citation from chunk metadata and provenance."""
+    """Construct structured citation from chunk metadata and provenance without fabricating dates (R9)."""
     doc_id = chunk_meta.get("doc_id") or chunk_id
-    doc_title = chunk_meta.get("doc_title") or f"Threat Intelligence Report ({chunk_id})"
-    source_org = chunk_meta.get("source_org") or "Threat Intel"
-    pub_date = chunk_meta.get("published_date") or ""
+    doc_title = chunk_meta.get("doc_title") or "UNKNOWN"
+    source_org = chunk_meta.get("source_org") or "UNKNOWN"
+    pub_date = chunk_meta.get("published_date")
+    
     if isinstance(pub_date, datetime):
-        pub_date = pub_date.isoformat() + "Z"
-    elif not pub_date:
-        pub_date = "2023-01-01T00:00:00Z"
+        published_date_str = pub_date.isoformat() + "Z"
+    elif pub_date:
+        published_date_str = str(pub_date)
+    else:
+        published_date_str = None
     
     page_no = chunk_meta.get("page_number")
     snippet = chunk_text.strip() if chunk_text else "No passage text available."
     if len(snippet) > 400:
         snippet = snippet[:400] + "..."
 
+    provenance_status = "VERIFIED" if published_date_str and doc_title != "UNKNOWN" else "MISSING"
+
     return {
         "doc_id": str(doc_id),
         "doc_title": str(doc_title),
         "source_org": str(source_org),
-        "published_date": str(pub_date),
+        "published_date": published_date_str,
         "page_number": page_no,
         "text_snippet": snippet,
+        "provenance_status": provenance_status,
     }

@@ -1,0 +1,41 @@
+{
+  "config": {
+    "adapter": "inprocess",
+    "factory": "benchmarks_v2.eval.v1_lexical:make",
+    "options": {
+      "k": 100
+    }
+  },
+  "created_at": "2026-11-15T04:11:38Z",
+  "sessions": [
+    {
+      "abort_reason": null,
+      "already_done": 0,
+      "concurrency": 1,
+      "ended_at": "2026-11-15T04:20:19Z",
+      "errors": 0,
+      "harness_commit": "27a1ddb",
+      "harness_version": "b4-1",
+      "host": "Actually-Koushik",
+      "load_average_end": null,
+      "load_average_start": null,
+      "pause_after_error_s": 0.0,
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.10",
+      "selected": 1489,
+      "sent": 1489,
+      "service_info": {
+        "b": 0.75,
+        "component": "v1 BM25 (search_engine/bm25_index.py)",
+        "dir": "D:\\Project Course\\unicc-iitgn-capstone\\data\\v1_server\\sqlite",
+        "documents": 362301,
+        "k1": 1.5,
+        "pickle_sha256": "3a2f802be4a85e59eb589c2bf02831f205d3aa3e800888c05615708262024f41"
+      },
+      "session_id": "2026-11-15T04:11:38Z-24628-e0e66029",
+      "started_at": "2026-11-15T04:11:38Z",
+      "status": "complete"
+    }
+  ],
+  "variant": "v1_lexical"
+}

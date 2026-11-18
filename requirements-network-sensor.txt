@@ -1,0 +1,8 @@
+# Packages the network sensor (Task 5.0) needs. Versions are pinned to the tested setup.
+# Install with:  pip install -r requirements-network-sensor.txt
+numpy==2.5.4
+pandas==3.0.6
+scikit-learn==1.9.1
+scipy==1.18.1           # used inside scikit-learn
+joblib==1.6.0           # saves and loads the trained models
+threadpoolctl==3.7.0    # used inside scikit-learn

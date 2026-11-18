@@ -33,12 +33,8 @@ try:
 except ImportError:
     QdrantClient = Any  # type: ignore
 
-try:
-    from threat_retrieval_engine.search_engine.tokenizer import extract_identifiers
-    from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, fetch_chunk_metadata
-except ImportError:
-    from tokenizer import extract_identifiers
-    from vector_database import COLLECTION_NAME, fetch_chunk_metadata
+from threat_retrieval_engine.search_engine.tokenizer import extract_identifiers
+from threat_retrieval_engine.search_engine.vector_database import COLLECTION_NAME, fetch_chunk_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +70,7 @@ def _qdrant_lookup(
     variants = sorted({v for val in values for v in (val, val.upper(), val.lower())})
     flt_must = [FieldCondition(key=field_name, match=MatchAny(any=variants))]
     if allowed_sources is not None:
-        # MatchText matches substrings/tokens
-        or_conditions = [FieldCondition(key="source_org", match=MatchText(text=str(s))) for s in allowed_sources]
-        flt_must.append(Filter(should=or_conditions))
+        flt_must.append(FieldCondition(key="source_org", match=MatchAny(any=[str(s) for s in allowed_sources])))
     flt = Filter(must=flt_must)
     points, _ = qdrant.scroll(
         collection_name=COLLECTION_NAME,
@@ -101,6 +95,11 @@ def _qdrant_lookup(
     return out
 
 
+def _escape_like(s: str) -> str:
+    """Escape special SQLite LIKE wildcards (%, _, \\)."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _sqlite_lookup(
     sqlite: sqlite3.Connection,
     value: str,
@@ -116,9 +115,9 @@ def _sqlite_lookup(
             return [r[0] for r in rows]
     except Exception:
         pass
-    needle = f'%"{value}"%'
+    needle = f'%"{_escape_like(value)}"%'
     rows = sqlite.execute(
-        "SELECT chunk_id FROM corpus WHERE entities_json LIKE ? LIMIT ?",
+        "SELECT chunk_id FROM corpus WHERE entities_json LIKE ? ESCAPE '\\' LIMIT ?",
         (needle, limit),
     ).fetchall()
     return [r[0] for r in rows]
@@ -169,12 +168,12 @@ def exact_lookup(
     def _record(chunk_id: str, field_name: str, value: str) -> None:
         if chunk_id in seen:
             return
-        seen.add(chunk_id)
         meta = fetch_chunk_metadata(chunk_id, sqlite) if hydrate else {}
         if allowed_sources is not None:
             source_org = meta.get("source_org", "") if meta else ""
-            if not any(a in source_org for a in allowed_sources):
+            if not any(a.lower() == source_org.lower() or a.lower() in source_org.lower() for a in allowed_sources):
                 return
+        seen.add(chunk_id)
         matches.append(
             ExactMatch(
                 chunk_id=chunk_id,
@@ -198,9 +197,10 @@ def exact_lookup(
         else:
             for val in vals:
                 v_clean = val.upper()
+                v_escaped = _escape_like(v_clean)
                 rows = sqlite.execute(
-                    "SELECT chunk_id FROM corpus WHERE doc_id = ? OR doc_id LIKE ? LIMIT ?",
-                    (v_clean, f"{v_clean}%", limit),
+                    "SELECT chunk_id FROM corpus WHERE doc_id = ? OR doc_id LIKE ? ESCAPE '\\' LIMIT ?",
+                    (v_clean, f"{v_escaped}%", limit),
                 ).fetchall()
                 if not rows:
                     try:

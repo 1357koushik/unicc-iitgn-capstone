@@ -226,7 +226,6 @@ AGENTS.md
 GEMINI.md
 plan.html 
 UNICC_IITGN_AI_Cybersecurity_Capstone_Workplan (1).docx
-verify/
 
 # ---------------------------------------------------------------------------
 # Knowledge Foundation: Data Pulled from Team 1 / Live Feeds
@@ -255,3 +254,31 @@ data/qdrant_storage/
 data/sqlite/
 *.sqlite
 *.db
+
+# Network sensor (Task 5.0): downloaded dataset, trained models and reports - never committed
+data/network_sensor/
+
+# B1 source collectors: downloaded upstream data, never committed
+data/sources/
+
+# B2 benchmark collection: built data, never committed
+data/benchmark/
+# B2 builder code lives in benchmarks_v2/build/ (re-included despite the generic build/ rule)
+!benchmarks_v2/build/
+!benchmarks_v2/build/**
+benchmarks_v2/build/**/__pycache__/
+benchmarks_v2/build/**/*.pyc
+
+# C1 document store builds: built data, never committed
+data/store/
+
+# C9 ATT&CK builds: built data, never committed
+data/attack/
+# C2 lexical index builds and the read-only copy of v1 files used for the v1 comparison: never committed
+data/lexical/
+data/v1_server/
+# C2 run files are large (13 MB per variant); reports carry their sha256
+results/lexical/runs/*.jsonl
+data/dense/
+data/models/
+results/dense/runs/*.jsonl

@@ -1,0 +1,182 @@
+# Release gates of docs/RETRIEVAL_V2_PLAN.md section 6.7, as configuration (work package B4).
+#
+# Thresholds are frozen after the first dev run and before the sealed test is opened (plan 6.7): the package
+# that freezes them sets status: frozen and fills `frozen`. A failing gate is fixed, never relaxed; only the
+# owner changes a threshold, and the change is recorded in the plan with its reason.
+#
+# Gate kinds (benchmarks_v2/eval/gates.py, METHODS.md section 9):
+#   metric            ranking metric of a population: min / max on the point estimate, lower_min on the CI
+#   abstention        false_accept_rate | abstention_rate_answerable of a population: max / min
+#   tier_precision    observed precision of a tier: min on the point, lower_min on the lower bound of
+#                     `interval` (wilson | bootstrap | both = both lower bounds must meet lower_min)
+#   calibration       ece | brier per population: max on the point
+#   latency           p50 | p95 | p99 of end-to-end latency (ms) of a population: max; target is reported
+#   errors            http_504 | count of a population: max
+#   comparison        paired difference (this variant - reference) of a metric: min_diff on the point,
+#                     diff_lower_gt on the lower CI bound (strictly greater)
+#   noninferiority    paired bootstrap non-inferiority against a reference: CI lower bound >= -margin
+#   parent_pair       mean difference (derived - parent query), e.g. T6 against its clean versions: min_diff
+#   judgement_completeness  unjudged top-10 documents: max (fails unless --allow-unjudged; then WAIVED)
+# A gate whose population or metric is absent from the report is MISSING, which fails, unless
+# `allow_not_applicable: true` (then NOT_APPLICABLE, shown explicitly and not counted as a pass).
+
+schema: tre-eval-gates/1
+status: draft
+frozen: {by: null, date: null, dataset_manifest_sha256: null}
+source: docs/RETRIEVAL_V2_PLAN.md section 6.7
+
+# Report populations used by gates, beyond single slices, `overall` and `temporal_holdout`.
+populations:
+  T3+T4: {slices: [T3, T4]}
+  # T9 questions that name an ATT&CK ID or an exact object name. The meta key is not fixed by
+  # docs/benchmark_format.md yet (reported to B2); `query_form` is the key this harness expects.
+  T9_id_name: {slices: [T9], meta: {key: query_form, in: [id, exact_name]}}
+  # "Free-text" requests for the latency gate: every slice except the identifier slice.
+  free_text: {exclude_slices: [T1]}
+
+# Derived queries compared with their source queries. The meta key is not fixed by the contract yet.
+parent_pairs:
+  T6_vs_clean: {slice: T6, parent_key: parent_qid, metrics: [ndcg@10, success@1]}
+
+# Registry names of the variants that comparison gates refer to.
+references:
+  v1: v1_match
+  ceiling: reranker_ceiling   # the offline large-reranker run of C5a; name fixed by C5
+
+gates:
+  - id: judgement_completeness
+    description: no top-10 document of the evaluated variant is unjudged (plan 6.4 step 3)
+    kind: judgement_completeness
+    population: overall
+    max: 0
+
+  - id: T1_success1
+    description: T1 Success@1 = 100%
+    kind: metric
+    population: T1
+    metric: success@1
+    min: 1.0
+
+  - id: T9_id_name_success1
+    description: T9 Success@1 for ID and exact-name queries = 100%
+    kind: metric
+    population: T9_id_name
+    metric: success@1
+    min: 1.0
+
+  - id: T0_ndcg_vs_v1
+    description: T0 nDCG@10 at least 15 points above v1; interval excludes zero gain
+    kind: comparison
+    reference: v1
+    population: T0
+    metric: ndcg@10
+    min_diff: 0.15
+    diff_lower_gt: 0.0
+
+  - id: T2_success5
+    description: T2 Success@5 at least 90%; lower bound at least 85%
+    kind: metric
+    population: T2
+    metric: success@5
+    min: 0.90
+    lower_min: 0.85
+
+  - id: T3T4_recall10
+    description: T3 + T4 Recall@10 at least 90%
+    kind: metric
+    population: T3+T4
+    metric: recall@10
+    min: 0.90
+
+  - id: T3T4_mrr10
+    description: T3 + T4 MRR@10 at least 0.75
+    kind: metric
+    population: T3+T4
+    metric: mrr@10
+    min: 0.75
+
+  - id: T6_within5_ndcg
+    description: T6 within 5 points of the clean versions (nDCG@10, paired with the parent query)
+    kind: parent_pair
+    pair: T6_vs_clean
+    metric: ndcg@10
+    min_diff: -0.05
+
+  - id: T6_within5_success1
+    description: T6 within 5 points of the clean versions (Success@1, paired with the parent query)
+    kind: parent_pair
+    pair: T6_vs_clean
+    metric: success@1
+    min_diff: -0.05
+
+  - id: T8_success1
+    description: T8 Success@1 at least 80%
+    kind: metric
+    population: T8
+    metric: success@1
+    min: 0.80
+
+  - id: T7_false_accept
+    description: T7 false-accept rate at most 1%
+    kind: abstention
+    population: T7
+    metric: false_accept_rate
+    max: 0.01
+
+  - id: reranker_vs_ceiling_ndcg
+    description: serving reranker non-inferior to the ceiling within 1 nDCG@10 point (plan 4.6)
+    kind: noninferiority
+    reference: ceiling
+    population: overall
+    metric: ndcg@10
+    margin: 0.01
+    alpha: 0.025
+
+  - id: reranker_vs_ceiling_success1
+    description: serving reranker non-inferior to the ceiling within 1 Success@1 point (plan 4.6)
+    kind: noninferiority
+    reference: ceiling
+    population: overall
+    metric: success@1
+    margin: 0.01
+    alpha: 0.025
+
+  - id: strong_precision
+    description: STRONG observed precision at least 95%; lower bound at least 90%
+    kind: tier_precision
+    population: overall
+    tier: STRONG
+    min: 0.95
+    lower_min: 0.90
+    interval: both
+
+  - id: ece_overall
+    description: expected calibration error at most 0.05 overall
+    kind: calibration
+    population: overall
+    metric: ece
+    max: 0.05
+
+  - id: ece_per_slice
+    description: expected calibration error at most 0.05 per gated slice
+    kind: calibration
+    populations: [T0, T1, T2, T3, T4, T6, T7, T8, T9]
+    metric: ece
+    max: 0.05
+    # Slices whose results carry no probability (e.g. only EXACT identifier hits) have no ECE.
+    allow_not_applicable: true
+
+  - id: latency_free_text_p95
+    description: single-request free-text p95 within the 3.0 s hard limit; 1.0 s target reported
+    kind: latency
+    population: free_text
+    stat: p95
+    max: 3000
+    target: 1000
+
+  - id: no_http_504
+    description: no HTTP 504 on the full suite
+    kind: errors
+    population: overall
+    metric: http_504
+    max: 0

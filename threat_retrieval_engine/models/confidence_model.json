@@ -1,0 +1,87 @@
+{
+  "version": "v1.1.0",
+  "model_version": "v1.1.0",
+  "model_type": "LogisticRegression",
+  "feature_names": [
+    "has_cve",
+    "has_ioc",
+    "has_ttp",
+    "cve_coverage",
+    "ioc_coverage",
+    "ttp_coverage",
+    "reranker_score",
+    "bm25_norm_score",
+    "inter_cve_cov",
+    "inter_ioc_cov",
+    "inter_ttp_cov",
+    "inter_reranker"
+  ],
+  "feature_schema_version": "v1.0.0",
+  "weights": {
+    "has_cve": -1.522378,
+    "has_ioc": -0.148167,
+    "has_ttp": 0.181046,
+    "cve_coverage": 0.081681,
+    "ioc_coverage": 0.034028,
+    "ttp_coverage": 0.27388,
+    "reranker_score": 14.502063,
+    "bm25_norm_score": 0.634269,
+    "inter_cve_cov": 0.081681,
+    "inter_ioc_cov": 0.034028,
+    "inter_ttp_cov": 0.27388,
+    "inter_reranker": 1.657526
+  },
+  "intercept": -16.784592,
+  "bias": -16.784592,
+  "scaler": {
+    "mean": {
+      "has_cve": 0.496124,
+      "has_ioc": 0.03876,
+      "has_ttp": 0.007752,
+      "cve_coverage": 0.048256,
+      "ioc_coverage": 0.021085,
+      "ttp_coverage": 0.001938,
+      "reranker_score": 0.546096,
+      "bm25_norm_score": 0.546687,
+      "inter_cve_cov": 0.048256,
+      "inter_ioc_cov": 0.021085,
+      "inter_ttp_cov": 0.001938,
+      "inter_reranker": 0.26633
+    },
+    "scale": {
+      "has_cve": 0.499985,
+      "has_ioc": 0.193022,
+      "has_ttp": 0.087703,
+      "cve_coverage": 0.214306,
+      "ioc_coverage": 0.143209,
+      "ttp_coverage": 0.031068,
+      "reranker_score": 0.355267,
+      "bm25_norm_score": 0.366705,
+      "inter_cve_cov": 0.214306,
+      "inter_ioc_cov": 0.143209,
+      "inter_ttp_cov": 0.031068,
+      "inter_reranker": 0.365787
+    }
+  },
+  "calibrator": {
+    "type": "platt",
+    "method": "platt",
+    "params": {
+      "a": 3.100263,
+      "b": -2.233921
+    }
+  },
+  "metadata": {
+    "seed": 42,
+    "dataset_hash": "17bb1a76444d22bcce40ff49bce4f480ece5d365e1601abf7f32dae63ddb2507",
+    "training_samples": 5160,
+    "training_groups": 648,
+    "cv_metrics": {
+      "log_loss": 0.02499,
+      "log_loss_se": 0.001554,
+      "brier_score": 0.003481,
+      "ece": 0.020371
+    },
+    "created_at": "2026-10-25T19:59:02.061485+00:00"
+  }
+}

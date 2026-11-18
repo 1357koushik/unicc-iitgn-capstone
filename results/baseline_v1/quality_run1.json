@@ -1,0 +1,828 @@
+{
+  "q1": [
+    {
+      "category": "nickname",
+      "query": "Log4Shell",
+      "expected": [
+        "CVE-2021-44228"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2021-45105",
+        "CVE-2005-1915",
+        "CVE-2023-26464",
+        "CVE-2021-26722",
+        "CVE-2022-0070",
+        "CVE-2008-7261",
+        "CVE-2022-26111",
+        "CVE-2002-1484",
+        "CVE-2026-4556",
+        "CVE-2019-12250"
+      ],
+      "latency_s": 3.853,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Heartbleed OpenSSL",
+      "expected": [
+        "CVE-2014-0160"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2014-0160",
+        "CVE-2026-74873",
+        "CVE-2014-0160_KEV",
+        "CVE-2017-7992",
+        "CVE-2017-11144",
+        "CVE-2026-5504",
+        "CVE-2018-0734",
+        "CVE-2026-81704",
+        "CVE-2018-0735",
+        "CVE-2002-0655"
+      ],
+      "latency_s": 2.899,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "EternalBlue SMBv1",
+      "expected": [
+        "CVE-2017-0144"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-57796",
+        "CVE-2017-0145_KEV",
+        "CVE-2025-12285",
+        "CVE-2017-0147_KEV",
+        "CVE-2025-12477",
+        "CVE-2017-0148_KEV",
+        "CVE-2023-46315",
+        "CVE-2017-0143_KEV",
+        "CVE-2025-12217",
+        "CVE-2020-1301"
+      ],
+      "latency_s": 3.327,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Shellshock bash",
+      "expected": [
+        "CVE-2014-6271",
+        "CVE-2014-7169"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2014-6271",
+        "CVE-2014-7169",
+        "CVE-1999-0408",
+        "CVE-2000-1134",
+        "CVE-2014-6271_KEV",
+        "CVE-2005-2977",
+        "CVE-2019-9924",
+        "CVE-2025-62064",
+        "CVE-2016-4755",
+        "CVE-2014-7186"
+      ],
+      "latency_s": 3.052,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "BlueKeep RDP",
+      "expected": [
+        "CVE-2019-0708"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-32262",
+        "CVE-2002-0863",
+        "CVE-2026-91958",
+        "CVE-2015-2473",
+        "CVE-2018-1000852",
+        "CVE-2026-91963",
+        "CVE-2008-5904",
+        "CVE-2026-85089",
+        "CVE-2025-38704",
+        "CVE-2026-91959"
+      ],
+      "latency_s": 2.991,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Zerologon Netlogon",
+      "expected": [
+        "CVE-2020-1472"
+      ],
+      "rank": 4,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2023-21526",
+        "CVE-2023-21728",
+        "CVE-2016-3300",
+        "CVE-2020-1472_KEV",
+        "CVE-2024-38124",
+        "CVE-2022-38023",
+        "CVE-2025-49716",
+        "CVE-2026-62759",
+        "CVE-2026-41089",
+        "CVE-2025-33070"
+      ],
+      "latency_s": 3.812,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "PrintNightmare print spooler",
+      "expected": [
+        "CVE-2021-1675",
+        "CVE-2021-34527"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2010-2729",
+        "CVE-2013-0011",
+        "CVE-1999-0898",
+        "CVE-2019-0759",
+        "CVE-2013-1339",
+        "CVE-2016-3238",
+        "CVE-2022-22718_KEV",
+        "CVE-1999-0899",
+        "CVE-2009-0228",
+        "CVE-2022-41073_KEV"
+      ],
+      "latency_s": 2.929,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "ProxyLogon Exchange",
+      "expected": [
+        "CVE-2021-26855"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-22870",
+        "CVE-2017-8621",
+        "CVE-2025-24734",
+        "CVE-2018-0940",
+        "CVE-2026-62759",
+        "CVE-2017-8559",
+        "CVE-2023-36655",
+        "CVE-2018-0924",
+        "CVE-2026-85725",
+        "CVE-2017-11761"
+      ],
+      "latency_s": 4.09,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Follina MSDT",
+      "expected": [
+        "CVE-2022-30190"
+      ],
+      "rank": 2,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2022-34713_KEV",
+        "CVE-2022-30190_KEV",
+        "CVE-2026-93956",
+        "CVE-2023-38826",
+        "CVE-2026-82112",
+        "CVE-2022-34713",
+        "CVE-2001-1021",
+        "CVE-2022-30190",
+        "CVE-2025-7202",
+        "CVE-2022-34478"
+      ],
+      "latency_s": 3.002,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Dirty COW",
+      "expected": [
+        "CVE-2016-5195"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2016-5195",
+        "CVE-2022-50014",
+        "CVE-2026-90418",
+        "CVE-2026-46331",
+        "CVE-2017-1000405",
+        "CVE-2026-98094",
+        "CVE-2026-93198",
+        "CVE-2025-21811",
+        "CVE-2023-54050",
+        "CVE-2024-50179"
+      ],
+      "latency_s": 2.977,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Citrix Bleed",
+      "expected": [
+        "CVE-2023-4966"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-7775_KEV",
+        "CVE-2020-10111",
+        "CVE-2026-3055_KEV",
+        "CVE-2021-26722",
+        "CVE-2020-8247",
+        "CVE-2022-37044",
+        "CVE-2020-8246",
+        "CVE-2008-6561",
+        "CVE-2020-8245",
+        "CVE-2024-6235"
+      ],
+      "latency_s": 3.341,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "regreSSHion OpenSSH",
+      "expected": [
+        "CVE-2024-6387"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2008-3234",
+        "CVE-2020-1292",
+        "CVE-2005-2797",
+        "CVE-2025-26465",
+        "CVE-2018-15919",
+        "CVE-2006-0225",
+        "CVE-2025-27731",
+        "CVE-2026-60000",
+        "CVE-2002-0765",
+        "CVE-2001-1382"
+      ],
+      "latency_s": 3.046,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "xz utils backdoor",
+      "expected": [
+        "CVE-2024-3094"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-31115",
+        "CVE-2026-34743",
+        "CVE-2024-47611",
+        "CVE-2008-6514",
+        "CVE-2021-29482",
+        "CVE-2022-4883",
+        "CVE-2026-14266",
+        "CVE-2026-11405",
+        "CVE-2015-2882",
+        "CVE-2023-4641"
+      ],
+      "latency_s": 4.941,
+      "http_status": 200
+    },
+    {
+      "category": "nickname",
+      "query": "Spring4Shell",
+      "expected": [
+        "CVE-2022-22965"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2026-41000",
+        "CVE-2026-59289",
+        "CVE-2026-41694",
+        "CVE-2026-20144",
+        "CVE-2026-41851",
+        "CVE-2022-26111",
+        "CVE-2011-2730",
+        "CVE-2026-47835",
+        "CVE-2026-47879",
+        "CVE-2026-20298"
+      ],
+      "latency_s": 2.965,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "JNDI lookup in a Java logging library lets attackers load remote code via LDAP",
+      "expected": [
+        "CVE-2021-44228",
+        "CVE-2021-45046"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2021-44228",
+        "CVE-2021-44832",
+        "CVE-2022-40145",
+        "CVE-2023-28462",
+        "CVE-2022-25167",
+        "CVE-2023-27866",
+        "CVE-2026-27727",
+        "CVE-2022-24818",
+        "CVE-2021-45046",
+        "CVE-2021-42392"
+      ],
+      "latency_s": 5.063,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "TLS heartbeat extension bug leaks server memory contents",
+      "expected": [
+        "CVE-2014-0160"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2014-0160",
+        "CVE-2006-5873",
+        "CVE-2025-1634",
+        "CVE-2006-3815",
+        "CVE-2023-24609",
+        "CVE-2003-0625",
+        "CVE-2017-7507",
+        "CVE-2018-16948",
+        "CVE-2006-3121",
+        "CVE-2022-49094"
+      ],
+      "latency_s": 3.231,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "bash processes trailing commands after function definitions in environment variables",
+      "expected": [
+        "CVE-2014-6271",
+        "CVE-2014-7169"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2014-7169",
+        "CVE-2014-6271",
+        "CVE-2014-6278",
+        "CVE-2014-6277",
+        "CVE-2004-1051",
+        "CVE-2007-0805",
+        "CVE-2026-32003",
+        "CVE-1999-0491",
+        "CVE-2016-7543",
+        "CVE-2026-5958"
+      ],
+      "latency_s": 3.205,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "race condition in the Linux kernel copy-on-write lets a local user write to read-only memory",
+      "expected": [
+        "CVE-2016-5195"
+      ],
+      "rank": 4,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2022-2590",
+        "CVE-2004-2302",
+        "CVE-2006-0039",
+        "CVE-2016-5195",
+        "CVE-2022-3028",
+        "CVE-1999-0401",
+        "CVE-2006-0457",
+        "CVE-2015-4170",
+        "CVE-2014-8086",
+        "CVE-2021-4083"
+      ],
+      "latency_s": 3.819,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "signal handler race condition in sshd allows unauthenticated remote code execution as root",
+      "expected": [
+        "CVE-2024-6387"
+      ],
+      "rank": 4,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2024-6409",
+        "CVE-2024-7589",
+        "CVE-2006-5051",
+        "CVE-2024-6387",
+        "CVE-2006-0058",
+        "CVE-1999-0248",
+        "CVE-2001-0905",
+        "CVE-2004-0794",
+        "CVE-2005-0767",
+        "CVE-2023-6200"
+      ],
+      "latency_s": 3.708,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "Word document uses the ms-msdt URL protocol to run PowerShell code",
+      "expected": [
+        "CVE-2022-30190"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2022-30190",
+        "CVE-2022-34478",
+        "CVE-2008-4269",
+        "CVE-2021-47759",
+        "CVE-2022-30190_KEV",
+        "CVE-2004-0380",
+        "CVE-2015-6091",
+        "CVE-2011-1713",
+        "CVE-2022-34713_KEV",
+        "CVE-2009-2655"
+      ],
+      "latency_s": 3.748,
+      "http_status": 200
+    },
+    {
+      "category": "description",
+      "query": "MOVEit Transfer web application SQL injection exploited by Cl0p ransomware",
+      "expected": [
+        "CVE-2023-34362"
+      ],
+      "rank": 4,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2021-31827",
+        "CVE-2023-36934",
+        "CVE-2023-35036",
+        "CVE-2023-34362",
+        "CVE-2023-42660",
+        "CVE-2023-35708",
+        "CVE-2023-40043",
+        "CVE-2023-34362_KEV",
+        "CVE-2021-38159",
+        "CVE-2023-36932"
+      ],
+      "latency_s": 3.457,
+      "http_status": 200
+    },
+    {
+      "category": "typo",
+      "query": "log4shel remote code exectuion",
+      "expected": [
+        "CVE-2021-44228"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2021-44228_KEV",
+        "CVE-2021-21949",
+        "CVE-2025-34102",
+        "CVE-2025-48169",
+        "CVE-2022-26111",
+        "CVE-2022-34473",
+        "CVE-2017-12629",
+        "CVE-2023-23645",
+        "CVE-2025-26014",
+        "CVE-2020-1481"
+      ],
+      "latency_s": 4.008,
+      "http_status": 200
+    },
+    {
+      "category": "typo",
+      "query": "heartbleeed open ssl",
+      "expected": [
+        "CVE-2014-0160"
+      ],
+      "rank": 4,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2006-0998",
+        "CVE-2013-2125",
+        "CVE-2006-0999",
+        "CVE-2014-0160",
+        "CVE-2026-35586",
+        "CVE-2006-3121",
+        "CVE-2006-0997",
+        "CVE-2026-74873",
+        "CVE-1999-0428",
+        "CVE-2026-28755"
+      ],
+      "latency_s": 3.278,
+      "http_status": 200
+    },
+    {
+      "category": "typo",
+      "query": "eternal blue smb exploit",
+      "expected": [
+        "CVE-2017-0144"
+      ],
+      "rank": null,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2025-57796",
+        "CVE-2022-24951",
+        "CVE-2026-64142",
+        "CVE-2022-48258",
+        "CVE-2025-57795",
+        "CVE-2022-48257",
+        "CVE-2025-57792",
+        "CVE-2025-28880",
+        "CVE-2025-57793",
+        "CVE-2022-36120"
+      ],
+      "latency_s": 3.035,
+      "http_status": 200
+    },
+    {
+      "category": "vendor",
+      "query": "Fortinet FortiOS SSL-VPN heap overflow unauthenticated remote code execution",
+      "expected": [
+        "CVE-2022-42475",
+        "CVE-2023-27997",
+        "CVE-2024-21762"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2023-27997_KEV",
+        "CVE-2022-42475",
+        "CVE-2017-3133",
+        "CVE-2019-5588",
+        "CVE-2019-5586",
+        "CVE-2019-15705",
+        "CVE-2018-13384",
+        "CVE-2018-13383",
+        "CVE-2021-26109",
+        "CVE-2015-5965"
+      ],
+      "latency_s": 3.681,
+      "http_status": 200
+    },
+    {
+      "category": "vendor",
+      "query": "Ivanti Connect Secure authentication bypass and command injection",
+      "expected": [
+        "CVE-2023-46805",
+        "CVE-2024-21887"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2024-21887",
+        "CVE-2023-46805_KEV",
+        "CVE-2024-11634",
+        "CVE-2024-21887_KEV",
+        "CVE-2019-11539_KEV",
+        "CVE-2024-38655",
+        "CVE-2024-11007",
+        "CVE-2023-46805",
+        "CVE-2024-38656",
+        "CVE-2024-10644"
+      ],
+      "latency_s": 3.605,
+      "http_status": 200
+    },
+    {
+      "category": "vendor",
+      "query": "Palo Alto PAN-OS GlobalProtect command injection",
+      "expected": [
+        "CVE-2024-3400"
+      ],
+      "rank": 1,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2024-3400",
+        "CVE-2018-10139",
+        "CVE-2020-1997",
+        "CVE-2024-8691",
+        "CVE-2021-3063",
+        "CVE-2021-3046",
+        "CVE-2021-3064",
+        "CVE-2018-10141",
+        "CVE-2020-2034",
+        "CVE-2024-8687"
+      ],
+      "latency_s": 3.458,
+      "http_status": 200
+    },
+    {
+      "category": "exact-id",
+      "query": "CVE-2021-45046",
+      "expected": [
+        "CVE-2021-45046"
+      ],
+      "rank": 2,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2021-22493",
+        "CVE-2021-45046_EPSS",
+        "CVE-2021-44948",
+        "CVE-2021-45046_KEV",
+        "CVE-2021-37466",
+        "CVE-2021-45046",
+        "CVE-2021-40464",
+        "CVE-2021-4125",
+        "CVE-2021-34064",
+        "CVE-2022-33915"
+      ],
+      "latency_s": 3.951,
+      "http_status": 200
+    },
+    {
+      "category": "exact-id",
+      "query": "cve-2014-0160",
+      "expected": [
+        "CVE-2014-0160"
+      ],
+      "rank": 2,
+      "in_corpus": true,
+      "top10_doc_ids": [
+        "CVE-2014-0346",
+        "CVE-2014-0160_KEV",
+        "CVE-2014-0160_EPSS",
+        "CVE-2010-4560",
+        "CVE-2014-0360",
+        "CVE-2001-1492",
+        "CVE-2014-0160",
+        "CVE-2013-1894",
+        "CVE-2014-0964",
+        "CVE-2010-1974"
+      ],
+      "latency_s": 2.942,
+      "http_status": 200
+    }
+  ],
+  "summary": {
+    "all": {
+      "n": 29,
+      "hit1": 11,
+      "hit5": 19,
+      "hit10": 19,
+      "mrr": 0.4741
+    },
+    "nickname": {
+      "n": 14,
+      "hit1": 3,
+      "hit5": 5,
+      "hit10": 5,
+      "mrr": 0.2679
+    },
+    "description": {
+      "n": 7,
+      "hit1": 4,
+      "hit5": 7,
+      "hit10": 7,
+      "mrr": 0.6786
+    },
+    "typo": {
+      "n": 3,
+      "hit1": 1,
+      "hit5": 2,
+      "hit10": 2,
+      "mrr": 0.4167
+    },
+    "vendor": {
+      "n": 3,
+      "hit1": 3,
+      "hit5": 3,
+      "hit10": 3,
+      "mrr": 1.0
+    },
+    "exact-id": {
+      "n": 2,
+      "hit1": 0,
+      "hit5": 2,
+      "hit10": 2,
+      "mrr": 0.5
+    }
+  },
+  "q2": [
+    {
+      "query": "Log4Shell",
+      "http_status": 200,
+      "latency_s": 8.679,
+      "matches": [
+        {
+          "rank": 1,
+          "doc_id": "CVE-2021-45105",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        },
+        {
+          "rank": 2,
+          "doc_id": "CVE-2005-1915",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        },
+        {
+          "rank": 3,
+          "doc_id": "CVE-2023-26464",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        }
+      ]
+    },
+    {
+      "query": "CVE-2021-44228",
+      "http_status": 504,
+      "latency_s": 15.012,
+      "matches": []
+    },
+    {
+      "query": "CVE-2017-0144",
+      "http_status": 200,
+      "latency_s": 11.92,
+      "matches": [
+        {
+          "rank": 1,
+          "doc_id": "CVE-2017-0144_EPSS",
+          "confidence_tier": "EXACT",
+          "match_type": "EXACT_ID"
+        },
+        {
+          "rank": 2,
+          "doc_id": "CVE-2016-2144",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        },
+        {
+          "rank": 3,
+          "doc_id": "CVE-2017-1000446",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        }
+      ]
+    },
+    {
+      "query": "Heartbleed OpenSSL",
+      "http_status": 504,
+      "latency_s": 15.01,
+      "matches": []
+    },
+    {
+      "query": "CVE-2021-44229",
+      "http_status": 200,
+      "latency_s": 13.218,
+      "matches": [
+        {
+          "rank": 1,
+          "doc_id": "CVE-2021-44103",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        },
+        {
+          "rank": 2,
+          "doc_id": "CVE-2021-44569",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        },
+        {
+          "rank": 3,
+          "doc_id": "CVE-2011-4331",
+          "confidence_tier": "UNSUPPORTED",
+          "match_type": "LEARNED_MODEL"
+        }
+      ]
+    }
+  ],
+  "q4": [
+    {
+      "query": "how to bake a chocolate cake",
+      "http_status": 504,
+      "latency_s": 15.009
+    },
+    {
+      "query": "weather in Gandhinagar today",
+      "http_status": 504,
+      "latency_s": 15.011
+    },
+    {
+      "query": "best football players of all time",
+      "http_status": 504,
+      "latency_s": 15.031
+    }
+  ]
+}

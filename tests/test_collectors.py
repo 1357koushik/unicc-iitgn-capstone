@@ -1,0 +1,458 @@
+"""Offline unit tests for the B1 source collectors (inline fixtures, no network)."""
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+_COLLECT = Path(__file__).resolve().parent.parent / "scripts" / "collect"
+if str(_COLLECT) not in sys.path:
+    sys.path.insert(0, str(_COLLECT))
+
+import acsc_advisories  # noqa: E402
+import attack_enterprise  # noqa: E402
+import cisa_advisories  # noqa: E402
+import collect_common as cc  # noqa: E402
+import et_open_rules  # noqa: E402
+import exploitdb  # noqa: E402
+import ghsa_reviewed  # noqa: E402
+import kev_attack_mappings  # noqa: E402
+import metasploit_modules  # noqa: E402
+import ncsc_uk_advisories  # noqa: E402
+import nuclei_templates  # noqa: E402
+import poc_in_github  # noqa: E402
+import sigma_rules  # noqa: E402
+import web_common as wc  # noqa: E402
+
+
+def norm(values):
+    good, _bad = cc.normalize_cves(values)
+    return good
+
+
+# ---------------------------------------------------------------- CVE normaliser
+def test_normalize_cve_id_cases():
+    assert cc.normalize_cve_id("cve-2021-44228") == "CVE-2021-44228"
+    assert cc.normalize_cve_id("  CVE-2014-0160 ") == "CVE-2014-0160"
+    assert cc.normalize_cve_id("CVE-2023-123456") == "CVE-2023-123456"
+
+
+@pytest.mark.parametrize("bad", ["CVE-2021-123", "CVE-21-1234", "CAN-2004-1060", "CVE-n/a", "CVE-2015- 5698",
+                                 "CVE-2017-18344.", "CVE-1998-0001", "", None, 12345])
+def test_normalize_cve_id_rejects(bad):
+    assert cc.normalize_cve_id(bad) is None
+
+
+def test_normalize_cves_dedup_and_count():
+    good, bad = cc.normalize_cves(["cve-2021-44228", "CVE-2021-44228", "CVE-2020-1", "CVE-2019-0708"])
+    assert good == ["CVE-2019-0708", "CVE-2021-44228"]
+    assert bad == 1
+
+
+def test_find_cves_in_text():
+    t = "Exploits CVE-2021-44228 and cve-2021-45046, not XCVE-2020-1234 or CVE-2020-12."
+    assert cc.find_cves(t) == ["CVE-2021-44228", "CVE-2021-45046"]
+
+
+def test_context_counts_malformed():
+    ctx = cc.Context(spec=exploitdb.SPEC, raw_dir=Path("."))
+    assert ctx.cves(["CVE-2020-0001", "bogus"]) == ["CVE-2020-0001"]
+    assert ctx.malformed_cve_ids == 1
+
+
+def test_spec_roles_valid_and_unique_per_source():
+    mods = [acsc_advisories, ncsc_uk_advisories, attack_enterprise, cisa_advisories, et_open_rules, exploitdb, ghsa_reviewed, kev_attack_mappings,
+            metasploit_modules, nuclei_templates, poc_in_github, sigma_rules]
+    roles = {m.SPEC.name: m.SPEC.role for m in mods}
+    assert len(roles) == 12
+    assert set(roles.values()) <= set(cc.ROLES)
+    assert roles["ghsa_reviewed"] == "query" and roles["exploitdb"] == "expansion"
+    assert roles["cisa_advisories"] == "incident" and roles["attack_enterprise"] == "attack"
+    assert roles["acsc_advisories"] == roles["ncsc_uk_advisories"] == "incident"
+
+
+# ---------------------------------------------------------------- CSV (Exploit-DB)
+EDB_CSV = (
+    "id,file,description,date_published,author,type,platform,port,date_added,date_updated,verified,codes,tags,"
+    "aliases,screenshot_url,application_url,source_url\n"
+    '16929,exploits/aix/dos/16929.rb,"AIX Calendar Manager - Buffer Overflow (Metasploit)",2010-11-11,Metasploit,'
+    "dos,aix,,2010-11-11,2011-03-06,1,CVE-2009-3699;OSVDB-58726,,,,,\n"
+    '100,exploits/php/webapps/100.txt,"Some App - SQLi",2004-01-01,x,webapps,php,,2004-01-01,2004-01-01,0,OSVDB-1,,,,,\n'
+    '200,exploits/php/webapps/200.txt,"Other App - XSS",2005-01-01,x,webapps,php,,2005-01-01,2005-01-01,0,'
+    "cve-2005-0001;CVE-n/a,,,,,\n"
+)
+
+
+def test_exploitdb_csv_parser():
+    recs, total = exploitdb.parse_exploit_rows(EDB_CSV, norm)
+    assert total == 3
+    assert [r["edb_id"] for r in recs] == [16929, 200]
+    assert recs[0]["cve_ids"] == ["CVE-2009-3699"] and recs[0]["verified"] is True
+    assert recs[1]["cve_ids"] == ["CVE-2005-0001"] and recs[1]["verified"] is False
+    assert recs[0]["platform"] == "aix" and recs[0]["type"] == "dos"
+
+
+# ---------------------------------------------------------------- JSON (GHSA, Metasploit, KEV mappings, PoC)
+def test_ghsa_parser():
+    doc = {"id": "GHSA-xxxx-yyyy-zzzz", "aliases": ["CVE-2021-23337", "cve-2021-23337", "SNYK-JS-1"],
+           "summary": "Command injection in lodash", "details": "details here",
+           "published": "2021-02-15T00:00:00Z", "modified": "2021-03-01T00:00:00Z",
+           "affected": [{"package": {"ecosystem": "npm", "name": "lodash"}},
+                        {"package": {"ecosystem": "npm", "name": "lodash"}}],
+           "database_specific": {"severity": "HIGH"}}
+    r = ghsa_reviewed.parse_advisory(doc, norm)
+    assert r["ghsa_id"] == "GHSA-xxxx-yyyy-zzzz" and r["cve_ids"] == ["CVE-2021-23337"]
+    assert r["packages"] == [{"ecosystem": "npm", "name": "lodash"}]
+    assert ghsa_reviewed.parse_advisory({"aliases": []}, norm) is None
+
+
+def test_metasploit_parser():
+    data = {
+        "exploit/a/b": {"name": "A Exploit", "fullname": "exploit/a/b", "rank": 600,
+                        "disclosure_date": "2020-01-01", "type": "exploit",
+                        "description": "line one\n     line two",
+                        "references": ["CVE-2020-0001", "URL-http://x", "CVE-bad"]},
+        "aux/c": {"name": "No CVE", "references": ["OSVDB-1"]},
+    }
+    recs, total = metasploit_modules.parse_modules(data, norm)
+    assert total == 2 and len(recs) == 1
+    assert recs[0]["cve_ids"] == ["CVE-2020-0001"] and recs[0]["description"] == "line one line two"
+    assert recs[0]["rank"] == 600
+
+
+def test_kev_mapping_parser():
+    doc = {"metadata": {"attack_version": "16.1", "mapping_framework_version": "07/28/2025"},
+           "mapping_objects": [
+               {"capability_id": "CVE-2024-34102", "attack_object_id": "T1190", "mapping_type": "exploitation_technique",
+                "attack_object_name": "Exploit Public-Facing Application", "capability_group": "xxe", "status": "complete"},
+               {"capability_id": "not-a-cve", "attack_object_id": "T1059"}]}
+    recs = kev_attack_mappings.parse_mappings(doc, norm)
+    assert len(recs) == 1
+    assert recs[0]["cve_id"] == "CVE-2024-34102" and recs[0]["attack_technique_id"] == "T1190"
+    assert recs[0]["mapping_type"] == "exploitation_technique" and recs[0]["attack_version"] == "16.1"
+
+
+def test_poc_parser():
+    repos = [{"full_name": "u/CVE-2024-3094-info", "html_url": "https://github.com/u/CVE-2024-3094-info",
+              "description": None, "stargazers_count": 55, "created_at": "2024-03-29T17:03:01Z",
+              "updated_at": "2026-11-08T20:29:44Z", "fork": False},
+             {"full_name": "u/CVE-2024-3094-info"}]
+    recs = poc_in_github.parse_poc_file("CVE-2024-3094", repos, norm)
+    assert len(recs) == 1 and recs[0]["stars"] == 55 and recs[0]["cve_id"] == "CVE-2024-3094"
+    assert poc_in_github.parse_poc_file("README", repos, norm) == []
+
+
+# ---------------------------------------------------------------- YAML (Sigma, nuclei)
+def test_sigma_yaml_parser():
+    import yaml
+    doc = yaml.safe_load(
+        "title: Exploit CVE-2021-44228 Log4Shell\n"
+        "id: 11111111-2222-3333-4444-555555555555\n"
+        "status: test\n"
+        "description: Detects JNDI\n"
+        "references:\n  - https://nvd.nist.gov/vuln/detail/CVE-2021-45046\n"
+        "tags:\n  - attack.initial-access\n  - cve.2021-44228\n"
+        "level: high\n")
+    r = sigma_rules.parse_sigma_doc(doc, "rules/web/x.yml", norm)
+    assert r["cve_ids"] == ["CVE-2021-44228", "CVE-2021-45046"]
+    assert r["rule_id"].startswith("1111") and r["path"] == "rules/web/x.yml"
+    assert sigma_rules.parse_sigma_doc({"title": "t", "tags": ["attack.execution"]}, "p", norm) is None
+
+
+def test_nuclei_template_parser():
+    import yaml
+    y = yaml.safe_load("id: CVE-2021-1\ninfo:\n  name: X\n  severity: high\n  tags: cve,cve2021,rce\n"
+                       "  classification:\n    cve-id: CVE-2021-0001\n")
+    row = {"ID": "CVE-2021-0001", "Info": {"Name": "Some RCE", "Severity": "critical"},
+           "file_path": "http/cves/2021/CVE-2021-0001.yaml"}
+    r = nuclei_templates.parse_template(row, y, row["file_path"], norm)
+    assert r["template_id"] == "CVE-2021-0001" and r["cve_ids"] == ["CVE-2021-0001"]
+    assert r["name"] == "Some RCE" and r["severity"] == "critical" and r["tags"] == ["cve", "cve2021", "rce"]
+    assert nuclei_templates.parse_template({"ID": "not-cve"}, None, "p", norm) is None
+
+
+# ---------------------------------------------------------------- Suricata rule line
+RULE_OK = ('alert tcp $EXTERNAL_NET any -> $HOME_NET 80 (msg:"ET EXPLOIT Apache Log4j RCE (CVE-2021-44228)"; '
+           'flow:established,to_server; content:"jndi"; reference:cve,2021-44228; reference:url,x.org/a; '
+           'classtype:attempted-admin; sid:2034647; rev:3; metadata:created_at 2021_12_10;)')
+
+
+def test_suricata_rule_parser():
+    r = et_open_rules.parse_rule_line(RULE_OK, norm)
+    assert r["sid"] == 2034647 and r["cve_ids"] == ["CVE-2021-44228"]
+    assert r["classtype"] == "attempted-admin" and r["enabled"] is True
+    assert "Log4j" in r["msg"]
+    disabled = et_open_rules.parse_rule_line("#" + RULE_OK, norm)
+    assert disabled["enabled"] is False
+    assert et_open_rules.parse_rule_line("# just a comment reference:cve,2020-0001;", norm) is None
+    no_cve = RULE_OK.replace("reference:cve,2021-44228; ", "")
+    assert et_open_rules.parse_rule_line(no_cve, norm) is None
+    assert et_open_rules.parse_rule_line(RULE_OK.replace("2021-44228;", "21-4;"), norm) is None
+
+
+# ---------------------------------------------------------------- STIX (ATT&CK)
+def _ext(aid):
+    return [{"source_name": "mitre-attack", "external_id": aid, "url": f"https://attack.mitre.org/x/{aid}"}]
+
+
+def test_attack_stix_parser():
+    grp = {"type": "intrusion-set", "id": "intrusion-set--1", "name": "APT29", "aliases": ["APT29", "Cozy Bear"],
+           "external_references": _ext("G0016"), "description": "Used CVE-2020-1472 in attacks."}
+    tech = {"type": "attack-pattern", "id": "attack-pattern--1", "name": "Exploit Public-Facing Application",
+            "external_references": _ext("T1190"), "x_mitre_is_subtechnique": False, "x_mitre_platforms": ["Linux"]}
+    rel = {"type": "relationship", "id": "relationship--1", "relationship_type": "uses",
+           "source_ref": "intrusion-set--1", "target_ref": "attack-pattern--1"}
+    sw = {"type": "tool", "id": "tool--1", "name": "Mimikatz", "external_references": _ext("S0002"),
+          "x_mitre_deprecated": True}
+    other = {"type": "identity", "id": "identity--1"}
+    g = attack_enterprise.parse_object(grp, norm)
+    assert g["kind"] == "group" and g["attack_id"] == "G0016" and g["aliases"] == ["Cozy Bear"]
+    assert g["cve_ids"] == ["CVE-2020-1472"]
+    t = attack_enterprise.parse_object(tech, norm)
+    assert t["kind"] == "technique" and t["is_subtechnique"] is False and t["cve_ids"] == []
+    r = attack_enterprise.parse_object(rel, norm)
+    assert r["kind"] == "relationship" and r["source_ref"] == "intrusion-set--1"
+    s = attack_enterprise.parse_object(sw, norm)
+    assert s["kind"] == "software" and s["deprecated"] is True
+    assert attack_enterprise.parse_object(other, norm) is None
+
+
+# ---------------------------------------------------------------- CISA feed / HTML
+def test_cisa_feed_and_html_parsers():
+    xml = ('<rss><channel>'
+           '<item><title>Alert A</title><link>https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-061a</link>'
+           '<pubDate>Wed, 01 Mar 2023 12:00:00 +0000</pubDate></item>'
+           '<item><title>ICS</title><link>https://www.cisa.gov/news-events/ics-advisories/icsa-23-100-01</link></item>'
+           '</channel></rss>')
+    items = cisa_advisories.parse_feed(xml)
+    assert len(items) == 1 and items[0]["advisory_id"] == "AA23-061A"
+    text = cisa_advisories.html_to_text("<html><nav>menu</nav><p>Exploited CVE-2022-1234.</p><script>x()</script></html>")
+    assert "menu" not in text and "x()" not in text and "CVE-2022-1234" in text
+
+
+# ---------------------------------------------------------------- B1b national-CERT advisories
+ACSC_ARTICLE = """<html><head><title>Alert X | CGA</title></head><body>
+<nav>Site menu</nav><main><div>Listen</div>
+<article class="node"><header class="page-header"><nav>Breadcrumb / Alerts</nav><h1>Active exploitation of Foo</h1>
+<time datetime="2026-10-23T12:00:00Z" class="datetime">23 Oct 2026</time></header>
+<div><p>Threat actors are exploiting cve-2025-1234 and CVE-2025-1234 in Foo gateways.</p>
+<p>Also CVE-2024-99999 and CVE-1998-0001 (invalid).</p><script>var x = 1;</script>
+<aside>Related items</aside><button>Share</button><svg><text>icon</text></svg>
+<ul><li>Apply patches</li></ul></div></article><footer>Footer</footer></main></body></html>"""
+
+NCSC_ARTICLE = """<html><head><title>Advisory | NCSC</title></head><body><main class="relative">
+<div><span>News</span><h1><span>Advisory: APT99 targets widgets</span></h1><p>Summary line.</p></div>
+<time datetime="2020-07-16T12:00:00Z"></time><time datetime="2026-09-17T12:00:00Z"></time>
+<div><p>APT99 is a state-sponsored espionage group.</p><p>It uses a custom implant.</p></div>
+<p>Was this article helpful?</p><p>Also see</p><p>Unrelated news item mentioning CVE-2020-0001</p></main></body></html>"""
+
+
+def test_acsc_listing_dedup_and_article_extraction():
+    html = ('<a href="/alert/foo?ref=search">x</a><a href="/Alert/Foo">dup</a><a href="/advisory/bar-baz#top">y</a>'
+            '<a href="/about-us/view-all-content">n</a><a href="/alert/Foo">dup2</a>')
+    assert acsc_advisories.parse_listing(html) == ["/alert/foo", "/advisory/bar-baz"]
+    assert acsc_advisories.doc_type_of("https://www.cyber.gov.au/advisory/x") == "advisory"
+    d = acsc_advisories.parse_article(ACSC_ARTICLE)
+    assert d["title"] == "Active exploitation of Foo" and d["published"] == "2026-10-23"
+    for gone in ("Site menu", "Breadcrumb", "var x", "Related items", "Share", "icon", "Footer", "Listen"):
+        assert gone not in d["text"]
+    assert "Apply patches" in d["text"] and "CVE-2024-99999" in d["text"]
+
+
+def test_ncsc_article_extraction_and_section_filter():
+    d = ncsc_uk_advisories.parse_article(NCSC_ARTICLE)
+    assert d["title"] == "Advisory: APT99 targets widgets" and d["published"] == "2020-07-16"
+    assert d["text"].startswith("Summary line.") and "custom implant" in d["text"]
+    assert "Unrelated news" not in d["text"] and "helpful" not in d["text"]
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/news/some-item") == "news"
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/report/r") == "report"
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/collection/c") is None
+    assert ncsc_uk_advisories.section_of("https://www.ncsc.gov.uk/news/a/b") is None
+
+
+def test_keep_rule_cve_or_actor():
+    assert wc.keep_reason("Patch CVE-2024-1234 now", ["CVE-2024-1234"]) == "cve"
+    assert wc.keep_reason("Threat actors used a state-sponsored toolkit", []) == "actor"
+    assert wc.keep_reason("A threat actor appeared once", []) is None
+    assert wc.keep_reason("Nation-state espionage by APT29; CVE-2020-0688", ["CVE-2020-0688"]) == "cve+actor"
+    assert wc.keep_reason("Annual report on skills and diversity", []) is None
+
+
+def test_build_record_dedups_cves_and_applies_rule():
+    ex = acsc_advisories.parse_article(ACSC_ARTICLE)
+    ctx = cc.Context(spec=acsc_advisories.SPEC, raw_dir=Path("."))
+    rec = wc.build_record("acsc_advisories", "alert", "https://www.cyber.gov.au/alert/foo", ex, {}, ctx.cves)
+    assert rec["cve_ids"] == ["CVE-2024-99999", "CVE-2025-1234"]
+    assert rec["keep_reason"] == "cve" and rec["advisory_id"] == "foo" and rec["published"] == "2026-10-23"
+    boring = {"title": "t", "published": "2026-01-01", "text": "Nothing relevant here."}
+    assert wc.build_record("s", "news", "https://x/news/y", boring, {}, ctx.cves) is None
+
+
+def test_rss_and_sitemap_parsers():
+    rss = ('<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>'
+           '<item><title>Adv &amp; one</title><link>https://www.ncsc.gov.uk/news/a</link>'
+           '<description>Sum</description><pubDate>Tue, 03 Nov 2026 12:00:00 +0000</pubDate></item>'
+           '<item><title>No link</title></item></channel></rss>')
+    assert wc.parse_rss(rss) == [{"title": "Adv & one", "url": "https://www.ncsc.gov.uk/news/a",
+                                  "published": "2026-11-03", "summary": "Sum"}]
+    sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+          '<url><loc>https://x/news/a</loc><lastmod>2025-03-05T09:11:44+00:00</lastmod></url>'
+          '<url><loc>https://x/news/b</loc></url></urlset>')
+    assert wc.parse_sitemap(sm) == [("https://x/news/a", "2025-03-05T09:11:44+00:00"), ("https://x/news/b", "")]
+    idx = ('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+           '<sitemap><loc>https://x/sitemap.xml?page=1</loc></sitemap></sitemapindex>')
+    assert wc.parse_sitemap(idx) == [("https://x/sitemap.xml?page=1", "")]
+
+
+def test_challenge_detection():
+    assert wc.looks_like_challenge("<html><head><title>Access Denied</title></head></html>")
+    assert wc.looks_like_challenge("<html><title>Just a moment...</title></html>")
+    assert not wc.looks_like_challenge("<html><head><title>Alert | CGA</title></head><body>" + "x" * 5000 + "</body></html>")
+
+
+class _Resp:
+    def __init__(self, status, text="ok", headers=None):
+        self.status_code, self.text, self.content = status, text, text.encode()
+        self.headers = headers or {"content-type": "text/html"}
+
+
+class _Client:
+    def __init__(self, resp):
+        self.resp, self.calls = resp, 0
+
+    def get(self, url):
+        self.calls += 1
+        return self.resp(url) if callable(self.resp) else self.resp
+
+    def close(self):
+        pass
+
+
+def _fetcher(tmp_path, resp, min_interval=0):
+    f = wc.PoliteFetcher("https://example.org", tmp_path, retries=2, min_interval=min_interval)
+    f.client = _Client(resp)
+    return f
+
+
+def test_fetcher_block_is_unavailable_not_retried(tmp_path):
+    f = _fetcher(tmp_path, _Resp(403))
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/a")
+    assert f.client.calls == 1
+    f = _fetcher(tmp_path, _Resp(200, "<html><title>Access Denied</title></html>"))
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/a")
+
+
+def test_fetcher_gone_and_robots(tmp_path):
+    f = _fetcher(tmp_path, _Resp(404))
+    with pytest.raises(wc.PoliteFetcher.Gone):
+        f.get_text("https://example.org/a")
+    info = f.check_robots()
+    assert info["http_status"] == 404 and f.robots.can_fetch(cc.USER_AGENT, "https://example.org/x")
+    f = _fetcher(tmp_path, _Resp(200, "User-agent: *\nDisallow: /private/\n"))
+    info = f.check_robots()
+    assert info["http_status"] == 200 and info["disallow_rules"] == 1 and info["sha256"]
+    with pytest.raises(cc.SourceUnavailable):
+        f.get_text("https://example.org/private/x")
+
+
+def test_fetcher_retries_server_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(wc.time, "sleep", lambda s: None)
+    seq = iter([_Resp(503), _Resp(200, "<html><title>ok</title></html>")])
+    f = _fetcher(tmp_path, lambda url: next(seq))
+    text, _raw = f.get_text("https://example.org/a")
+    assert "ok" in text and f.client.calls == 2
+
+
+def test_fetcher_rate_limit_spacing(tmp_path, monkeypatch):
+    slept = []
+    monkeypatch.setattr(wc.time, "sleep", lambda s: slept.append(s))
+    f = _fetcher(tmp_path, _Resp(200, "<html><title>ok</title></html>"), min_interval=1.0)
+    f.get_text("https://example.org/a")
+    f.get_text("https://example.org/b")
+    assert slept and 0 < slept[-1] <= 1.0
+
+
+# ---------------------------------------------------------------- runner behaviour
+class _FakeMod:
+    SPEC = cc.SourceSpec(name="fake", role="query", urls=["http://x"], license_name="MIT", license_url="http://l",
+                         license_note="ok")
+
+    @staticmethod
+    def collect(ctx):
+        ctx.cves(["CVE-2020-0001", "bad"])
+        (ctx.raw_dir / "a.txt").write_text("hi")
+        yield {"id": 1, "cve_ids": ["CVE-2020-0001"]}
+        yield {"id": 2, "cve_ids": []}
+
+
+class _UnavailMod:
+    SPEC = cc.SourceSpec(name="gone", role="incident", urls=["http://x"], license_name="n", license_url="u",
+                         license_note="n")
+
+    @staticmethod
+    def collect(ctx):
+        raise cc.SourceUnavailable("blocked")
+        yield  # pragma: no cover
+
+
+def test_run_source_writes_manifest_and_is_rerunnable(tmp_path):
+    m1 = cc.run_source(_FakeMod, tmp_path, "2026-01-01")
+    d = tmp_path / "fake" / "2026-01-01"
+    assert (tmp_path / "fake" / "LATEST").read_text().strip() == "2026-01-01"
+    man = json.loads((d / "manifest.json").read_text())
+    assert man["record_count"] == 2 and man["malformed_cve_ids_dropped"] == 1 and man["role"] == "query"
+    assert man["records_sha256"] == cc.sha256_file(d / "records.jsonl") == m1["records_sha256"]
+    (d / "stale.txt").write_text("old")
+    cc.run_source(_FakeMod, tmp_path, "2026-01-01")  # same-day re-run replaces the directory
+    assert not (d / "stale.txt").exists()
+
+
+def test_run_source_unavailable_manifest(tmp_path):
+    m = cc.run_source(_UnavailMod, tmp_path, "2026-01-01")
+    assert m["status"] == "unavailable" and m["reason"] == "blocked" and m["record_count"] == 0
+
+
+# ---- B1c: decoding and page-identity guard -------------------------------------------------------------
+def test_decode_body_respects_charsets_and_never_yields_fffd():
+    want = "the router’s “default”"
+    utf8 = want.encode("utf-8")
+    assert wc.decode_body(utf8, "text/html; charset=utf-8") == want
+    assert wc.decode_body(utf8, "text/html") == want  # no charset: UTF-8
+    assert wc.decode_body(b'<meta charset="utf-8">' + utf8, "text/html").endswith("“default”")
+    cp = want.encode("cp1252")  # not valid UTF-8 -> Windows-1252 smart quotes
+    assert wc.decode_body(cp, "text/html") == want
+    assert wc.decode_body(b'<meta charset="windows-1252">' + cp).endswith("“default”")
+    assert wc.decode_body(cp, "text/html; charset=iso-8859-1") == want
+    assert wc.decode_body(b"\xef\xbb\xbfhi") == "hi"
+    assert "�" not in wc.decode_body(b"abc\x81\x8d\xff", "text/html; charset=utf-8")  # undefined cp1252 bytes
+
+
+def test_fetcher_get_page_decodes_declared_charset(tmp_path, monkeypatch):
+    class R:
+        status_code = 200
+        headers = {"content-type": "text/html; charset=utf-8"}
+        content = "router’s".encode("utf-8")
+        url = "https://x.test/a"
+        text = "router�s"  # what a guessing decoder would have produced
+
+    f = wc.PoliteFetcher("https://x.test", tmp_path, min_interval=0)
+    monkeypatch.setattr(f, "_get", lambda url, check_robots=True: R())
+    text, final, raw = f.get_page("https://x.test/a")
+    assert text == "router’s" and final == "https://x.test/a" and raw == R.content
+
+
+def test_page_identity_guard():
+    ok = wc.page_identity_problem
+    base = "https://www.cyber.gov.au/alert/remote-code-execution-vulnerability-windows-dns-cve-2020-1350"
+    # CVE named in the slug but absent from the page: the page is another advisory (the vm2 alert case)
+    assert "CVE-2020-1350" in ok(base, base, "A flaw (CVE-2022-36067) in vm2 sandbox")
+    assert ok(base, base, "Windows DNS server flaw CVE-2020-1350 details") is None
+    assert ok(base + "?ref=search", base, "cve-2020-1350") is None
+    assert "redirected" in ok(base, "https://www.cyber.gov.au/alert/other", "CVE-2020-1350")
+    assert "canonical" in ok(base, base, "CVE-2020-1350", "https://www.cyber.gov.au/alert/other")
+    assert ok(base, base, "no id in text", title="Windows DNS flaw (CVE-2020-1350)") is None
+    assert ok(base, base, "exploits CVE 2020-1350 here") is None
+    assert ok("https://x/alert/plain-title", "https://x/alert/plain-title/", "text") is None
+    assert wc.canonical_link('<link rel="canonical" href="https://x/alert/a" />') == "https://x/alert/a"

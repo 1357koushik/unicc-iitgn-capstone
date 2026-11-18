@@ -1,11 +1,13 @@
 import hashlib
 import logging
 import math
+import mimetypes
 import os
 import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import timezone
+from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException, Response, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -81,6 +83,9 @@ def _size_limit(path: str):
     if path == UPLOAD_PATH:
         return MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_UPLOAD_BYTES // (1024 * 1024)} MB). Split the report, or paste its text instead.")
+    if path in (NETWORK_SCAN_PATH, NETWORK_LIVE_START_PATH, NETWORK_ALERTS_CSV_PATH):
+        return MAX_NETWORK_FILE_BYTES + MULTIPART_OVERHEAD_BYTES, (
+            f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
     return MAX_BODY_BYTES, (
         f"Request too large (limit {MAX_BODY_BYTES // (1024 * 1024)} MB). Shorten the report or split it.")
 
@@ -362,6 +367,12 @@ MAX_BODY_BYTES = 2 * 1024 * 1024    # 2 MB for any single request...
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # ...except a report file: PDFs with pictures are often several MB
 MULTIPART_OVERHEAD_BYTES = 64 * 1024 # the few extra bytes a browser adds around an uploaded file
 UPLOAD_PATH = "/api/v1/investigation/upload"
+# Network sensor (Task 5.0): a file of connection records to check for attacks
+NETWORK_SCAN_PATH = "/api/v1/network/scan"
+NETWORK_LIVE_START_PATH = "/api/v1/network/live/start"
+NETWORK_ALERTS_CSV_PATH = "/api/v1/network/scan/alerts.csv"   # every alert of a file, for download
+MAX_NETWORK_FILE_BYTES = 5 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
+NETWORK_FILE_EXTENSIONS = {".csv", ".txt"}
 CORRELATION_ID = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
 
 # --- Pydantic Schemas ---
@@ -395,6 +406,12 @@ class ConfigUpdate(BaseModel):
 
 class UserUpdate(BaseModel):
     allowed_datasets: str
+
+class PoCFindRequest(BaseModel):
+    cve_id: str = Field(pattern=r"^CVE-\d{4}-\d{4,7}$")
+    max_results: int = Field(default=20, ge=1, le=100)
+    sources: Optional[List[str]] = None
+    min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 # --- Endpoints ---
 @app.get("/api/v1/admin/users")
@@ -608,11 +625,6 @@ def extract_entities(req: EntitiesRequest, user: dict = Depends(get_investigator
     log_action(db, req.correlation_id, user["id"], user["role"], "extract_entities", "doc_current", backend_name, "success")
     return res
 
-THREAT_MATCHING_UNAVAILABLE = (
-    "Threat matching is not connected yet. It needs the historical-threat search "
-    "(retrieval) service from Team 2. No matches are shown rather than invented ones."
-)
-
 @app.post("/api/v1/investigation/threats")
 def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigator_user), db: Session = Depends(get_db), gw_dep = Depends(get_llm_gateway)):
     _, backend_name = gw_dep
@@ -639,7 +651,8 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
             frontend_matches.append({
                 "threat": threat,
                 "confidence": result.get("confidence_level", "Medium"),
-                "mitre_tactics": result.get("associated_malware", []),
+                "mitre_tactics": result.get("associated_mitre_tactics") or result.get("mitre_tactics") or [],
+                "associated_malware": result.get("associated_malware", []),
                 "citations": result.get("supporting_citations", []),
                 "patch_details": patch
             })
@@ -685,5 +698,218 @@ def final_decision(req: DecisionRequest, user: dict = Depends(get_investigator_u
     log_action(db, req.correlation_id, user["id"], user["role"], "final_decision", "doc_current", "none", "success", {"decision": req.decision, "notes": req.notes})
     return {"message": "Decision recorded"}
 
+@app.post("/api/v1/pocs/find")
+async def find_pocs_endpoint(
+    req: PoCFindRequest,
+    user: dict = Depends(get_investigator_user),
+    db: Session = Depends(get_db),
+):
+    cve_id = req.cve_id.strip().upper()
+    team2_url = os.getenv("TEAM2_API_URL", "http://localhost:8000")
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{team2_url}/api/v1/pocs/find", json=req.model_dump())
+            if resp.status_code == 200:
+                log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "retrieval", "success")
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except Exception:
+        pass
+
+    try:
+        from threat_retrieval_engine.poc_intelligence import get_poc_finder
+        finder = get_poc_finder()
+        res = await finder.find_pocs(
+            cve_id=cve_id,
+            max_results=req.max_results,
+            sources=req.sources,
+            min_confidence=req.min_confidence,
+        )
+        log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "local_engine", "success")
+        return JSONResponse(status_code=200, content=res.model_dump())
+    except ValueError as val_err:
+        raise HTTPException(status_code=422, detail=str(val_err))
+    except Exception as exc:
+        ref = _new_error_reference()
+        _server_log.error(f"[error ref {ref}] Failed to query PoC service: {exc}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Failed to query PoC service. Reference: {ref}")
+
+
+# --- Network sensor (Task 5.0) ---
+NETWORK_SENSOR_NOT_INSTALLED = ("The network sensor is not installed on this server. "
+                                "Install it with: pip install -r requirements-network-sensor.txt")
+
+
+def _network_sensor():
+    """The network sensor (network_sensor/ folder), loaded on first use. If its packages
+    (scikit-learn etc.) are not installed, the rest of the app keeps working and only
+    the network sensor answers 'not installed'."""
+    try:
+        from network_sensor import service
+        return service
+    except ImportError as e:
+        _server_log.error(f"The network sensor could not be loaded: {e}")
+        return None
+
+
+@app.get("/api/v1/network/status")
+def network_sensor_status(user: dict = Depends(get_investigator_user)):
+    """Is the network sensor trained, and how did it score in its last evaluation?"""
+    service = _network_sensor()
+    if service is None:
+        return {"ready": False, "message": NETWORK_SENSOR_NOT_INSTALLED}
+    return {**service.sensor.status(), "max_file_mb": MAX_NETWORK_FILE_BYTES // (1024 * 1024),
+            "file_types": sorted(NETWORK_FILE_EXTENSIONS)}
+
+
+def _network_file_request(file: UploadFile, user: dict, db: Session, correlation_id: str, action: str, work):
+    """
+    Shared by the scan and the live replay: read the uploaded file of connection
+    records, apply the limits, then run work(service, connections, details).
+    Every refusal goes in the audit log with the file's name, size and fingerprint.
+    Returns (what work returned, details).
+    """
+    filename = _safe_filename(file.filename)
+    content = file.file.read(MAX_NETWORK_FILE_BYTES + 1)
+    details = {"filename": filename, "file_bytes": len(content), "file_sha256": _sha256(content)}
+
+    def refuse(status: int, reason: str):
+        log_action(db, correlation_id, user["id"], user["role"], action, "network_file", "none", "failure",
+                   {**details, "reason": reason[:256]})
+        raise HTTPException(status_code=status, detail=reason)
+
+    if len(content) > MAX_NETWORK_FILE_BYTES:
+        refuse(413, f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
+    if file_extension(filename) not in NETWORK_FILE_EXTENSIONS:
+        refuse(415, f"Files of type '{file_extension(filename) or 'unknown'}' can't be scanned. "
+                    f"Accepted formats: {', '.join(sorted(NETWORK_FILE_EXTENSIONS))}.")
+    service = _network_sensor()
+    if service is None:
+        refuse(503, NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        return work(service, service.read_connections(content), details), details
+    except service.ScanError as e:
+        refuse(e.status_code, e.message)
+    except Exception as e:
+        # A bug or a damaged model file: the technical details go to the server log only.
+        ref = _new_error_reference()
+        _server_log.error(f"[error ref {ref}] Network sensor request failed: {type(e).__name__}: {e}",
+                          exc_info=(type(e), e, e.__traceback__))
+        refuse(500, f"The network sensor could not check this file. Reference: {ref} - "
+                    "an administrator can find the details in the server log.")
+
+
+@app.post(NETWORK_SCAN_PATH)
+def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(get_investigator_user),
+                             db: Session = Depends(get_db)):
+    """
+    Check a file of network connection records for attacks and return the alerts,
+    most serious first, each with a plain-English explanation.
+
+    The file itself is not kept. Its name, size and fingerprint (hash) and the number
+    of alerts go in the audit log - refused files too.
+    (A plain "def": checking thousands of connections takes a few seconds, and FastAPI
+    runs a plain function in a separate thread, so other users are not kept waiting.)
+    """
+    correlation_id = str(uuid.uuid4())
+    result, details = _network_file_request(
+        file, user, db, correlation_id, "network_scan",
+        lambda service, connections, details: service.sensor.scan(connections))
+    log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "success",
+               {**details, "connections": result["connections"], "alerts": result["alerts_total"],
+                "model_trained_at": result["model"]["trained_at"], "model_trained_on": result["trained_on"]})
+    return {"correlation_id": correlation_id, "filename": details["filename"], **result}
+
+
+@app.post(NETWORK_ALERTS_CSV_PATH)
+def download_network_alerts(file: UploadFile = File(...), user: dict = Depends(get_investigator_user),
+                            db: Session = Depends(get_db)):
+    """
+    EVERY alert in a file of connection records, as a CSV table (for Excel). The dashboard
+    shows only the most serious alerts of each kind; for all of them, the browser sends the
+    same file again and this checks it again. The file is still not kept. The download goes
+    in the audit log like a scan.
+    """
+    correlation_id = str(uuid.uuid4())
+    (text, facts), details = _network_file_request(
+        file, user, db, correlation_id, "network_alerts_download",
+        lambda service, connections, details: service.sensor.alerts_csv(connections))
+    log_action(db, correlation_id, user["id"], user["role"], "network_alerts_download", "network_file", "none",
+               "success", {**details, **facts})
+    # The download's name: "alerts-" and the scanned file's name, in plain letters only.
+    stem = "".join(c if (c.isascii() and c.isalnum()) or c in "._-" else "_"
+                   for c in Path(details["filename"]).stem)[:60] or "file"
+    return Response(content=text.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="alerts-{stem}.csv"'})
+
+
+# Live mode ("real-time"): the server replays a recorded file as if its connections were
+# arriving now, and the dashboard asks about once a second for what has arrived since.
+# See network_sensor/live.py. The start and the end of each replay go in the audit log.
+@app.post(NETWORK_LIVE_START_PATH)
+def start_network_live_replay(file: UploadFile = File(...), speed: int = 100,
+                              user: dict = Depends(get_investigator_user), db: Session = Depends(get_db)):
+    """Start replaying a file at `speed` connections per second (10, 100 or 1000)."""
+    def begin(service, connections, details):
+        service.sensor.model(service.dataset_of(connections))   # refuse now if that sensor is not trained
+        return service.live.start(user["id"], connections, speed, details)
+
+    (session, replaced), details = _network_file_request(
+        file, user, db, str(uuid.uuid4()), "network_live_start", begin)
+    if replaced:
+        log_action(db, replaced["session_id"], user["id"], user["role"], "network_live_end", "network_file",
+                   "none", "success", replaced)
+    log_action(db, session.id, user["id"], user["role"], "network_live_start", "network_file", "none", "success",
+               {**details, "connections": len(session.connections), "speed": session.speed})
+    return {"session_id": session.id, "filename": details["filename"],
+            "total": len(session.connections), "speed": session.speed,
+            "dataset": session.dataset, "dataset_title": session.dataset_title}
+
+
+@app.post("/api/v1/network/live/{session_id}/next")
+def next_network_live_step(session_id: str, user: dict = Depends(get_investigator_user),
+                           db: Session = Depends(get_db)):
+    """Check the connections that have 'arrived' since the last call. Only the user who
+    started a replay can use it; for anyone else it does not exist (404)."""
+    service = _network_sensor()
+    if service is None:
+        raise HTTPException(status_code=503, detail=NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        result = service.live.step(session_id, user["id"], service.sensor.model)
+    except service.ScanError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    if "summary" in result:
+        log_action(db, session_id, user["id"], user["role"], "network_live_end", "network_file", "none",
+                   "success", result["summary"])
+    return result
+
+
+@app.post("/api/v1/network/live/{session_id}/stop")
+def stop_network_live_replay(session_id: str, user: dict = Depends(get_investigator_user),
+                             db: Session = Depends(get_db)):
+    service = _network_sensor()
+    if service is None:
+        raise HTTPException(status_code=503, detail=NETWORK_SENSOR_NOT_INSTALLED)
+    try:
+        summary = service.live.stop(session_id, user["id"])
+    except service.ScanError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    log_action(db, session_id, user["id"], user["role"], "network_live_end", "network_file", "none",
+               "success", summary)
+    return summary
+
+
 # Serve frontend static files
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_FRONTEND_DIR = _REPO_ROOT / "frontend"
+
+
+def set_file_types():
+    """Label the dashboard files correctly whatever the computer says (Windows often says .js = text/plain)."""
+    mimetypes.add_type("text/html", ".html")
+    mimetypes.add_type("text/css", ".css")
+    mimetypes.add_type("text/javascript", ".js")
+
+
+set_file_types()
+app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
