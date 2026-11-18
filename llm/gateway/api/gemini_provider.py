@@ -27,6 +27,7 @@ class GeminiProvider(LLMProvider):
         system_prompt: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: int = 2000,
+        **kwargs,
     ) -> str:
         if not self.api_key:
             raise LLMGatewayError("Gemini API key is not set (GEMINI_API_KEY), so the AI model could not be reached.")
