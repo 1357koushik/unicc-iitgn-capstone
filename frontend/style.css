@@ -590,11 +590,15 @@ tr:hover {
 
 .alert-filter-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
     margin-bottom: 1rem;
-    max-width: 480px;
+    max-width: 720px;
 }
+
+.alert-filter-row select { flex: 1 1 220px; }
+.alert-filter-row .btn { flex: 0 0 auto; white-space: nowrap; }
 
 /* (the "hidden" attribute, not style="display:none", for the same reason as .nav-tab[hidden]) */
 .alert-filter-row[hidden] { display: none; }

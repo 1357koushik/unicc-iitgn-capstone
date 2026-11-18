@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   retrieval:
     build:
@@ -23,6 +21,10 @@ services:
       - .env
     environment:
       - TEAM2_API_URL=http://retrieval:8000
+      # Login accounts and the audit log are kept in the project's data/ folder (data/app.db),
+      # so they survive "docker compose down" and rebuilds. (Inside the container, the
+      # project's data/ folder is /app/data; four slashes = an absolute path.)
+      - DATABASE_URL=sqlite:////app/data/app.db
     depends_on:
       - retrieval
     restart: unless-stopped

@@ -808,53 +808,69 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // The dataset choices an admin can give a user (used by threat matching).
+    const DATASET_CHOICES = [
+        ["ALL", "ALL (Full Access)"],
+        ["INTERNAL", "INTERNAL Only"],
+        ["CISA_KEV", "CISA KEV"],
+        ["NVD", "NVD"],
+        ["MITRE_ATTACK", "MITRE ATT&CK"],
+    ];
+
+    // One row of the user table. Built with textContent (never innerHTML), like the rest
+    // of the page, so a username or other stored value can never put code into the page.
+    function userRow(u) {
+        const current = String(u.allowed_datasets ?? "");
+        const choices = DATASET_CHOICES.slice();
+        // A value set some other way (e.g. "NVD,CISA_KEV") is shown as it is, so saving
+        // the row can never silently change it to the first choice (ALL).
+        if (!choices.some(([value]) => value === current)) {
+            choices.push([current, `Other: ${current || "(none)"}`]);
+        }
+        const select = document.createElement("select");
+        select.className = "dataset-dropdown";
+        select.setAttribute("aria-label", `Allowed datasets for ${u.username}`);
+        choices.forEach(([value, label]) => {
+            const option = textElement("option", label);
+            option.value = value;
+            option.selected = value === current;
+            select.appendChild(option);
+        });
+        const save = textElement("button", "Save", "btn secondary-btn small-btn save-user-btn");
+        save.type = "button";
+        save.addEventListener("click", () => saveUserDatasets(u.id, select.value));
+
+        const selectCell = document.createElement("td");
+        selectCell.appendChild(select);
+        const saveCell = document.createElement("td");
+        saveCell.appendChild(save);
+        const tr = document.createElement("tr");
+        tr.append(textElement("td", u.username), textElement("td", u.role), selectCell, saveCell);
+        return tr;
+    }
+
+    async function saveUserDatasets(userId, datasets) {
+        try {
+            const res = await api(`/api/v1/admin/users/${encodeURIComponent(userId)}/permissions`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ allowed_datasets: datasets })
+            });
+            if (res.ok) showToast("Permissions updated", "success");
+            else showToast("Failed to update", "error");
+        } catch (err) {
+            showToast("Failed to update", "error");
+        }
+    }
+
     async function loadUsers() {
         try {
             const res = await api("/api/v1/admin/users");
             if (res.ok) {
                 const data = await res.json();
-                const tbody = document.querySelector("#users-table tbody");
-                tbody.innerHTML = "";
-                data.forEach(u => {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td>${u.username}</td>
-                        <td>${u.role}</td>
-                        <td>
-                            <select id="ds-${u.id}" class="dataset-dropdown">
-                                <option value="ALL" ${u.allowed_datasets === 'ALL' ? 'selected' : ''}>ALL (Full Access)</option>
-                                <option value="INTERNAL" ${u.allowed_datasets === 'INTERNAL' ? 'selected' : ''}>INTERNAL Only</option>
-                                <option value="CISA_KEV" ${u.allowed_datasets === 'CISA_KEV' ? 'selected' : ''}>CISA KEV</option>
-                                <option value="NVD" ${u.allowed_datasets === 'NVD' ? 'selected' : ''}>NVD</option>
-                                <option value="MITRE_ATTACK" ${u.allowed_datasets === 'MITRE_ATTACK' ? 'selected' : ''}>MITRE ATT&CK</option>
-                            </select>
-                        </td>
-                        <td>
-                            <button class="btn secondary-btn small-btn save-user-btn" data-user-id="${u.id}">Save</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                
-                document.querySelectorAll(".save-user-btn").forEach(btn => {
-                    btn.addEventListener("click", async (e) => {
-                        const userId = e.target.getAttribute("data-user-id");
-                        const datasets = document.getElementById(`ds-${userId}`).value;
-                        try {
-                            const res = await api(`/api/v1/admin/users/${userId}/permissions`, {
-                                method: "PUT",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ allowed_datasets: datasets })
-                            });
-                            if (res.ok) showToast("Permissions updated", "success");
-                            else showToast("Failed to update", "error");
-                        } catch(err) {
-                            showToast("Failed to update", "error");
-                        }
-                    });
-                });
+                document.querySelector("#users-table tbody").replaceChildren(...data.map(userRow));
             }
-        } catch(e) {
+        } catch (e) {
             showToast("Failed to load users", "error");
         }
     }
@@ -868,11 +884,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // never innerHTML: a crafted file must not be able to put code in the page.
     // ------------------------------------------------------------------
     const MAX_SCAN_MB = 5;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
-    const SCAN_HINT = `.csv or .txt (NSL-KDD or CIC-IDS2017 format), up to ${MAX_SCAN_MB} MB`;
+    const SCAN_HINT = `.csv or .txt (NSL-KDD, CIC-IDS2017 or CICFlowMeter format), up to ${MAX_SCAN_MB} MB`;
     const scanInput = document.getElementById("scan-file-input");
     const scanBtn = document.getElementById("scan-file-btn");
     let lastScanAlerts = [];             // the alerts sent back (the most serious of each group)
     let lastScanTotals = null;           // how many alerts the WHOLE file has, for each filter
+    let lastScanFile = null;             // the scanned file, kept in this page only (for the CSV download)
 
     const pct = (x) => `${(100 * x).toFixed(1)}%`;
     const localTime = (iso) => iso ? new Date(iso).toLocaleString(undefined, { timeZoneName: "short" }) : "unknown";
@@ -906,8 +923,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     lines.push(textElement("p", d.message || `${d.title}: not trained yet.`, "muted-text"));
                     continue;
                 }
+                // A sensor can be trained on the server's own labelled traffic instead of the
+                // public dataset (python -m network_sensor.train --own-data).
                 let text = `${d.title} files: trained ${localTime(d.trained_at)} on ` +
-                    `${Number(d.training_connections).toLocaleString()} connections.`;
+                    `${Number(d.training_connections).toLocaleString()} connections` +
+                    `${d.own_data ? " from your own labelled files" : ""}.`;
                 const ev = d.evaluation;
                 if (ev) {
                     text += ` Last evaluation (${ev.dataset}): precision ${pct(ev.precision)} ` +
@@ -952,6 +972,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById("scan-file-name").textContent = data.filename;
+                lastScanFile = file;
                 renderScan(data);
                 showToast(`Scan complete: ${data.alerts_total.toLocaleString()} alert(s)`, "success");
             } else if (res.status !== 401) {  // 401 is already handled by api()
@@ -1009,7 +1030,8 @@ document.addEventListener("DOMContentLoaded", () => {
             statTile(data.possible_new_attacks.toLocaleString(), "Possible new attacks"));
         const parts = [tiles];
         if (data.dataset_title) {
-            parts.push(textElement("p", `Checked by the sensor trained on ${data.dataset_title}.`, "muted-text"));
+            parts.push(textElement("p", `Checked by the sensor trained on ${data.trained_on || data.dataset_title}.`,
+                "muted-text"));
         }
         if (data.label_check) {
             const c = data.label_check;
@@ -1143,6 +1165,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.getElementById("alert-filter").addEventListener("change", renderAlerts);
+
+    // "Download all alerts (CSV)": the page shows only the most serious alerts, so the
+    // same file is sent again and the server returns EVERY alert as a CSV table. The file
+    // stays in this page only; the server does not keep it.
+    const downloadBtn = document.getElementById("download-alerts-btn");
+    downloadBtn.addEventListener("click", async () => {
+        if (!lastScanFile) return;
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = "Preparing the download...";
+        const formData = new FormData();
+        formData.append("file", lastScanFile);
+        try {
+            const res = await api("/api/v1/network/scan/alerts.csv", { method: "POST", body: formData });
+            if (res.ok) {
+                const disposition = res.headers.get("Content-Disposition") || "";
+                const match = disposition.match(/filename="([^"]+)"/);
+                saveFile(await res.blob(), match ? match[1] : "alerts.csv");
+            } else if (res.status !== 401) {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || "The alerts could not be downloaded", "error");
+            }
+        } catch (error) {
+            showToast("Network error while preparing the download", "error");
+        } finally {
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = "Download all alerts (CSV)";
+        }
+    });
+
+    // Hand a file to the browser's normal download.
+    function saveFile(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
 
     // ------------------------------------------------------------------
     // Live mode: the server replays a file as if its connections were arriving
@@ -1345,6 +1407,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resetLivePanel();
         lastScanAlerts = [];
         lastScanTotals = null;
+        lastScanFile = null;
         document.getElementById("scan-file-name").textContent = SCAN_HINT;
         showInBox("scan-summary", textElement("p", "No file scanned yet.", "placeholder-text"));
         document.getElementById("alert-filter-row").hidden = true;

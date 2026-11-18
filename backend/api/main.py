@@ -83,7 +83,7 @@ def _size_limit(path: str):
     if path == UPLOAD_PATH:
         return MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_UPLOAD_BYTES // (1024 * 1024)} MB). Split the report, or paste its text instead.")
-    if path in (NETWORK_SCAN_PATH, NETWORK_LIVE_START_PATH):
+    if path in (NETWORK_SCAN_PATH, NETWORK_LIVE_START_PATH, NETWORK_ALERTS_CSV_PATH):
         return MAX_NETWORK_FILE_BYTES + MULTIPART_OVERHEAD_BYTES, (
             f"File too large (limit {MAX_NETWORK_FILE_BYTES // (1024 * 1024)} MB). Split the file.")
     return MAX_BODY_BYTES, (
@@ -370,6 +370,7 @@ UPLOAD_PATH = "/api/v1/investigation/upload"
 # Network sensor (Task 5.0): a file of connection records to check for attacks
 NETWORK_SCAN_PATH = "/api/v1/network/scan"
 NETWORK_LIVE_START_PATH = "/api/v1/network/live/start"
+NETWORK_ALERTS_CSV_PATH = "/api/v1/network/scan/alerts.csv"   # every alert of a file, for download
 MAX_NETWORK_FILE_BYTES = 5 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
 NETWORK_FILE_EXTENSIONS = {".csv", ".txt"}
 CORRELATION_ID = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
@@ -816,8 +817,30 @@ def scan_network_connections(file: UploadFile = File(...), user: dict = Depends(
         lambda service, connections, details: service.sensor.scan(connections))
     log_action(db, correlation_id, user["id"], user["role"], "network_scan", "network_file", "none", "success",
                {**details, "connections": result["connections"], "alerts": result["alerts_total"],
-                "model_trained_at": result["model"]["trained_at"]})
+                "model_trained_at": result["model"]["trained_at"], "model_trained_on": result["trained_on"]})
     return {"correlation_id": correlation_id, "filename": details["filename"], **result}
+
+
+@app.post(NETWORK_ALERTS_CSV_PATH)
+def download_network_alerts(file: UploadFile = File(...), user: dict = Depends(get_investigator_user),
+                            db: Session = Depends(get_db)):
+    """
+    EVERY alert in a file of connection records, as a CSV table (for Excel). The dashboard
+    shows only the most serious alerts of each kind; for all of them, the browser sends the
+    same file again and this checks it again. The file is still not kept. The download goes
+    in the audit log like a scan.
+    """
+    correlation_id = str(uuid.uuid4())
+    (text, facts), details = _network_file_request(
+        file, user, db, correlation_id, "network_alerts_download",
+        lambda service, connections, details: service.sensor.alerts_csv(connections))
+    log_action(db, correlation_id, user["id"], user["role"], "network_alerts_download", "network_file", "none",
+               "success", {**details, **facts})
+    # The download's name: "alerts-" and the scanned file's name, in plain letters only.
+    stem = "".join(c if (c.isascii() and c.isalnum()) or c in "._-" else "_"
+                   for c in Path(details["filename"]).stem)[:60] or "file"
+    return Response(content=text.encode("utf-8"), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="alerts-{stem}.csv"'})
 
 
 # Live mode ("real-time"): the server replays a recorded file as if its connections were

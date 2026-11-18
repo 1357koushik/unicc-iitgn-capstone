@@ -12,6 +12,7 @@ import os
 os.environ["LOAD_DOTENV"] = "0"                  # ignore your personal .env settings
 os.environ["DATABASE_URL"] = "sqlite://"         # in-memory database (never the real app.db)
 
+import csv                                        # noqa: E402
 import io                                         # noqa: E402
 import re                                         # noqa: E402
 import tempfile                                   # noqa: E402
@@ -117,6 +118,21 @@ class RuleTests(unittest.TestCase):
                                             {"name": "Low", "alerts": 0}])
         self.assertEqual(s["by_type"], [{"name": "DoS", "alerts": 2}, {"name": "Possible new attack", "alerts": 1},
                                         {"name": "R2L", "alerts": 1}])
+
+    def test_the_csv_download_cannot_carry_spreadsheet_formulas(self):
+        # Text from an uploaded file could start with "=" and run as a formula in Excel.
+        alert = {"row": 7, "priority": "High", "votes": VOTES_RF, "flagged_by": ["Random Forest"],
+                 "random_forest_score": 0.9, "certainty": "Medium: the Random Forest flagged it",
+                 "reasons": [], "next_step": "Check it.", "attack_type": {"likely": "DoS", "confidence": 0.75},
+                 "where": {"Source IP": "10.0.0.1"}, "label_in_file": '=HYPERLINK("http://x.example","click")'}
+        rows = list(csv.DictReader(io.StringIO(service.alerts_to_csv([alert], has_labels=True)[1:])))
+        self.assertEqual(rows[0]["Label in file"], '\'=HYPERLINK("http://x.example","click")')
+        for start in ("+1", "-1", "@SUM(A1)"):
+            alert["label_in_file"] = start
+            row = list(csv.DictReader(io.StringIO(service.alerts_to_csv([alert], has_labels=True)[1:])))[0]
+            self.assertEqual(row["Label in file"], "'" + start)
+        self.assertEqual((row["Row"], row["Type model votes (%)"], row["Random Forest score (%)"]), ("7", "75.0", "90.0"))
+        self.assertEqual(row["Where"], "Source IP 10.0.0.1")
 
     def test_where_shows_only_identity_columns_the_file_has(self):
         df = pd.DataFrame({"Source IP": [" 192.168.10.5 "], "Destination Port": ["80"], "Flow Duration": ["5"]})
@@ -341,6 +357,36 @@ class AppTests(unittest.TestCase):
             self.assertEqual(a["where"]["Destination IP"], "205.174.165.73")
             self.assertEqual(a["where"]["Source IP"], f"192.168.10.{(a['row'] - 1) % 250 + 1}")
 
+    def test_a_cicflowmeter4_file_is_checked_by_the_cic_sensor(self):
+        # Files written by CICFlowMeter 4.0 (the layout of CSE-CIC-IDS2018) use shorter
+        # column names and other attack names; they are renamed and checked as CIC-IDS2017.
+        from test_network_sensor_cicids2018 import as_2018_layout
+        official = official_csv([("BENIGN", 30), ("DoS Hulk", 10), (f"Web Attack {DASH} XSS", 5)], seed=45)
+        n = 45
+        text = as_2018_layout(official, extra_columns={"Src IP": [f"172.31.64.{k % 250 + 1}" for k in range(n)]})
+        res = self.scan(text.encode("utf-8"))
+        self.assertEqual(res.status_code, 200, res.text)
+        data = res.json()
+        self.assertEqual(data["dataset"], "cicids2017")
+        self.assertEqual(data["connections"], n)                         # the repeated header row is not a flow
+        self.assertIn("label_check", data)
+        self.assertTrue(data["alerts"])
+        for a in data["alerts"]:
+            self.assertIn(a["label_in_file"], {"BENIGN", "DoS Hulk", "Web Attack - XSS"})   # 2018 names translated
+            self.assertEqual(set(a["where"]), {"Source IP", "Destination Port", "Timestamp"})
+            self.assertEqual(a["where"]["Source IP"], f"172.31.64.{(a['row'] - 1) % 250 + 1}")
+
+    def test_a_cicflowmeter4_file_without_labels_has_no_label_check(self):
+        # CICFlowMeter writes "No Label" in every row when nobody labelled the flows.
+        from test_network_sensor_cicids2018 import as_2018_layout
+        text = as_2018_layout(official_csv([("BENIGN", 20), ("DoS Hulk", 10)], seed=46), repeat_header=False)
+        lines = text.splitlines()
+        lines[1:] = [line.rsplit(",", 1)[0] + ",No Label" for line in lines[1:]]
+        res = self.scan(("\n".join(lines) + "\n").encode("utf-8"))
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertNotIn("label_check", res.json())
+        self.assertTrue(all("label_in_file" not in a for a in res.json()["alerts"]))
+
     def test_an_overlong_address_is_refused(self):
         text = official_csv([("BENIGN", 5)], seed=44).decode("cp1252").splitlines()
         text[0] = "Source IP," + text[0]
@@ -364,15 +410,27 @@ class DashboardTests(unittest.TestCase):
         tab = html[start:end]
         self.assertNotRegex(tab, r"\sstyle\s*=")
         self.assertNotRegex(tab, r"\son[a-z]+\s*=")
-        for element_id in ("live-chart", "live-chart-box", "alert-filter", "alert-filter-note"):
+        for element_id in ("live-chart", "live-chart-box", "alert-filter", "alert-filter-note",
+                           "download-alerts-btn"):
             self.assertIn(f'id="{element_id}"', tab)
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
         html = Path("frontend/index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="app\.js\?v=8"')
-        self.assertRegex(html, r'href="style\.css\?v=8"')
+        self.assertRegex(html, r'src="app\.js\?v=12"')
+        self.assertRegex(html, r'href="style\.css\?v=12"')
         script = Path("frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
+
+    def test_user_table_is_built_as_plain_text(self):
+        """System Config's user table must not put stored text (usernames, roles, dataset
+        names) into the page as HTML, so a crafted username can never run as code."""
+        script = Path("frontend/app.js").read_text(encoding="utf-8")
+        start = script.index("const DATASET_CHOICES")
+        end = script.index('getElementById("refresh-users-btn")')
+        user_table = script[start:end]
+        self.assertIsNone(re.search(r"\.(innerHTML|outerHTML)\s*\+?=|insertAdjacentHTML", user_table))
+        self.assertIn('textElement("td", u.username)', user_table)
+        self.assertIn("encodeURIComponent(userId)", user_table)
 
 
 if __name__ == "__main__":

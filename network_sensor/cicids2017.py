@@ -305,9 +305,11 @@ def format_value(column: str, value) -> str:
 
 
 def family_of(label: str) -> str:
+    """The family of an attack label. A family name itself ("DoS", "Brute Force", ...)
+    also counts, so people labelling their own traffic can use it (see own_data.py)."""
     if label == NORMAL_LABEL:
         return "normal"
-    return FAMILY_OF_LABEL.get(label, "unknown")
+    return FAMILY_OF_LABEL.get(label, label if label in FAMILIES else "unknown")
 
 
 CICIDS2017_SPEC = DatasetSpec(

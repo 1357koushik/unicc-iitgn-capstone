@@ -5,11 +5,14 @@ that file only needs two short endpoints).
   read_connections(file_bytes) - turns an uploaded file into a table, or refuses it
   sensor.scan(table)           - checks every connection and returns ranked alerts, each
                                  with its likely attack type, priority and next step
+  sensor.alerts_csv(table)     - every alert as a CSV table, for download
   sensor.status()              - is the sensor trained, and how well did it score?
   live                         - live replays (see live.py)
 
 Files can be in the NSL-KDD format or the CIC-IDS2017 format (the CSV files that the
-CICFlowMeter tool writes); each format is checked by the sensor trained on that dataset.
+CICFlowMeter tool writes); each format is checked by the sensor trained on that dataset -
+or, for CICFlowMeter files, on your own labelled traffic if the server trained it so
+(python -m network_sensor.train --own-data, see own_data.py).
 
 The file size limit and accepted file types are checked by main.py, next to the
 app's other input limits, before anything here runs.
@@ -25,12 +28,14 @@ import pandas as pd
 
 from network_sensor.actions import IDENTITY_COLUMNS, priority_rank, summarise, where_of
 from network_sensor.cicids2017 import clean_label
+from network_sensor.cicids2018 import COLUMNS_2018, is_cicflowmeter4, is_placeholder_label, rename_columns, translate_label
 from network_sensor.datasets import FEATURE_COLUMNS, FILE_COLUMNS
 from network_sensor.errors import ScanError
 from network_sensor.evaluate import compute_metrics
 from network_sensor.features import InputError
 from network_sensor.live import LiveSessions
 from network_sensor.models import NetworkSensorModel
+from network_sensor.own_data import TRAINED_ON, own_data_evaluation
 from network_sensor.paths import model_path, reports_dir
 from network_sensor.spec import DATASETS, DEFAULT_DATASET, dataset_of_columns, get_spec
 
@@ -65,11 +70,14 @@ def _decode(content: bytes) -> str:
 def read_connections(content: bytes) -> pd.DataFrame:
     """Read an uploaded file of connection records.
 
-    Three layouts are accepted:
+    Four layouts are accepted:
       * a CSV file whose first row names the columns and includes the 41 NSL-KDD
         measurement columns (extra columns such as 'label' are allowed),
       * a CIC-IDS2017 / CICFlowMeter CSV file (first row: 'Destination Port', 'Flow Duration',
-        ...; a 'Label' column is allowed), or
+        ...; a 'Label' column is allowed),
+      * a CSV file written by CICFlowMeter 4.0, as in CSE-CIC-IDS2018 ('Dst Port',
+        'Tot Fwd Pkts', ...): the same measurements under shorter names, renamed here to
+        the CIC-IDS2017 names (and its attack labels translated; see cicids2018.py), or
       * a raw NSL-KDD file with no header row: 41 values per row, optionally followed
         by the label and the difficulty score (like KDDTest+.txt).
     If a label column is present it is used only to report how the sensor did on
@@ -82,11 +90,15 @@ def read_connections(content: bytes) -> pd.DataFrame:
 
     first_values = [value.strip() for value in next(csv.reader([first]))]
     cic_columns = get_spec("cicids2017").feature_columns
+    flowmeter4 = is_cicflowmeter4(first_values)
+    if flowmeter4:
+        first_values = [COLUMNS_2018.get(v, v) for v in first_values]
     if "Flow Duration" in first_values or "Destination Port" in first_values:
         header, names = 0, None
         missing = [c for c in cic_columns if c not in first_values]
         if missing:
-            raise ScanError(400, "The header row looks like CIC-IDS2017 but is missing these columns: "
+            looks_like = "CICFlowMeter 4.0 (CSE-CIC-IDS2018)" if flowmeter4 else "CIC-IDS2017"
+            raise ScanError(400, f"The header row looks like {looks_like} but is missing these columns: "
                                  f"{', '.join(missing[:10])}" + (" ..." if len(missing) > 10 else "") + ".")
     elif "duration" in first_values or "protocol_type" in first_values:
         header, names = 0, None
@@ -106,9 +118,16 @@ def read_connections(content: bytes) -> pd.DataFrame:
         raise ScanError(400, f"The file could not be read as CSV: {str(e)[:200]}")
 
     df.columns = [str(c).strip() for c in df.columns]
+    if flowmeter4:
+        df = rename_columns(df)
+        # The CSE-CIC-IDS2018 files repeat their header row in places.
+        df = df[df["Destination Port"].str.strip() != "Dst Port"]
     cic = dataset_of_columns(df.columns) == "cicids2017"
     if cic and "Label" in df.columns and "label" not in df.columns:
         df = df.rename(columns={"Label": "label"})
+    if flowmeter4 and "label" in df.columns and df["label"].fillna("").map(is_placeholder_label).all():
+        # CICFlowMeter writes "No Label" (or "NeedManualLabel") when nobody labelled the flows.
+        df = df.drop(columns="label")
     if len(df) == 0:
         raise ScanError(400, "The file has no connection records.")
     if len(df) > MAX_CONNECTIONS:
@@ -119,13 +138,74 @@ def read_connections(content: bytes) -> pd.DataFrame:
     if "label" in df.columns:
         if df["label"].isna().any():
             raise ScanError(400, "The 'label' column has empty cells. Remove the column or fill it in.")
-        df["label"] = df["label"].map(clean_label) if cic else df["label"].str.strip().str.rstrip(".")
+        if flowmeter4:
+            df["label"] = df["label"].map(translate_label)     # e.g. "DoS attacks-Hulk" -> "DoS Hulk"
+        else:
+            df["label"] = df["label"].map(clean_label) if cic else df["label"].str.strip().str.rstrip(".")
     return df.reset_index(drop=True)
+
+
+def trained_on_own_data(model: NetworkSensorModel) -> bool:
+    """Was this sensor trained on someone's own labelled files (python -m network_sensor.train
+    --own-data), rather than on the public dataset of its format?"""
+    return model.training_info.get("trained_on") == TRAINED_ON
+
+
+def trained_on(model: NetworkSensorModel) -> str:
+    """What the sensor learned from, for people: 'CIC-IDS2017' or 'your own labelled files'."""
+    return "your own labelled files" if trained_on_own_data(model) else model.spec.title
 
 
 def dataset_of(connections: pd.DataFrame) -> str:
     """Which trained sensor checks this table: 'cicids2017' or 'nsl_kdd'."""
     return dataset_of_columns(connections.columns)
+
+
+def seriousness(alert: dict):
+    """For sorting, most serious first: highest priority, then alerts all three models
+    agree on, then by Random Forest score (then by row, so the order is always the same)."""
+    return (priority_rank(alert), -sum(alert["votes"].values()), -alert["random_forest_score"], alert["row"])
+
+
+# The columns of the downloadable alerts table, in order.
+CSV_COLUMNS = ["Row", "Priority", "Kind", "Likely type", "Type model votes (%)", "Raised by",
+               "Random Forest score (%)", "Certainty", "Reasons", "Where", "Next step"]
+CSV_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_text(value) -> str:
+    """A cell of text. Text from an uploaded file (labels, addresses) could start with "="
+    and would then run as a formula when the CSV is opened in Excel ("CSV injection"), so
+    such text starts with an apostrophe, which makes Excel show it as plain text."""
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(CSV_FORMULA_START) else text
+
+
+def alerts_to_csv(alerts, has_labels: bool) -> str:
+    """The alerts as CSV text (one row per alert, most serious first), for Excel."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(CSV_COLUMNS + (["Label in file"] if has_labels else []))
+    for a in alerts:
+        attack_type = a.get("attack_type") or {}
+        row = [
+            a["row"],
+            _csv_text(a.get("priority", "")),
+            "Known pattern" if a["votes"]["random_forest"] == 1 else "Possible new attack",
+            _csv_text(attack_type.get("likely", "")),
+            round(100 * attack_type["confidence"], 1) if "confidence" in attack_type else "",
+            _csv_text("; ".join(a["flagged_by"])),
+            round(100 * a["random_forest_score"], 1),
+            _csv_text(a.get("certainty", "")),
+            _csv_text(" | ".join(r["text"] for r in a["reasons"])),
+            _csv_text(", ".join(f"{k} {v}" for k, v in a.get("where", {}).items())),
+            _csv_text(a.get("next_step", "")),
+        ]
+        if has_labels:
+            row.append(_csv_text(a.get("label_in_file", "")))
+        writer.writerow(row)
+    # The byte-order mark at the start tells Excel the file is UTF-8.
+    return "\ufeff" + out.getvalue()
 
 
 class SensorService:
@@ -168,6 +248,7 @@ class SensorService:
         except ScanError as e:
             return {"dataset": dataset, "title": spec.title, "ready": False, "message": e.message}
         info = model.training_info
+        own = trained_on_own_data(model)
         return {
             "dataset": dataset,
             "title": spec.title,
@@ -175,8 +256,13 @@ class SensorService:
             "attack_types": model.has_attack_types,     # False: trained before attack types existed
             "trained_at": info.get("trained_at"),
             "training_connections": info.get("training_rows"),
+            "trained_on": trained_on(model),
+            "own_data": own,
             "decision_rule": info.get("decision_rule"),
-            "evaluation": _latest_evaluation(reports_dir(dataset) / "evaluation_report.json"),
+            # A sensor trained on your own files is scored on their test part; the public
+            # dataset's evaluation report says nothing about it.
+            "evaluation": (own_data_evaluation(info) if own
+                           else _latest_evaluation(reports_dir(dataset) / "evaluation_report.json")),
         }
 
     def status(self) -> dict:
@@ -188,7 +274,9 @@ class SensorService:
             main["max_connections"] = MAX_CONNECTIONS
         return {**main, "datasets": datasets}
 
-    def scan(self, connections: pd.DataFrame) -> dict:
+    def _all_alerts(self, connections: pd.DataFrame):
+        """Check every connection. Returns (dataset, spec, model, explanations, alerts):
+        every alert, most serious first."""
         dataset = dataset_of(connections)
         spec = get_spec(dataset)
         model = self._get_model(dataset)
@@ -214,15 +302,14 @@ class SensorService:
             if has_labels:
                 alert["label_in_file"] = connections["label"].iat[i]
             alerts.append(alert)
-        # Most serious first: highest priority, then alerts all three models agree on,
-        # then by Random Forest score.
-        def seriousness(a):
-            return (priority_rank(a), -sum(a["votes"].values()), -a["random_forest_score"], a["row"])
+        return dataset, spec, model, explanations, sorted(alerts, key=seriousness)
 
+    def scan(self, connections: pd.DataFrame) -> dict:
+        dataset, spec, model, explanations, alerts = self._all_alerts(connections)
         known = [a for a in alerts if a["votes"]["random_forest"] == 1]
         new = [a for a in alerts if a["votes"]["random_forest"] == 0]
         groups = {}
-        for a in sorted(alerts, key=seriousness):
+        for a in alerts:
             groups.setdefault((a["votes"]["random_forest"], a.get("priority")), []).append(a)
         shown = sorted((a for group in groups.values() for a in group[:MAX_ALERTS_PER_FILTER]), key=seriousness)
 
@@ -238,10 +325,11 @@ class SensorService:
             **summarise(alerts),                          # counts of ALL alerts, for the charts
             "attack_types": model.has_attack_types,
             "alerts": shown,
+            "trained_on": trained_on(model),
             "model": {"trained_at": model.training_info.get("trained_at"),
                       "decision_rule": model.training_info.get("decision_rule")},
         }
-        if has_labels:
+        if "label" in connections.columns:
             truth = (connections["label"] != spec.normal_label).astype(int)
             verdicts = [1 if e["verdict"] == "attack" else 0 for e in explanations]
             result["label_check"] = {
@@ -250,6 +338,15 @@ class SensorService:
                 "unknown_labels": sorted({lab for lab in connections["label"] if spec.family_of(lab) == "unknown"})[:20],
             }
         return result
+
+    def alerts_csv(self, connections: pd.DataFrame):
+        """EVERY alert in the file as a CSV table (the dashboard shows only the most serious).
+        Returns (CSV text, facts for the audit log)."""
+        dataset, _, model, _, alerts = self._all_alerts(connections)
+        text = alerts_to_csv(alerts, has_labels="label" in connections.columns)
+        return text, {"dataset": dataset, "connections": len(connections), "alerts": len(alerts),
+                      "model_trained_at": model.training_info.get("trained_at"),
+                      "model_trained_on": trained_on(model)}
 
 
 # The one shared sensor, and the live replays, that the web app uses.
