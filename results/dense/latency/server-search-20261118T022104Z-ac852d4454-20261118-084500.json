@@ -1,0 +1,882 @@
+{
+ "what": "DenseIndex.search(v, k=100): one BLAS matrix-vector product + exact top-100, one query at a time",
+ "host": "localhost.localdomain",
+ "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+ "python": "3.12.16",
+ "cpu_count": 48,
+ "numpy": "2.2.6",
+ "created_utc": "2026-11-18T04:06:36Z",
+ "load_average": [
+  7.51,
+  9.2,
+  12.8
+ ],
+ "load_average_end": [
+  22.43,
+  14.8,
+  9.14
+ ],
+ "index": {
+  "build_id": "20261118T022104Z-ac852d4454",
+  "documents": 406840,
+  "rows": 406840,
+  "dim": 1024,
+  "counts": {
+   "cve": 405013,
+   "attack": 1827
+  },
+  "source": "encoded",
+  "model": {
+   "name": "bge-large-en-v1.5",
+   "repo": "BAAI/bge-large-en-v1.5",
+   "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+   "config_key": "815ca1defcd075ff"
+  },
+  "vectors_sha256": "44ca36637b34ea52df576a303bee74fe364cf6ff69f99d3d9ee0229322327430",
+  "memory_mib": 1589.2,
+  "load_seconds": 4.991,
+  "collapse": null
+ },
+ "queries": {
+  "path": "/home/koushik.moram/team2/dense/dev_queries.jsonl",
+  "n": 1489
+ },
+ "repeat": 3,
+ "query_encoding_untimed_s": 112.5,
+ "blas_sweep": {
+  "cve": {
+   "1": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 116.593,
+      "p95": 187.758,
+      "p99": 243.256,
+      "max": 461.277,
+      "mean": 140.637
+     },
+     {
+      "n": 1489,
+      "p50": 116.216,
+      "p95": 119.657,
+      "p99": 188.264,
+      "max": 192.03,
+      "mean": 118.147
+     },
+     {
+      "n": 1489,
+      "p50": 116.411,
+      "p95": 119.856,
+      "p99": 189.862,
+      "max": 214.428,
+      "mean": 119.084
+     }
+    ],
+    "median": {
+     "p50": 116.411,
+     "p95": 119.856,
+     "p99": 189.862,
+     "max": 214.428,
+     "mean": 119.084
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 1,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 1,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 1,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "2": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 61.526,
+      "p95": 105.777,
+      "p99": 153.312,
+      "max": 837.003,
+      "mean": 68.344
+     },
+     {
+      "n": 1489,
+      "p50": 61.679,
+      "p95": 62.287,
+      "p99": 100.077,
+      "max": 136.742,
+      "mean": 62.749
+     },
+     {
+      "n": 1489,
+      "p50": 61.673,
+      "p95": 62.178,
+      "p99": 99.527,
+      "max": 140.358,
+      "mean": 62.586
+     }
+    ],
+    "median": {
+     "p50": 61.673,
+     "p95": 62.287,
+     "p99": 100.077,
+     "max": 140.358,
+     "mean": 62.749
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 2,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 2,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 2,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "4": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 34.57,
+      "p95": 42.758,
+      "p99": 91.446,
+      "max": 113.381,
+      "mean": 36.563
+     },
+     {
+      "n": 1489,
+      "p50": 34.566,
+      "p95": 35.142,
+      "p99": 62.944,
+      "max": 115.752,
+      "mean": 35.195
+     },
+     {
+      "n": 1489,
+      "p50": 34.518,
+      "p95": 35.059,
+      "p99": 47.523,
+      "max": 112.271,
+      "mean": 35.021
+     }
+    ],
+    "median": {
+     "p50": 34.566,
+     "p95": 35.142,
+     "p99": 62.944,
+     "max": 113.381,
+     "mean": 35.195
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 4,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 4,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 4,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "8": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 24.253,
+      "p95": 33.653,
+      "p99": 70.011,
+      "max": 85.617,
+      "mean": 26.141
+     },
+     {
+      "n": 1489,
+      "p50": 24.222,
+      "p95": 27.14,
+      "p99": 41.361,
+      "max": 74.394,
+      "mean": 24.744
+     },
+     {
+      "n": 1489,
+      "p50": 24.222,
+      "p95": 26.882,
+      "p99": 27.848,
+      "max": 76.518,
+      "mean": 24.63
+     }
+    ],
+    "median": {
+     "p50": 24.222,
+     "p95": 27.14,
+     "p99": 41.361,
+     "max": 76.518,
+     "mean": 24.744
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 8,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 8,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 8,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "12": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 22.945,
+      "p95": 34.552,
+      "p99": 58.036,
+      "max": 243.785,
+      "mean": 26.133
+     },
+     {
+      "n": 1489,
+      "p50": 22.841,
+      "p95": 25.522,
+      "p99": 25.882,
+      "max": 65.892,
+      "mean": 23.231
+     },
+     {
+      "n": 1489,
+      "p50": 22.843,
+      "p95": 25.547,
+      "p99": 25.84,
+      "max": 65.434,
+      "mean": 23.198
+     }
+    ],
+    "median": {
+     "p50": 22.843,
+     "p95": 25.547,
+     "p99": 25.882,
+     "max": 65.892,
+     "mean": 23.231
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 12,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 12,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 12,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "16": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 23.004,
+      "p95": 26.122,
+      "p99": 44.667,
+      "max": 51.13,
+      "mean": 23.949
+     },
+     {
+      "n": 1489,
+      "p50": 22.936,
+      "p95": 25.078,
+      "p99": 32.063,
+      "max": 54.112,
+      "mean": 23.353
+     },
+     {
+      "n": 1489,
+      "p50": 22.979,
+      "p95": 25.113,
+      "p99": 32.163,
+      "max": 51.523,
+      "mean": 23.386
+     }
+    ],
+    "median": {
+     "p50": 22.979,
+     "p95": 25.113,
+     "p99": 32.163,
+     "max": 51.523,
+     "mean": 23.386
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 16,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 16,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 16,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "24": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 23.734,
+      "p95": 29.713,
+      "p99": 40.759,
+      "max": 187.657,
+      "mean": 25.048
+     },
+     {
+      "n": 1489,
+      "p50": 23.388,
+      "p95": 24.781,
+      "p99": 34.66,
+      "max": 43.926,
+      "mean": 23.779
+     },
+     {
+      "n": 1489,
+      "p50": 23.383,
+      "p95": 24.773,
+      "p99": 27.103,
+      "max": 37.433,
+      "mean": 23.712
+     }
+    ],
+    "median": {
+     "p50": 23.388,
+     "p95": 24.781,
+     "p99": 34.66,
+     "max": 43.926,
+     "mean": 23.779
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 24,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 24,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 24,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   }
+  },
+  "all": {
+   "1": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 117.599,
+      "p95": 152.569,
+      "p99": 191.087,
+      "max": 403.371,
+      "mean": 128.61
+     },
+     {
+      "n": 1489,
+      "p50": 117.446,
+      "p95": 120.688,
+      "p99": 189.759,
+      "max": 193.059,
+      "mean": 119.407
+     },
+     {
+      "n": 1489,
+      "p50": 117.423,
+      "p95": 120.664,
+      "p99": 189.046,
+      "max": 192.39,
+      "mean": 119.337
+     }
+    ],
+    "median": {
+     "p50": 117.446,
+     "p95": 120.688,
+     "p99": 189.759,
+     "max": 193.059,
+     "mean": 119.407
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 1,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 1,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 1,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "2": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 60.667,
+      "p95": 95.913,
+      "p99": 139.122,
+      "max": 1138.998,
+      "mean": 72.381
+     },
+     {
+      "n": 1489,
+      "p50": 60.981,
+      "p95": 62.902,
+      "p99": 110.297,
+      "max": 149.262,
+      "mean": 62.289
+     },
+     {
+      "n": 1489,
+      "p50": 61.086,
+      "p95": 61.744,
+      "p99": 102.762,
+      "max": 139.73,
+      "mean": 61.968
+     }
+    ],
+    "median": {
+     "p50": 60.981,
+     "p95": 62.902,
+     "p99": 110.297,
+     "max": 149.262,
+     "mean": 62.289
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 2,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 2,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 2,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "4": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 33.831,
+      "p95": 51.496,
+      "p99": 99.897,
+      "max": 114.661,
+      "mean": 40.359
+     },
+     {
+      "n": 1489,
+      "p50": 33.722,
+      "p95": 35.988,
+      "p99": 64.195,
+      "max": 113.462,
+      "mean": 34.495
+     },
+     {
+      "n": 1489,
+      "p50": 33.667,
+      "p95": 35.398,
+      "p99": 38.752,
+      "max": 113.5,
+      "mean": 34.265
+     }
+    ],
+    "median": {
+     "p50": 33.722,
+     "p95": 35.988,
+     "p99": 64.195,
+     "max": 113.5,
+     "mean": 34.495
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 4,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 4,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 4,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "8": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 23.651,
+      "p95": 35.559,
+      "p99": 74.503,
+      "max": 87.519,
+      "mean": 27.306
+     },
+     {
+      "n": 1489,
+      "p50": 23.487,
+      "p95": 26.963,
+      "p99": 35.546,
+      "max": 83.35,
+      "mean": 24.084
+     },
+     {
+      "n": 1489,
+      "p50": 23.507,
+      "p95": 26.578,
+      "p99": 35.071,
+      "max": 73.854,
+      "mean": 24.025
+     }
+    ],
+    "median": {
+     "p50": 23.507,
+     "p95": 26.963,
+     "p99": 35.546,
+     "max": 83.35,
+     "mean": 24.084
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 8,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 8,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 8,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "12": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 24.813,
+      "p95": 27.887,
+      "p99": 56.911,
+      "max": 225.366,
+      "mean": 25.944
+     },
+     {
+      "n": 1489,
+      "p50": 22.467,
+      "p95": 27.768,
+      "p99": 55.415,
+      "max": 172.792,
+      "mean": 24.223
+     },
+     {
+      "n": 1489,
+      "p50": 22.419,
+      "p95": 25.24,
+      "p99": 25.669,
+      "max": 61.631,
+      "mean": 22.822
+     }
+    ],
+    "median": {
+     "p50": 22.467,
+     "p95": 27.768,
+     "p99": 55.415,
+     "max": 172.792,
+     "mean": 24.223
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 12,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 12,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 12,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "16": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 23.639,
+      "p95": 26.422,
+      "p99": 48.923,
+      "max": 314.624,
+      "mean": 24.734
+     },
+     {
+      "n": 1489,
+      "p50": 22.603,
+      "p95": 24.723,
+      "p99": 38.408,
+      "max": 51.965,
+      "mean": 23.096
+     },
+     {
+      "n": 1489,
+      "p50": 22.586,
+      "p95": 24.665,
+      "p99": 25.006,
+      "max": 51.932,
+      "mean": 22.935
+     }
+    ],
+    "median": {
+     "p50": 22.603,
+     "p95": 24.723,
+     "p99": 38.408,
+     "max": 51.965,
+     "mean": 23.096
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 16,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 16,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 16,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   },
+   "24": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 23.691,
+      "p95": 27.7,
+      "p99": 37.32,
+      "max": 175.982,
+      "mean": 24.952
+     },
+     {
+      "n": 1489,
+      "p50": 23.007,
+      "p95": 25.184,
+      "p99": 37.753,
+      "max": 156.389,
+      "mean": 23.96
+     },
+     {
+      "n": 1489,
+      "p50": 22.927,
+      "p95": 24.733,
+      "p99": 32.653,
+      "max": 42.145,
+      "mean": 23.366
+     }
+    ],
+    "median": {
+     "p50": 23.007,
+     "p95": 25.184,
+     "p99": 37.32,
+     "max": 156.389,
+     "mean": 23.96
+    },
+    "blas": {
+     "mechanism": "threadpoolctl",
+     "requested": 24,
+     "blas": [
+      {
+       "internal_api": "openblas",
+       "num_threads": 24,
+       "version": "0.3.29.dev"
+      },
+      {
+       "internal_api": "openblas",
+       "num_threads": 24,
+       "version": "0.3.29"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "blas_threads_chosen": 24,
+ "chosen": {
+  "cve": {
+   "p50": 23.388,
+   "p95": 24.781,
+   "p99": 34.66,
+   "max": 43.926,
+   "mean": 23.779
+  },
+  "all": {
+   "p50": 23.007,
+   "p95": 25.184,
+   "p99": 37.32,
+   "max": 156.389,
+   "mean": 23.96
+  }
+ },
+ "by_slice_cve": {
+  "T0": {
+   "n": 106,
+   "p50": 22.935,
+   "p95": 24.07,
+   "p99": 25.764,
+   "max": 27.504,
+   "mean": 23.167
+  },
+  "T1": {
+   "n": 150,
+   "p50": 22.934,
+   "p95": 24.607,
+   "p99": 25.567,
+   "max": 25.853,
+   "mean": 23.207
+  },
+  "T2": {
+   "n": 99,
+   "p50": 22.994,
+   "p95": 24.249,
+   "p99": 37.898,
+   "max": 37.898,
+   "mean": 23.46
+  },
+  "T3": {
+   "n": 300,
+   "p50": 22.942,
+   "p95": 24.096,
+   "p99": 31.404,
+   "max": 44.307,
+   "mean": 23.209
+  },
+  "T4": {
+   "n": 160,
+   "p50": 22.918,
+   "p95": 24.001,
+   "p99": 32.304,
+   "max": 39.07,
+   "mean": 23.179
+  },
+  "T5": {
+   "n": 120,
+   "p50": 22.963,
+   "p95": 25.734,
+   "p99": 29.375,
+   "max": 43.144,
+   "mean": 23.657
+  },
+  "T6": {
+   "n": 154,
+   "p50": 22.939,
+   "p95": 24.887,
+   "p99": 35.477,
+   "max": 38.453,
+   "mean": 23.548
+  },
+  "T7": {
+   "n": 160,
+   "p50": 22.931,
+   "p95": 24.202,
+   "p99": 25.897,
+   "max": 35.987,
+   "mean": 23.222
+  },
+  "T8": {
+   "n": 120,
+   "p50": 22.925,
+   "p95": 24.051,
+   "p99": 24.679,
+   "max": 24.738,
+   "mean": 23.132
+  },
+  "T9": {
+   "n": 120,
+   "p50": 22.967,
+   "p95": 25.774,
+   "p99": 26.307,
+   "max": 26.551,
+   "mean": 23.456
+  }
+ },
+ "open_fresh_process": {
+  "repetitions": [
+   {
+    "open_ms": 5213.181182742119,
+    "mib": 1589.21875
+   },
+   {
+    "open_ms": 5226.764261722565,
+    "mib": 1589.21875
+   },
+   {
+    "open_ms": 4992.414049804211,
+    "mib": 1589.21875
+   }
+  ],
+  "median_ms": 5213.181182742119
+ }
+}

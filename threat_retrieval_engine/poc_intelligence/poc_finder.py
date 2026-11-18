@@ -26,7 +26,6 @@ from threat_retrieval_engine.poc_intelligence.sources.base import (
 from threat_retrieval_engine.poc_intelligence.sources.bluesky_scraper import BlueSkyPoCSource
 from threat_retrieval_engine.poc_intelligence.sources.github_scraper import GitHubPoCSource
 from threat_retrieval_engine.poc_intelligence.sources.mastodon_scraper import MastodonPoCSource
-from threat_retrieval_engine.poc_intelligence.sources.x_scraper import XPoCSource
 from threat_retrieval_engine.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -59,13 +58,12 @@ class PoCFinderEngine:
         if timeout_seconds is None:
             try:
                 cfg = get_config()
-                timeout_seconds = getattr(cfg, "d_poc_seconds", 10.0)
+                timeout_seconds = getattr(cfg, "d_poc_seconds", 20.0)
             except Exception:
-                timeout_seconds = 10.0
+                timeout_seconds = 20.0
         self.timeout_seconds = float(timeout_seconds)
         self.sources: dict[str, BasePoCSource] = sources or {
             "github": GitHubPoCSource(timeout_seconds=timeout_seconds),
-            "x": XPoCSource(timeout_seconds=timeout_seconds),
             "mastodon": MastodonPoCSource(timeout_seconds=timeout_seconds),
             "bluesky": BlueSkyPoCSource(timeout_seconds=timeout_seconds),
         }
@@ -129,6 +127,13 @@ class PoCFinderEngine:
 
         tasks = [_query_source(name, src) for name, src in active_sources]
         source_responses: list[SourceSearchResponse] = await asyncio.gather(*tasks, return_exceptions=False)
+        # X (Twitter) needs a paid API and has no credentials: the connector is removed (plan 4.8 item 12), and a
+        # request naming it, or any other unknown source, is answered with source_not_supported.
+        for name in active_source_names:
+            if name not in self.sources:
+                source_responses.append(SourceSearchResponse(
+                    source=name, status="source_not_supported", query=cve_clean,
+                    errors=[f"source '{name}' is not supported" + (": X needs a paid API" if name == "x" else "")]))
 
         raw_candidates: list[RawCandidate] = []
         source_statuses: list[SourceStatusSchema] = []

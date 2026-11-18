@@ -94,6 +94,135 @@ variants:
     factory: threat_retrieval_engine.lexical.eval_adapter:make
     options: {k: 100, kinds: all}
 
+  # C3 dense retrieval. `index` is a dense build or a root holding LATEST, relative to $TRE_DENSE_DIR
+  # (default data/dense). Query encoding uses the index's model in its documented query format (BGE-M3: no
+  # instruction), capped at 256 tokens; `query_format: v1` encodes as v1 served (bge-en instruction, no cap).
+  v2_dense:
+    adapter: inprocess
+    description: C3 dense index ($TRE_DENSE_DIR/LATEST; day one = the exported v1 BGE-M3 vectors), exact search, top 100
+      CVE documents
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {k: 100, kinds: cve}
+
+  v2_dense_attack:
+    adapter: inprocess
+    description: as v2_dense over CVE and ATT&CK documents
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {k: 100, kinds: all}
+
+  v2_dense_v1query:
+    adapter: inprocess
+    description: as v2_dense, queries encoded as v1 served them (bge-en instruction, no token cap); v1 export only
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {k: 100, kinds: cve, query_format: v1}
+
+  v1_dense_max:
+    adapter: inprocess
+    description: exported v1 vectors, full corpus, a CVE scored by the maximum over its v1 rows (collapse ablation)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: v1/max, k: 100, kinds: cve}
+
+  v1_dense_mean:
+    adapter: inprocess
+    description: exported v1 vectors, full corpus, a CVE's rows averaged (collapse ablation)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: v1/mean, k: 100, kinds: cve}
+
+  v1_dense_primary:
+    adapter: inprocess
+    description: exported v1 vectors, full corpus, a CVE's bare-ID row (else KEV, EPSS) (collapse ablation)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: v1/primary, k: 100, kinds: cve}
+
+  # C3 fusion: weighted RRF of the C2 lexical index and the dense index, 100 candidates per list; depth, k and
+  # weights tuned on dev (results/dense/tuning/fusion-dayone*.json; lexical weight 1). Retune when the dense index
+  # changes (C3b, C6).
+  v2_fused:
+    adapter: inprocess
+    description: RRF(lexical, dense) over CVE documents, depth 100, k 1, weights lexical 1 / dense 0.25, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_fused
+    options: {k: 100, kinds: cve, weights: [1.0, 0.25], rrf_k: 1, depth: 100, candidates: 100}
+
+  v2_fused_attack:
+    adapter: inprocess
+    description: as v2_fused over CVE and ATT&CK documents (lexical index built with --attack)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_fused
+    options: {k: 100, kinds: all, weights: [1.0, 0.25], rrf_k: 1, depth: 100, candidates: 100}
+
+  # Embedding-model comparison on the reduced corpus (plan 4.5): builds under $TRE_DENSE_DIR/compare/<name>.
+  cmp_bge-m3:
+    adapter: inprocess
+    description: reduced corpus, BGE-M3 on C1 dense_text (no labels), CVE + ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-m3, k: 100, kinds: all}
+
+  cmp_bge-large-en-v1.5:
+    adapter: inprocess
+    description: reduced corpus, bge-large-en-v1.5 (query instruction), CVE + ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-large-en-v1.5, k: 100, kinds: all}
+
+  cmp_bge-base-en-v1.5:
+    adapter: inprocess
+    description: reduced corpus, bge-base-en-v1.5 (query instruction), CVE + ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-base-en-v1.5, k: 100, kinds: all}
+
+  cmp_e5-large-v2:
+    adapter: inprocess
+    description: reduced corpus, e5-large-v2 ("query:"/"passage:"), CVE + ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/e5-large-v2, k: 100, kinds: all}
+
+  cmp_gte-large:
+    adapter: inprocess
+    description: reduced corpus, gte-large (no instruction), CVE + ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/gte-large, k: 100, kinds: all}
+
+  cmp_bge-m3_q512:
+    adapter: inprocess
+    description: as cmp_bge-m3 with queries capped at 512 tokens instead of 256 (query-cap ablation)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-m3, k: 100, kinds: all, query_max_tokens: 512}
+
+  cmp_bge-m3_v1cover:
+    adapter: inprocess
+    description: as cmp_bge-m3 restricted (mask) to the CVEs the v1 vectors cover in the reduced corpus, no ATT&CK
+      (separates the model and text from v1's coverage gaps)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/bge-m3, k: 100, kinds: cve, restrict_to: compare/v1}
+
+  cmp_v1:
+    adapter: inprocess
+    description: reduced corpus (its CVE part), exported v1 vectors with the selected collapse, BGE-M3 queries in the
+      documented format; v1 has no ATT&CK vectors
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/v1, k: 100, kinds: all}
+
+  cmp_v1_v1query:
+    adapter: inprocess
+    description: as cmp_v1, queries encoded as v1 served them (bge-en instruction, no token cap)
+    service: v2
+    factory: threat_retrieval_engine.dense.eval_adapter:make_dense
+    options: {index: compare/v1, k: 100, kinds: all, query_format: v1}
+
   v1_lexical:
     adapter: inprocess
     description: v1 BM25 (search_engine/bm25_index.py, k1 1.5, b 0.75) on v1's pickled index copied read-only from
@@ -106,3 +235,20 @@ variants:
     adapter: runfile
     description: committed example run of v1_match on the synthetic demonstration queries
     path: results/eval/example/b4-example-v1_match.jsonl
+
+  # C4 + C5 on top of C3: the full v2 retrieval chain (identifier and ATT&CK ID routes, ATT&CK names,
+  # nickname route, fused lexical + dense, int8 bge-reranker-v2-m3 on the top 10). Builds from TRE_STORE_DIR,
+  # TRE_LEXICAL_DIR, TRE_DENSE_DIR, TRE_ATTACK_DIR; TRE_V2_FEATURES_OUT collects C7 signals.
+  v2_full:
+    adapter: inprocess
+    description: full v2 chain (routes + fused + int8 reranker top 10), CVE and ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.v2.system:make_v2
+    options: {k: 100, rerank: true, rerank_depth: 10}
+
+  v2_full_norerank:
+    adapter: inprocess
+    description: as v2_full without the reranker (routes + fused), to measure the reranker's contribution
+    service: v2
+    factory: threat_retrieval_engine.v2.system:make_v2
+    options: {k: 100, rerank: false}

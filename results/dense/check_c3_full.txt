@@ -1,0 +1,11 @@
+[PASS] manifest: build 20261118T022104Z-ac852d4454, source encoded, model bge-large-en-v1.5@d4aa6901d3a4, vectors sha256 44ca36637b34ea52...
+[PASS] count: 406,840 documents (405,013 CVE, 1,827 ATT&CK), 406,840 vector rows; full build: vector count = document count = store searchable 405,013 + ATT&CK 1,827
+[PASS] norms: 406,840 vectors finite, max |norm - 1| = 1.99e-07
+[PASS] exact: 300 train/dev queries, 600 rankings (top 100; CVE kind and all kinds): 0 differ from the complete float32 sort, 0 differ from the float64 brute force beyond float32 rounding, 8 differ only among documents within 1e-6 (float32 rounding); query encoding 23 s
+[PASS] determinism: query vectors bit-identical on re-encoding: True; rankings identical on repeat: True; identical from a freshly opened index: True
+[PASS] reencode: 100 sampled documents re-encoded here: cosine min 0.9999998, mean 1.0000000, max |diff| 5.63e-07 (stored vectors encoded on ['localhost.localdomain'])
+[PASS] fuzz: 500 malformed text queries: errors 0, over 2 s 0, worst 0.61 s; 1,000+ malformed vectors/k/kinds/masks: 0 accepted or wrong exception
+[PASS] latency_server: BLAS threads 24 (fixed by sweep): CVE kind p50 23.4 / p95 24.8 / p99 34.7 ms; all kinds p95 25.2 ms (limit 60); index open 5.2 s; 1489 dev queries x 3, load [7.51, 9.2, 12.8] (server-search-20261118T022104Z-ac852d4454-20261118-084500.json)
+[PASS] encode_latency: bge-large-en-v1.5, 12 torch threads (fixed by sweep), batch 1, cap 256 tokens: p50 65 / p95 106 / p99 195 ms over 1489 dev queries x 3 (target p95 250 ms; a target, not a limit) (server-encode-20261118-022405.json)
+[PASS] comparison: winner bge-large-en-v1.5 (dev macro Recall@50 0.548, nDCG@10 0.355); C3b needed: True (vs cmp_v1: better on ['recall@50', 'ndcg@10'], worse on [])
+check_c3: PASS (10 pass/reported, 0 fail)

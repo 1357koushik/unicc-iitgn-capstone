@@ -161,6 +161,7 @@ class GitHubPoCSource(BasePoCSource):
             "language": item.get("language"),
             "is_fork": item.get("fork"),
             "archived": item.get("archived"),
+            "size_kb": item.get("size") if isinstance(item.get("size"), int) else None,
             "created_at": item.get("created_at"),
             "updated_at": item.get("updated_at"),
             "pushed_at": item.get("pushed_at"),

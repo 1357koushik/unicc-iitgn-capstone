@@ -56,7 +56,7 @@ attack_build_dir: "./data/attack"
 deadlines:
   d_match_seconds: 15.0         # Server-side hard deadline for synchronous /match (PoC excluded)
   t_client_match_seconds: 20.0  # Client timeout for Team 3 investigator (must be > d_match_seconds)
-  d_poc_seconds: 10.0           # Deadline for outbound PoC discovery
+  d_poc_seconds: 20.0           # Deadline for outbound PoC discovery (own deadline, separate from the match deadline)
   client_margin_seconds: 5.0
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,74 @@
+{
+  "config": {
+    "adapter": "inprocess",
+    "factory": "threat_retrieval_engine.lexical.eval_adapter:make",
+    "options": {
+      "k": 100
+    }
+  },
+  "created_at": "2026-11-17T14:24:14Z",
+  "sessions": [
+    {
+      "abort_reason": null,
+      "already_done": 0,
+      "concurrency": 1,
+      "ended_at": "2026-11-17T14:27:28Z",
+      "errors": 0,
+      "harness_commit": "de2e675",
+      "harness_version": "b4-1",
+      "host": "localhost.localdomain",
+      "load_average_end": [
+        23.41,
+        23.74,
+        20.46
+      ],
+      "load_average_start": [
+        24.86,
+        23.96,
+        19.77
+      ],
+      "pause_after_error_s": 0.0,
+      "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+      "python": "3.12.16",
+      "selected": 920,
+      "sent": 920,
+      "service_info": {
+        "build_id": "20261115T203653Z-bfacb4bb1c",
+        "component": "lexical",
+        "documents": 406840,
+        "impact_bytes": 259774960,
+        "impact_nnz": 20580052,
+        "index_sha256": "814a1e73ff47fa2a8e9f7f15db14d258ea2ccf0f6685fbe9d17a3d6da7c8d5e1",
+        "kinds": [
+          "cve"
+        ],
+        "ranking": {
+          "bm25": {
+            "b": 0.75,
+            "implementation": "sqlite fts5 bm25()",
+            "k1": 1.2
+          },
+          "max_df_ratio": 1.0,
+          "max_query_chars": 20000,
+          "max_terms": 64,
+          "stop_words": "english",
+          "weights": {
+            "aliases": 8.0,
+            "description": 1.0,
+            "exploit_titles": 2.0,
+            "ids": 50.0,
+            "kev_text": 8.0,
+            "title": 0.5,
+            "vendor_product": 2.0,
+            "weakness": 2.0
+          }
+        },
+        "tokenizer": "tre-domain-1-split1-td1-porter2"
+      },
+      "session_id": "2026-11-17T14:24:14Z-139830-7843ade8",
+      "started_at": "2026-11-17T14:24:14Z",
+      "status": "complete"
+    }
+  ],
+  "variant": "v2_lexical"
+}

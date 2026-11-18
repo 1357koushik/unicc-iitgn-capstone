@@ -114,7 +114,7 @@ class RetrievalConfig:
         deadlines = cfg.get("deadlines", {})
         self.d_match_seconds = float(os.getenv("D_MATCH_SECONDS", deadlines.get("d_match_seconds", 15.0)))
         self.t_client_match_seconds = float(os.getenv("T_CLIENT_MATCH_SECONDS", deadlines.get("t_client_match_seconds", 20.0)))
-        self.d_poc_seconds = float(os.getenv("D_POC_SECONDS", deadlines.get("d_poc_seconds", 10.0)))
+        self.d_poc_seconds = float(os.getenv("D_POC_SECONDS", deadlines.get("d_poc_seconds", 20.0)))
         self.client_margin_seconds = float(deadlines.get("client_margin_seconds", 5.0))
 
         # Enforce V2 Invariant: T_client_match > D_match
