@@ -1,0 +1,24 @@
+{
+ "ours": [
+  0.267,
+  0.73,
+  0.403
+ ],
+ "fixed_generic_list": [
+  0.375,
+  0.795,
+  0.503
+ ],
+ "generic_list": [
+  "attack:T1190",
+  "attack:T1203",
+  "attack:T1068",
+  "attack:T1210",
+  "attack:T1059",
+  "attack:T1212",
+  "attack:T1211",
+  "attack:T1133",
+  "attack:T1078",
+  "attack:T1505.003"
+ ]
+}

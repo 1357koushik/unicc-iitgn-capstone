@@ -44,13 +44,21 @@ The mixed CVE + ATT&CK list cannot answer "which technique is this?": for a CVE 
 | Benchmark | Metric | v2 before | v2 with technique route [95% CI] | Published (same data and metric) |
 |---|---|---|---|---|
 | Text2TTP | Recall@10 | 0.426 (as served) / 0.658 (ATT&CK only) | **0.906** [0.896, 0.915] | Text2TTP pipeline 0.921; Ladder 0.634; MITRE TRAM 0.458 |
-| CTID KEV | Hits@10 | 0.002 / 0.251 | **0.730** [0.687, 0.771] | MiniLM 0.578; ATTACK-BERT 0.356 |
-| CTID KEV | MRR@10 | 0.002 / 0.075 | **0.403** [0.366, 0.439] | MiniLM 0.252; ATTACK-BERT 0.136 |
+| CTID KEV | Hit@1 | – | 0.267 | zero-shot Gemma-4 26B LLM 0.518 (highest published; SMSI, 45-CVE split) |
+| CTID KEV | Hits@10 | 0.002 / 0.251 | 0.730 [0.687, 0.771] | MiniLM 0.578; ATTACK-BERT 0.356 |
+| CTID KEV | MRR@10 | 0.002 / 0.075 | 0.403 [0.366, 0.439] | MiniLM 0.252; ATTACK-BERT 0.136 |
 | CTIConnect ATD | Hit@5 | 0.452 | **0.529** [0.467, 0.586] | vanilla RAG (text-embedding-3-large) 0.845*; + reranker 0.862*; best 0.985* |
 | CTIConnect ATA | Hit@5 | 0.388 | **0.681** [0.606, 0.750] | 0.790*; + reranker 0.812*; best 0.890* |
 | CTIConnect WIM | Hit@5 | 0.666 | 0.666 (CVE route, unchanged) | 0.845* |
 
 \* CTIConnect publishes only category averages (4 linking tasks; 2 attribution tasks), not per task.
+
+CTID KEV: the labels are dominated by generic techniques (T1059 on 41% of the CVEs, T1190 on 37%). A fixed list of 10
+common exploitation techniques, with no model, scores Hit@1 0.375, Hits@10 0.795 and MRR 0.503, above our route
+(`results/external/kev_baseline.json`). Hits@10 and MRR on KEV therefore mostly reward ranking generic techniques;
+on the labels other than T1190, T1203 and T1068 our route finds one in the top 10 for 32% of the CVEs. The highest
+published result is a zero-shot Gemma-4 26B LLM (Hit@1 0.518 on a 45-CVE split, not the same 419 CVEs). The
+published embedding scores (MiniLM, ATTACK-BERT) are on that 45-CVE split too.
 
 Text2TTP: 9 questions contain a whole knowledge-base entry; without them Recall@10 is still 0.906. The published
 Text2TTP pipeline (0.921) uses models fine-tuned on Text2TTP data; ours uses none.
