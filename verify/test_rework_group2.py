@@ -15,7 +15,6 @@ from threat_retrieval_engine.poc_intelligence.sources.base import (
 )
 from threat_retrieval_engine.poc_intelligence.sources.bluesky_scraper import BlueSkyPoCSource
 from threat_retrieval_engine.poc_intelligence.sources.mastodon_scraper import MastodonPoCSource
-from threat_retrieval_engine.poc_intelligence.sources.x_scraper import XPoCSource
 from threat_retrieval_engine.poc_intelligence.sources.github_scraper import GitHubPoCSource
 from threat_retrieval_engine.api.schemas import PoCResultSchema
 from threat_retrieval_engine.search_engine.vector_database import get_thread_sqlite
@@ -64,29 +63,6 @@ def test_all_scrapers_sanitize_output():
     ms = MastodonPoCSource()
     cleaned_ms = sanitize_untrusted_text(bidi_sample)
     assert cleaned_ms == "Exploit for CVE-2023-1234 in Linux kernel"
-
-    # X Source
-    x_source = XPoCSource(bearer_token="fake_token")
-    mock_post = {
-        "id": "123",
-        "text": bidi_sample,
-        "author_id": "999",
-        "created_at": "2023-01-01T00:00:00Z",
-    }
-    mock_user = {"id": "999", "username": "researcher", "name": "Sec Researcher"}
-    candidates = []
-    x_source._append_candidates(
-        {"data": [mock_post], "includes": {"users": [mock_user]}},
-        cve_id="CVE-2023-1234",
-        candidates=candidates,
-        seen_post_ids=set(),
-        result_limit=10,
-    )
-    assert len(candidates) == 1
-    assert "\u202e" not in candidates[0].description
-    assert "\u200b" not in candidates[0].description
-    assert "\x00" not in candidates[0].description
-    assert "\u202e" not in candidates[0].title
 
     # GitHub Source
     gh_source = GitHubPoCSource()

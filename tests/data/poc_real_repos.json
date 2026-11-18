@@ -1,0 +1,294 @@
+{
+ "source": "GitHub REST API /repos, fetched 2026-11-18",
+ "repositories": [
+  {
+   "cve_id": "CVE-2019-0708",
+   "item": {
+    "name": "BlueKeep",
+    "full_name": "Ekultek/BlueKeep",
+    "html_url": "https://github.com/Ekultek/BlueKeep",
+    "url": "https://api.github.com/repos/Ekultek/BlueKeep",
+    "description": "Proof of concept for CVE-2019-0708",
+    "stargazers_count": 1187,
+    "forks_count": 327,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2019-05-29T16:53:54Z",
+    "updated_at": "2026-11-14T23:11:04Z",
+    "pushed_at": "2026-03-16T15:23:32Z",
+    "default_branch": "master",
+    "topics": [],
+    "size": 10249,
+    "owner": {
+     "login": "Ekultek",
+     "html_url": "https://github.com/Ekultek"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2024-49113",
+   "item": {
+    "name": "CVE-2024-49113",
+    "full_name": "SafeBreach-Labs/CVE-2024-49113",
+    "html_url": "https://github.com/SafeBreach-Labs/CVE-2024-49113",
+    "url": "https://api.github.com/repos/SafeBreach-Labs/CVE-2024-49113",
+    "description": "LdapNightmare is a PoC tool that tests a vulnerable Windows Server against CVE-2024-49113",
+    "stargazers_count": 516,
+    "forks_count": 119,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2025-01-01T15:48:38Z",
+    "updated_at": "2026-11-14T23:12:07Z",
+    "pushed_at": "2025-01-02T16:07:23Z",
+    "default_branch": "main",
+    "topics": [],
+    "size": 3277,
+    "owner": {
+     "login": "SafeBreach-Labs",
+     "html_url": "https://github.com/SafeBreach-Labs"
+    },
+    "license": {
+     "spdx_id": "BSD-3-Clause"
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2021-4034",
+   "item": {
+    "name": "CVE-2021-4034",
+    "full_name": "arthepsy/CVE-2021-4034",
+    "html_url": "https://github.com/arthepsy/CVE-2021-4034",
+    "url": "https://api.github.com/repos/arthepsy/CVE-2021-4034",
+    "description": "PoC for PwnKit: Local Privilege Escalation Vulnerability in polkit\u2019s pkexec (CVE-2021-4034)",
+    "stargazers_count": 1176,
+    "forks_count": 313,
+    "language": "C",
+    "fork": false,
+    "archived": false,
+    "created_at": "2022-01-26T00:56:36Z",
+    "updated_at": "2026-11-17T17:51:57Z",
+    "pushed_at": "2023-05-04T19:24:39Z",
+    "default_branch": "main",
+    "topics": [
+     "cve",
+     "cve-2021-4034",
+     "poc"
+    ],
+    "size": 5,
+    "owner": {
+     "login": "arthepsy",
+     "html_url": "https://github.com/arthepsy"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2021-4034",
+   "item": {
+    "name": "CVE-2021-4034",
+    "full_name": "berdav/CVE-2021-4034",
+    "html_url": "https://github.com/berdav/CVE-2021-4034",
+    "url": "https://api.github.com/repos/berdav/CVE-2021-4034",
+    "description": "CVE-2021-4034 1day",
+    "stargazers_count": 2051,
+    "forks_count": 503,
+    "language": "C",
+    "fork": false,
+    "archived": false,
+    "created_at": "2022-01-25T23:51:37Z",
+    "updated_at": "2026-11-16T09:19:56Z",
+    "pushed_at": "2022-06-08T04:00:28Z",
+    "default_branch": "main",
+    "topics": [],
+    "size": 28,
+    "owner": {
+     "login": "berdav",
+     "html_url": "https://github.com/berdav"
+    },
+    "license": {
+     "spdx_id": "MIT"
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2021-1675",
+   "item": {
+    "name": "CVE-2021-1675",
+    "full_name": "cube0x0/CVE-2021-1675",
+    "html_url": "https://github.com/cube0x0/CVE-2021-1675",
+    "url": "https://api.github.com/repos/cube0x0/CVE-2021-1675",
+    "description": "C# and Impacket implementation of PrintNightmare CVE-2021-1675/CVE-2021-34527",
+    "stargazers_count": 2008,
+    "forks_count": 573,
+    "language": "C#",
+    "fork": false,
+    "archived": false,
+    "created_at": "2021-06-29T17:24:14Z",
+    "updated_at": "2026-11-17T19:12:12Z",
+    "pushed_at": "2021-07-20T15:28:13Z",
+    "default_branch": "main",
+    "topics": [],
+    "size": 1504,
+    "owner": {
+     "login": "cube0x0",
+     "html_url": "https://github.com/cube0x0"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2020-1472",
+   "item": {
+    "name": "CVE-2020-1472",
+    "full_name": "dirkjanm/CVE-2020-1472",
+    "html_url": "https://github.com/dirkjanm/CVE-2020-1472",
+    "url": "https://api.github.com/repos/dirkjanm/CVE-2020-1472",
+    "description": "PoC for Zerologon - all research credits go to Tom Tervoort of Secura",
+    "stargazers_count": 1337,
+    "forks_count": 281,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2020-09-14T16:56:51Z",
+    "updated_at": "2026-11-17T15:22:49Z",
+    "pushed_at": "2020-11-03T09:45:24Z",
+    "default_branch": "master",
+    "topics": [],
+    "size": 28,
+    "owner": {
+     "login": "dirkjanm",
+     "html_url": "https://github.com/dirkjanm"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2021-44228",
+   "item": {
+    "name": "log4j-scan",
+    "full_name": "fullhunt/log4j-scan",
+    "html_url": "https://github.com/fullhunt/log4j-scan",
+    "url": "https://api.github.com/repos/fullhunt/log4j-scan",
+    "description": "A fully automated, accurate, and extensive scanner for finding log4j RCE CVE-2021-44228 ",
+    "stargazers_count": 3424,
+    "forks_count": 721,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2021-12-13T03:57:50Z",
+    "updated_at": "2026-11-10T19:00:47Z",
+    "pushed_at": "2022-11-23T18:23:24Z",
+    "default_branch": "master",
+    "topics": [],
+    "size": 70,
+    "owner": {
+     "login": "fullhunt",
+     "html_url": "https://github.com/fullhunt"
+    },
+    "license": {
+     "spdx_id": "MIT"
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2023-34362",
+   "item": {
+    "name": "CVE-2023-34362",
+    "full_name": "horizon3ai/CVE-2023-34362",
+    "html_url": "https://github.com/horizon3ai/CVE-2023-34362",
+    "url": "https://api.github.com/repos/horizon3ai/CVE-2023-34362",
+    "description": "MOVEit CVE-2023-34362",
+    "stargazers_count": 140,
+    "forks_count": 33,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2023-06-09T19:07:32Z",
+    "updated_at": "2026-08-09T23:29:11Z",
+    "pushed_at": "2023-06-26T20:24:32Z",
+    "default_branch": "master",
+    "topics": [],
+    "size": 12,
+    "owner": {
+     "login": "horizon3ai",
+     "html_url": "https://github.com/horizon3ai"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2021-44228",
+   "item": {
+    "name": "log4j-shell-poc",
+    "full_name": "kozmer/log4j-shell-poc",
+    "html_url": "https://github.com/kozmer/log4j-shell-poc",
+    "url": "https://api.github.com/repos/kozmer/log4j-shell-poc",
+    "description": "A Proof-Of-Concept for the CVE-2021-44228 vulnerability. ",
+    "stargazers_count": 1843,
+    "forks_count": 540,
+    "language": "Python",
+    "fork": false,
+    "archived": true,
+    "created_at": "2021-12-10T23:19:28Z",
+    "updated_at": "2026-10-30T14:11:38Z",
+    "pushed_at": "2024-02-12T22:37:25Z",
+    "default_branch": "main",
+    "topics": [
+     "cve-2021-44228",
+     "java",
+     "log4j",
+     "security"
+    ],
+    "size": 39664,
+    "owner": {
+     "login": "kozmer",
+     "html_url": "https://github.com/kozmer"
+    },
+    "license": {
+     "spdx_id": "MIT"
+    }
+   }
+  },
+  {
+   "cve_id": "CVE-2017-0144",
+   "item": {
+    "name": "MS17-010",
+    "full_name": "worawit/MS17-010",
+    "html_url": "https://github.com/worawit/MS17-010",
+    "url": "https://api.github.com/repos/worawit/MS17-010",
+    "description": "MS17-010",
+    "stargazers_count": 2262,
+    "forks_count": 1071,
+    "language": "Python",
+    "fork": false,
+    "archived": false,
+    "created_at": "2017-06-19T16:47:31Z",
+    "updated_at": "2026-11-11T19:00:20Z",
+    "pushed_at": "2023-06-20T08:27:19Z",
+    "default_branch": "master",
+    "topics": [],
+    "size": 125,
+    "owner": {
+     "login": "worawit",
+     "html_url": "https://github.com/worawit"
+    },
+    "license": {
+     "spdx_id": null
+    }
+   }
+  }
+ ]
+}

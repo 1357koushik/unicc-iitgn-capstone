@@ -39,6 +39,21 @@ _DETECTION_TERMS = re.compile(r"\b(scanner|detection|signature|rule|template|nuc
 _BINARY_TERMS = re.compile(r"(\.exe\b|\.dll\b|\.scr\b|\.bat\b|password[- ]protected|archive password|password\s*(?:is|:)|mediafire\.com|mega\.nz)", re.I)
 _OBFUSCATION_TERMS = re.compile(r"(powershell\s+-(?:enc|e)|certutil\s+-decode|iex\s*\(|invoke-expression|downloadstring|base64\s+-d)", re.I)
 _SCAM_TERMS = re.compile(r"(buy\s+(?:the\s+)?exploit|contact\s+(?:me|us\s+)?(?:on\s+)?telegram|t\.me/|dm\s+for\s+tool|sell(?:ing)?\s+(?:a\s+)?0day|bitcoin|usdt)", re.I)
+# Fake-PoC patterns (public reports on fake GitHub "exploits" for new CVEs, 2023-2025: a README that sends the
+# reader to a password-protected archive or release binary, marketing words, a contact channel for buying, or a
+# script that decodes and runs a hidden payload). Metadata and description only: code is never downloaded.
+_FAKE_MARKETING = re.compile(r"\b(fud|fully undetectable|undetect(?:ed|able)|silent exploit|exploit builder|"
+                             r"bypass(?:es)? (?:all )?(?:av|antivirus|edr|defender)|private exploit|100% working|"
+                             r"working 100%|guaranteed)\b", re.I)
+_CONTACT = re.compile(r"(discord\.gg/|discord\.com/invite|sellix\.io|selly\.(?:gg|io)|shoppy\.gg|\bdm me\b|"
+                      r"\bcontact me\b|\bjoin (?:our|my) (?:telegram|discord)\b)", re.I)
+_ARCHIVE_DOWNLOAD = re.compile(r"(releases/download/|\.(?:zip|rar|7z)\b|download (?:the )?(?:exploit|poc|tool|files?)"
+                               r"\b.{0,20}\b(?:from|in|at|here|below|releases?)\b)", re.I)
+_PY_OBFUSCATION = re.compile(r"(exec\s*\(\s*(?:base64|b64decode|zlib|marshal|bytes\.fromhex)|marshal\.loads|"
+                             r"zlib\.decompress\s*\(\s*base64|__import__\s*\(\s*['\"]os['\"]\s*\)\.system|"
+                             r"eval\s*\(\s*compile)", re.I)
+_REMOTE_EXEC = re.compile(r"((?:curl|wget)\s+[^|\n]{1,200}\|\s*(?:ba)?sh\b|mshta\s+https?:|rundll32\s+\S+,|"
+                          r"regsvr32\s+/s\s+/n\s+/u\s+/i:)", re.I)
 _SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "buff.ly", "ow.ly"}
 
 
@@ -67,6 +82,7 @@ class PoCValidator:
             "scam_marketing": -0.40,
             "unresolved_redirect": -0.15,
             "archived_repo": -0.10,
+            "empty_repository": -0.30,
         }
         if weights:
             self.weights.update(weights)
@@ -117,7 +133,13 @@ class PoCValidator:
         # Anti-deception / malware checks
         has_binary = bool(_BINARY_TERMS.search(text))
         has_obfuscation = bool(_OBFUSCATION_TERMS.search(text))
-        has_scam = bool(_SCAM_TERMS.search(text))
+        has_scam = bool(_SCAM_TERMS.search(text) or _FAKE_MARKETING.search(text) or _CONTACT.search(text))
+        has_obfuscation = has_obfuscation or bool(_PY_OBFUSCATION.search(text) or _REMOTE_EXEC.search(text))
+        repo_meta = candidate.raw_metadata.get("repository_metadata") or {}
+        if not isinstance(repo_meta, dict):
+            repo_meta = {}
+        archived = bool(candidate.raw_metadata.get("archived") or repo_meta.get("archived"))
+        empty_repo = repo_meta.get("size_kb") == 0
 
         domain = urlparse(candidate.url).hostname or ""
         is_shortener = domain.lower() in _SHORTENERS
@@ -142,10 +164,23 @@ class PoCValidator:
             score += self.weights["unresolved_redirect"]
             reasons.append(f"{self.weights['unresolved_redirect']:.2f} URL shortener detected")
 
-        if candidate.raw_metadata.get("archived"):
+        if archived:
             warnings.append("archived_repository")
             score += self.weights["archived_repo"]
             reasons.append(f"{self.weights['archived_repo']:.2f} repository is archived / read-only")
+
+        # an archive or release download with no code language or code file is the fake-PoC delivery pattern
+        archive_only = bool(_ARCHIVE_DOWNLOAD.search(text)) and not (has_lang or has_code_ext or has_code_evidence)
+        if archive_only and not has_binary:
+            has_binary = True
+            warnings.append("binary_only")
+            score += self.weights["binary_only"]
+            reasons.append(f"{self.weights['binary_only']:.2f} points to an archive or release download with no source code")
+
+        if empty_repo:
+            warnings.append("empty_repository")
+            score += self.weights["empty_repository"]
+            reasons.append(f"{self.weights['empty_repository']:.2f} repository holds no files")
 
         risky = bool(has_binary or has_obfuscation or has_scam)
         if risky and "untrusted_or_risky_content" not in warnings:
@@ -193,7 +228,7 @@ class PoCValidator:
         elif risky or score < 0.25:
             match_type = "LOW_CONFIDENCE"
             label = "SUSPICIOUS" if risky else "LOW_CONFIDENCE"
-        elif explicit_poc and implementation and score >= self.high_relevance_threshold:
+        elif explicit_poc and implementation and not empty_repo and score >= self.high_relevance_threshold:
             match_type = label = "HIGH_RELEVANCE_POC_CANDIDATE"
         elif explicit_poc and score >= self.possible_poc_threshold:
             match_type = label = "POSSIBLE_POC"

@@ -32,6 +32,55 @@ from threat_retrieval_engine.api.schemas import (
 from threat_retrieval_engine.poc_intelligence import get_poc_finder
 from threat_retrieval_engine.runtime import apply_torch_threads, effective_threads
 
+import os
+
+
+def pipeline_version() -> str:
+    """`TRE_PIPELINE`: v2 (default; C1-C9 components) or v1 (the previous orchestrator, kept for rollback)."""
+    return "v1" if os.environ.get("TRE_PIPELINE", "v2").strip().lower() == "v1" else "v2"
+
+
+class Admission:
+    """Bounded inference slots and a short queue (plan 4.1 step 1). Beyond them: HTTP 503 with Retry-After."""
+
+    def __init__(self, slots: int, queue: int):
+        self.slots = max(1, slots)
+        self.queue = max(0, queue)
+        self._sem: asyncio.Semaphore | None = None
+        self.waiting = 0
+
+    def sem(self) -> asyncio.Semaphore:
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(self.slots)
+        return self._sem
+
+    async def run(self, fn, timeout: float):
+        if self.sem().locked() and self.waiting >= self.queue:
+            raise HTTPException(status_code=503, detail="Service busy: inference slots and queue are full",
+                                headers={"Retry-After": "1"})
+        self.waiting += 1
+        try:
+            await self.sem().acquire()
+        finally:
+            self.waiting -= 1
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(fn), timeout=timeout)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=503, detail=f"Request did not finish within {timeout:.1f}s",
+                                headers={"Retry-After": "2"})
+        finally:
+            self.sem().release()
+
+
+admission = Admission(int(os.environ.get("TRE_INFERENCE_SLOTS", "2")), int(os.environ.get("TRE_ADMISSION_QUEUE", "8")))
+
+
+def _v2():
+    if pipeline_version() != "v2":
+        return None
+    from threat_retrieval_engine.v2.service import get_service
+    return get_service()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,8 +94,12 @@ async def lifespan(app: FastAPI):
     threads = apply_torch_threads()
     logger.info("CPU threads: TRE_NUM_THREADS=%d, effective=%s", threads, effective_threads())
     logger.info("Config file: %s; data dir: %s", current_cfg.config_path, current_cfg.data_dir)
-    orchestrator = get_orchestrator()
-    orchestrator.initialize()
+    if pipeline_version() == "v2":
+        svc = _v2()
+        logger.info("v2 pipeline ready: %s", svc.health()["components"])
+    else:
+        orchestrator = get_orchestrator()
+        orchestrator.initialize()
     yield
     # Shutdown
 
@@ -139,6 +192,9 @@ async def verify_service_auth(request: Request):
 @app.get("/api/v1/health", tags=["System"])
 async def health_check() -> dict[str, Any]:
     """Component health and degradation reporting (R14)."""
+    svc = _v2()
+    if svc is not None:
+        return svc.health()
     orchestrator = get_orchestrator()
     status_map = {
         "status": "healthy" if not orchestrator.degraded_components else "degraded",
@@ -162,6 +218,11 @@ async def health_check() -> dict[str, Any]:
 @app.get("/api/v1/ready", tags=["System"])
 async def readiness_check() -> dict[str, str]:
     """Service readiness probe for orchestrator containers (R14)."""
+    if pipeline_version() == "v2":
+        from threat_retrieval_engine.v2 import service as v2s
+        if v2s._service is not None and v2s._service.ready:
+            return {"status": "ready"}
+        raise HTTPException(status_code=503, detail="Service not yet ready")
     orchestrator = get_orchestrator()
     if orchestrator.sqlite is not None:
         return {"status": "ready"}
@@ -179,7 +240,15 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
       2. Vector Hybrid Engine (BGE-M3 dense embeddings + BM25 RRF)
       3. Knowledge Graph Engine (MITRE ATT&CK STIX graph expansion)
     Offloaded to worker threadpool with hard deadline enforcement (R-2.4).
+    v2: admission control, a 3.0 s hard limit on matching (stages are skipped to meet it), PoC lookup on its own
+    deadline after matching, HTTP 503 (never 504) when the service is overloaded.
     """
+    svc = _v2()
+    if svc is not None:
+        cfg2 = get_config()
+        budget = svc.hard_limit + 0.5 + ((cfg2.d_poc_seconds + 1.0) if request.include_pocs else 0.0)
+        return await admission.run(lambda: svc.match(request.query, top_k=request.top_k,
+                                                     include_pocs=request.include_pocs), budget)
     orchestrator = get_orchestrator()
     current_cfg = get_config()
     try:
@@ -204,7 +273,10 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
 
 @app.post("/api/v1/search/hybrid", tags=["Search Engines"], dependencies=[Depends(verify_service_auth)])
 async def search_hybrid_endpoint(request: MatchRequest) -> dict[str, Any]:
-    """Dedicated Hybrid Search endpoint (BM25 + BGE-M3 RRF) (R14)."""
+    """Dedicated Hybrid Search endpoint (BM25 + BGE-M3 RRF) (R14). v2: lexical + dense fused, no reranker."""
+    svc = _v2()
+    if svc is not None:
+        return await admission.run(lambda: svc.hybrid(request.query, top_k=request.top_k), svc.hard_limit)
     orchestrator = get_orchestrator()
     if not orchestrator.hybrid_searcher:
         raise HTTPException(status_code=503, detail="Hybrid search engine unavailable")
@@ -233,12 +305,15 @@ async def search_hybrid_endpoint(request: MatchRequest) -> dict[str, Any]:
 @app.get("/api/v1/entities/lookup", tags=["Search Engines"], dependencies=[Depends(verify_service_auth)])
 @app.post("/api/v1/entities/lookup", tags=["Search Engines"], dependencies=[Depends(verify_service_auth)])
 async def lookup_entities_endpoint(value: str | None = None, query: str | None = None) -> dict[str, Any]:
-    """Exact identifier entity lookup endpoint (R14)."""
-    orchestrator = get_orchestrator()
-    from threat_retrieval_engine.search_engine.exact_lookup import exact_lookup
+    """Exact identifier entity lookup endpoint (R14). v2: CVE IDs, nicknames, ATT&CK IDs and names."""
     target = value or query or ""
     if not target:
         raise HTTPException(status_code=400, detail="Missing entity query parameter")
+    svc = _v2()
+    if svc is not None:
+        return await asyncio.to_thread(svc.lookup, target)
+    orchestrator = get_orchestrator()
+    from threat_retrieval_engine.search_engine.exact_lookup import exact_lookup
     matches = await asyncio.to_thread(
         exact_lookup,
         qdrant=orchestrator.qdrant,

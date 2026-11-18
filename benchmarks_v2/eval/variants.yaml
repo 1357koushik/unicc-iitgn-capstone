@@ -235,3 +235,20 @@ variants:
     adapter: runfile
     description: committed example run of v1_match on the synthetic demonstration queries
     path: results/eval/example/b4-example-v1_match.jsonl
+
+  # C4 + C5 on top of C3: the full v2 retrieval chain (identifier and ATT&CK ID routes, ATT&CK names,
+  # nickname route, fused lexical + dense, int8 bge-reranker-v2-m3 on the top 10). Builds from TRE_STORE_DIR,
+  # TRE_LEXICAL_DIR, TRE_DENSE_DIR, TRE_ATTACK_DIR; TRE_V2_FEATURES_OUT collects C7 signals.
+  v2_full:
+    adapter: inprocess
+    description: full v2 chain (routes + fused + int8 reranker top 10), CVE and ATT&CK documents, top 100
+    service: v2
+    factory: threat_retrieval_engine.v2.system:make_v2
+    options: {k: 100, rerank: true, rerank_depth: 10}
+
+  v2_full_norerank:
+    adapter: inprocess
+    description: as v2_full without the reranker (routes + fused), to measure the reranker's contribution
+    service: v2
+    factory: threat_retrieval_engine.v2.system:make_v2
+    options: {k: 100, rerank: false}

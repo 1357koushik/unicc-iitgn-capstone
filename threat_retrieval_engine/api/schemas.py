@@ -29,7 +29,7 @@ except ImportError:
 class MatchRequest(BaseModel):
     query: str = Field(..., max_length=4096, description="Threat query string or incident report text (bounded, R35)")
     top_k: int = Field(5, ge=1, le=50, description="Number of top threat matches to return")
-    alpha: float = Field(0.5, ge=0.0, le=1.0, description="Weighting parameter between dense vector and sparse lexical search (R13)")
+    alpha: float = Field(0.5, ge=0.0, le=1.0, description="v1 only: dense/lexical weighting. Ignored by v2, whose fusion weights are tuned on the benchmark dev split")
     allowed_sources: list[str] | None = Field(None, description="List of allowed source_orgs. If None, all are allowed.")
     include_pocs: bool = Field(False, description="Whether to perform live OSINT PoC enrichment. Defaults to False for fast decoupled matching (R34)")
 
@@ -113,7 +113,7 @@ class PoCResultSchema(BaseModel):
 
 class SourceStatusSchema(BaseModel):
     source: str
-    status: str = Field(description="success | partial | not_configured | unauthorized | rate_limited | timeout | access_restricted | error | disabled | cost_protection | invalid_input | malformed_response | unavailable")
+    status: str = Field(description="success | partial | source_not_supported | not_configured | unauthorized | rate_limited | timeout | access_restricted | error | disabled | cost_protection | invalid_input | malformed_response | unavailable")
     retrieved_at: str
     query: str = ""
     result_count: int = Field(0, ge=0)
@@ -144,6 +144,8 @@ class TopMatchSchema(BaseModel):
     corroboration_count: int = Field(1, description="Number of independent sources corroborating this identity (R10)")
     cisa_kev: bool = Field(False, description="Whether listed in CISA KEV (R6b, R11)")
     epss_score: float | None = Field(None, description="EPSS exploitation probability score (R6b, R11)")
+    matched_names: list[str] = Field(default_factory=list, description="v2: IDs, nicknames or ATT&CK names of the query that led to this result")
+    poc_status: str | None = Field(None, description="v2: why PoC lookup did not complete for this result (timeout, source error)")
 
 
 class PipelineProfileSchema(BaseModel):
@@ -162,13 +164,17 @@ class MatchResponse(BaseModel):
     pipeline_profile: PipelineProfileSchema
     degraded_components: list[str] = Field(default_factory=list, description="List of components operating in degraded state (R14)")
     deadline_exceeded: bool = Field(False, description="Whether request processing reached D_match deadline (V2)")
+    pipeline_version: str = Field("v1", description="v1 | v2")
+    skipped_stages: list[str] = Field(default_factory=list, description="v2: stages skipped to meet the deadline (dense, rerank)")
+    notices: list[dict[str, Any]] = Field(default_factory=list, description="v2: not_in_corpus, no_ioc_data_in_corpus, ...")
+    nicknames: list[dict[str, Any]] = Field(default_factory=list, description="v2: vulnerability names found in the query and their CVEs")
 
 
 class PoCFindRequest(BaseModel):
     cve_id: str = Field(..., pattern=r"^CVE-\d{4}-\d{4,7}$", description="Target CVE identifier (e.g. CVE-2024-3400)")
     max_results: int = Field(20, ge=1, le=100, description="Maximum total results to return")
     sources: list[str] = Field(
-        default_factory=lambda: ["github", "x", "mastodon", "bluesky"],
+        default_factory=lambda: ["github", "mastodon", "bluesky"],
         description="List of sources to search",
     )
     min_confidence: float = Field(0.0, ge=0.0, le=1.0, description="Minimum confidence score threshold")
