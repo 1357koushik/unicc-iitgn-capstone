@@ -43,8 +43,8 @@ The mixed CVE + ATT&CK list cannot answer "which technique is this?": for a CVE 
 
 | Benchmark | Metric | v2 before | v2 with technique route [95% CI] | Published (same data and metric) |
 |---|---|---|---|---|
-| Text2TTP | Recall@10 | 0.426 (as served) / 0.658 (ATT&CK only) | **0.906** [0.896, 0.915] | Text2TTP pipeline 0.921; Ladder 0.634; MITRE TRAM 0.458 |
-| CTID KEV | Hit@1 | – | 0.267 | zero-shot Gemma-4 26B LLM 0.518 (highest published; SMSI, 45-CVE split) |
+| Text2TTP | Recall@10 | 0.426 (as served) / 0.658 (ATT&CK only) | **0.906** [0.896, 0.915] | Text2TTP pipeline 0.921; Ladder 0.634; MITRE TRAM 0.458 (on their own held-out test of 1,212 sentences (168 techniques) from their 6,612-sample combined dataset; TRAM and Ladder are the authors' re-runs on that same test; ours is on the 3,539 released sentences) |
+| CTID KEV | Hit@1 | – | 0.267 | zero-shot Gemma-4 26B LLM 0.518 (highest published; SMSI, all 419 KEV CVEs) |
 | CTID KEV | Hits@10 | 0.002 / 0.251 | 0.730 [0.687, 0.771] | MiniLM 0.578; ATTACK-BERT 0.356 |
 | CTID KEV | MRR@10 | 0.002 / 0.075 | 0.403 [0.366, 0.439] | MiniLM 0.252; ATTACK-BERT 0.136 |
 | CTIConnect ATD | Hit@5 | 0.452 | **0.529** [0.467, 0.586] | vanilla RAG (text-embedding-3-large) 0.845*; + reranker 0.862*; best 0.985* |
@@ -57,11 +57,12 @@ CTID KEV: the labels are dominated by generic techniques (T1059 on 41% of the CV
 common exploitation techniques, with no model, scores Hit@1 0.375, Hits@10 0.795 and MRR 0.503, above our route
 (`results/external/kev_baseline.json`). Hits@10 and MRR on KEV therefore mostly reward ranking generic techniques;
 on the labels other than T1190, T1203 and T1068 our route finds one in the top 10 for 32% of the CVEs. The highest
-published result is a zero-shot Gemma-4 26B LLM (Hit@1 0.518 on a 45-CVE split, not the same 419 CVEs). The
-published embedding scores (MiniLM, ATTACK-BERT) are on that 45-CVE split too.
+published result is a zero-shot Gemma-4 26B LLM: Hit@1 0.518 on all 419 KEV CVEs (SMSI, Table VI), the same CVE
+set as ours. The published embedding scores (MiniLM, ATTACK-BERT) are on SMSI's 45-CVE test split (Table IV).
 
 Text2TTP: 9 questions contain a whole knowledge-base entry; without them Recall@10 is still 0.906. The published
-Text2TTP pipeline (0.921) uses models fine-tuned on Text2TTP data; ours uses none.
+Text2TTP pipeline (0.921, Table 4 of the paper) is measured on the authors' own held-out test of 1,212 sentences,
+not on the 3,539 sentences we scored, and uses models fine-tuned on Text2TTP data; ours uses none.
 
 ## Cost
 
