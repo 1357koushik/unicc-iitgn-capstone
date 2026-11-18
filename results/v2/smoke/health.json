@@ -1,0 +1,1 @@
+{"status":"healthy","pipeline_version":"v2","components":{"store":"20261115T091739Z-f7f744ffa8","lexical":"20261115T203653Z-bfacb4bb1c","dense":"20261118T022104Z-ac852d4454","attack":"20261115T190948Z-917121fbde","reranker":"off (TRE_RERANK_WEIGHT=0)","nicknames":589,"confidence_model":"calibrated"},"degraded_components":[],"hard_limit_s":3.0}
