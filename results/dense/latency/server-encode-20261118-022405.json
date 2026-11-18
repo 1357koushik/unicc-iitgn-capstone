@@ -1,0 +1,286 @@
+{
+ "what": "query encoding, batch 1, tokenization + forward + pooling + normalisation, cache off",
+ "host": "localhost.localdomain",
+ "platform": "Linux-3.10.0-1160.99.1.el7.x86_64-x86_64-with-glibc2.17",
+ "python": "3.12.16",
+ "cpu_count": 48,
+ "numpy": "2.2.6",
+ "created_utc": "2026-11-17T22:31:11Z",
+ "load_average": [
+  22.05,
+  13.76,
+  8.46
+ ],
+ "queries": {
+  "path": "/home/koushik.moram/team2/dense/dev_queries.jsonl",
+  "n": 1489,
+  "sample": 298
+ },
+ "max_tokens": 256,
+ "repeat": 3,
+ "sweep_repeat": 1,
+ "torch": "2.6.0+cu124",
+ "models": {
+  "bge-large-en-v1.5": {
+   "thread_sweep_sample": {
+    "4": {
+     "repetitions": [
+      {
+       "n": 298,
+       "p50": 131.815,
+       "p95": 262.595,
+       "p99": 393.381,
+       "max": 448.426,
+       "mean": 147.88
+      }
+     ],
+     "median": {
+      "p50": 131.815,
+      "p95": 262.595,
+      "p99": 393.381,
+      "max": 448.426,
+      "mean": 147.88
+     }
+    },
+    "8": {
+     "repetitions": [
+      {
+       "n": 298,
+       "p50": 77.924,
+       "p95": 147.645,
+       "p99": 241.992,
+       "max": 256.365,
+       "mean": 87.365
+      }
+     ],
+     "median": {
+      "p50": 77.924,
+      "p95": 147.645,
+      "p99": 241.992,
+      "max": 256.365,
+      "mean": 87.365
+     }
+    },
+    "12": {
+     "repetitions": [
+      {
+       "n": 298,
+       "p50": 66.502,
+       "p95": 120.911,
+       "p99": 215.524,
+       "max": 335.767,
+       "mean": 74.73
+      }
+     ],
+     "median": {
+      "p50": 66.502,
+      "p95": 120.911,
+      "p99": 215.524,
+      "max": 335.767,
+      "mean": 74.73
+     }
+    },
+    "16": {
+     "repetitions": [
+      {
+       "n": 298,
+       "p50": 58.136,
+       "p95": 128.892,
+       "p99": 185.236,
+       "max": 254.239,
+       "mean": 66.083
+      }
+     ],
+     "median": {
+      "p50": 58.136,
+      "p95": 128.892,
+      "p99": 185.236,
+      "max": 254.239,
+      "mean": 66.083
+     }
+    },
+    "24": {
+     "repetitions": [
+      {
+       "n": 298,
+       "p50": 55.291,
+       "p95": 131.005,
+       "p99": 198.969,
+       "max": 262.189,
+       "mean": 66.234
+      }
+     ],
+     "median": {
+      "p50": 55.291,
+      "p95": 131.005,
+      "p99": 198.969,
+      "max": 262.189,
+      "mean": 66.234
+     }
+    }
+   },
+   "torch_threads_chosen": 12,
+   "sample_at_chosen": {
+    "p50": 66.502,
+    "p95": 120.911,
+    "p99": 215.524,
+    "max": 335.767,
+    "mean": 74.73
+   },
+   "encoder": {
+    "model": {
+     "name": "bge-large-en-v1.5",
+     "repo": "BAAI/bge-large-en-v1.5",
+     "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+     "dim": 1024,
+     "pooling": "cls",
+     "query_prefix": "Represent this sentence for searching relevant passages: ",
+     "passage_prefix": "",
+     "weights_file": "model.safetensors",
+     "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7",
+     "max_position_tokens": 512,
+     "licence": "mit",
+     "card_note": "CLS pooling, normalised; query instruction for short-query passage retrieval",
+     "files": [
+      "config.json",
+      "tokenizer.json",
+      "tokenizer_config.json",
+      "special_tokens_map.json"
+     ]
+    },
+    "path": "/home/koushik.moram/team2/models/bge-large-en-v1.5",
+    "weights_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7",
+    "device": "cpu",
+    "torch_threads": 16,
+    "batch_size": 1,
+    "batch_tokens": 8192,
+    "torch": "2.6.0+cu124",
+    "transformers": "5.22.2",
+    "load_seconds": 4.7,
+    "tokenizer": "BertTokenizer"
+   },
+   "all_queries_at_chosen": {
+    "repetitions": [
+     {
+      "n": 1489,
+      "p50": 66.036,
+      "p95": 124.9,
+      "p99": 203.447,
+      "max": 282.443,
+      "mean": 74.036
+     },
+     {
+      "n": 1489,
+      "p50": 64.69,
+      "p95": 105.936,
+      "p99": 195.317,
+      "max": 217.011,
+      "mean": 71.496
+     },
+     {
+      "n": 1489,
+      "p50": 64.54,
+      "p95": 106.278,
+      "p99": 194.134,
+      "max": 234.08,
+      "mean": 71.043
+     }
+    ],
+    "median": {
+     "p50": 64.69,
+     "p95": 106.278,
+     "p99": 195.317,
+     "max": 234.08,
+     "mean": 71.496
+    }
+   },
+   "all_queries_by_slice": {
+    "T0": {
+     "n": 106,
+     "p50": 104.479,
+     "p95": 204.159,
+     "p99": 216.935,
+     "max": 234.08,
+     "mean": 123.547
+    },
+    "T1": {
+     "n": 150,
+     "p50": 63.416,
+     "p95": 69.877,
+     "p99": 72.77,
+     "max": 79.603,
+     "mean": 64.528
+    },
+    "T2": {
+     "n": 99,
+     "p50": 62.434,
+     "p95": 64.939,
+     "p99": 83.328,
+     "max": 83.328,
+     "mean": 60.643
+    },
+    "T3": {
+     "n": 300,
+     "p50": 63.917,
+     "p95": 72.259,
+     "p99": 80.633,
+     "max": 159.317,
+     "mean": 64.93
+    },
+    "T4": {
+     "n": 160,
+     "p50": 64.83,
+     "p95": 71.663,
+     "p99": 82.912,
+     "max": 88.057,
+     "mean": 64.779
+    },
+    "T5": {
+     "n": 120,
+     "p50": 66.892,
+     "p95": 70.564,
+     "p99": 72.721,
+     "max": 75.669,
+     "mean": 66.67
+    },
+    "T6": {
+     "n": 154,
+     "p50": 79.059,
+     "p95": 184.434,
+     "p99": 204.153,
+     "max": 227.757,
+     "mean": 91.51
+    },
+    "T7": {
+     "n": 160,
+     "p50": 63.514,
+     "p95": 75.601,
+     "p99": 83.102,
+     "max": 84.351,
+     "mean": 65.339
+    },
+    "T8": {
+     "n": 120,
+     "p50": 64.588,
+     "p95": 68.443,
+     "p99": 71.422,
+     "max": 74.815,
+     "mean": 64.356
+    },
+    "T9": {
+     "n": 120,
+     "p50": 60.676,
+     "p95": 65.297,
+     "p99": 66.598,
+     "max": 74.633,
+     "mean": 57.421
+    }
+   }
+  }
+ },
+ "load_average_end": [
+  12.03,
+  12.35,
+  9.79
+ ]
+}
