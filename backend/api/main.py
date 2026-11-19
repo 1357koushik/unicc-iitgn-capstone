@@ -636,10 +636,11 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
         allowed_sources_str = user.get("allowed_datasets", "ALL")
         allowed_sources = None if allowed_sources_str == "ALL" else [s.strip() for s in allowed_sources_str.split(",")]
         
+        retrieval_default = "http://retrieval:8000" if os.path.exists("/.dockerenv") else "http://localhost:8000"
         result = investigate_threat(
             observation=obs_text,
             provider=provider,
-            team2_api_url=os.getenv("TEAM2_API_URL", "http://retrieval:8000"),
+            team2_api_url=os.getenv("TEAM2_API_URL", retrieval_default),
             allowed_sources=allowed_sources
         )
         
