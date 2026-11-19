@@ -368,7 +368,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("summarize-btn").disabled = false;
                 showToast("Threat matching complete", "success");
             } else {
-                showToast("Threat matching failed", "error");
+                // Show why (e.g. the retrieval service is still starting), as plain text.
+                const reason = await errorText(res, "Threat matching failed.");
+                const box = document.getElementById("threats-display");
+                box.replaceChildren(textElement("strong", "Threat matching failed:"),
+                                    textElement("p", reason, "placeholder-text"));
+                showToast(res.status === 503 ? "Threat matching not available yet" : "Threat matching failed", "error");
             }
         } catch (e) {
             showToast("Network error", "error");

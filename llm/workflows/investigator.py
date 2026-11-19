@@ -12,6 +12,14 @@ from ..gateway.interface import LLMProvider
 from ..schemas.investigation import InvestigationResult
 from ..prompts.investigation_prompts import INVESTIGATION_SYSTEM_PROMPT, build_investigation_prompt
 
+# Longest question the retrieval API accepts (MatchRequest.query, threat_retrieval_engine/api/schemas.py).
+MAX_QUERY_CHARS = 4096
+
+
+class RetrievalUnavailableError(Exception):
+    """The threat retrieval service could not search (not reachable, still starting, or an error).
+    Not an "empty result": an investigation must not report "no match" when no search ran."""
+
 
 def normalize_team2_evidence(raw_evidence: Any) -> List[Dict[str, Any]]:
     """
@@ -144,7 +152,9 @@ class ThreatInvestigator:
         """
         endpoint = f"{api_url.rstrip('/')}/api/v1/threats/match"
         payload = {
-            "query": observation,
+            # The retrieval API takes at most MAX_QUERY_CHARS characters and refuses longer
+            # questions; a long pasted report is searched on its beginning.
+            "query": observation[:MAX_QUERY_CHARS],
             "top_k": top_k,
             "alpha": 0.5,
             "include_pocs": False,
@@ -160,13 +170,25 @@ class ThreatInvestigator:
             method="POST",
         )
 
+        # If the search did not run, say so. Returning no evidence here would make the
+        # investigation report "no matching records" - a false all-clear.
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode("utf-8"))
-                return normalize_team2_evidence(result)
-        except Exception as e:
-            print(f"WARN: Could not fetch evidence from retrieval API: {e}. Proceeding offline.")
-            return []
+                raw = resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 503:
+                reason = "it is busy or still starting (HTTP 503)"
+            else:
+                reason = f"it answered HTTP {e.code}"
+            raise RetrievalUnavailableError(f"The threat retrieval service at {endpoint} did not search: {reason}.")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            reason = getattr(e, "reason", e)
+            raise RetrievalUnavailableError(f"The threat retrieval service at {endpoint} cannot be reached: {reason}.")
+        try:
+            result = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            raise RetrievalUnavailableError(f"The threat retrieval service at {endpoint} sent an answer that is not JSON.")
+        return normalize_team2_evidence(result)
 
     def investigate(
         self,

@@ -13,7 +13,7 @@ from .gateway.interface import LLMProvider
 from .gateway.factory import get_llm_provider
 from .workflows.summarizer import ReportSummarizer
 from .workflows.extractor import CyberEntityExtractor
-from .workflows.investigator import ThreatInvestigator
+from .workflows.investigator import ThreatInvestigator, RetrievalUnavailableError
 
 __version__ = "0.2.1"
 
@@ -88,5 +88,6 @@ __all__ = [
     "ReportSummarizer",
     "CyberEntityExtractor",
     "ThreatInvestigator",
+    "RetrievalUnavailableError",
     "LLMProvider",
 ]

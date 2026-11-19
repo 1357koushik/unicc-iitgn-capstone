@@ -33,6 +33,7 @@ from backend.ingest.file_extractor import (
     ALLOWED_EXTENSIONS, FileExtractionError, ReportTooLongError, extract_text, file_extension
 )
 from llm import summarize_report, extract_entities as llm_extract, investigate_threat, get_llm_provider
+from llm import RetrievalUnavailableError
 from llm.gateway.interface import LLMGatewayError, LLMTimeoutError
 from llm.gateway.ioc_extractor import extract_iocs
 from llm.gateway.api.gemini_provider import check_gemini, clean_api_key, clean_model_name, valid_model_name
@@ -364,6 +365,24 @@ def _ai_failure(db: Session, user: dict, correlation_id: str, action: str, backe
         message += f" Details (shown to admins only): {str(error)[:500]}"
     message += f" Reference: {ref} - an administrator can find the details in the server and audit logs."
     return HTTPException(status_code=504 if timed_out else 502, detail=message)
+
+def _retrieval_failure(db: Session, user: dict, correlation_id: str, backend_name: str,
+                       error: Exception) -> HTTPException:
+    """
+    The threat retrieval service could not search. Reported as an error (503), never as
+    "no match": an empty result would tell the investigator the report is clear when it
+    was never checked. Logged in full for admins, like an AI failure.
+    """
+    ref = _new_error_reference()
+    _server_log.error(f"[error ref {ref}] threat_match: retrieval service unavailable: {error}")
+    log_action(db, correlation_id, user["id"], user["role"], "threat_match", "doc_current", backend_name, "failure",
+               {"error": str(error)[:2000], "error_ref": ref, "stage": "retrieval"})
+    message = ("Threat matching is not available right now: the threat retrieval service cannot be reached "
+               "or is still starting (after a restart it needs 1-3 minutes). Please try again shortly.")
+    if user.get("role") == "admin":
+        message += f" Details (shown to admins only): {str(error)[:500]}"
+    message += f" Reference: {ref} - an administrator can find the details in the server and audit logs."
+    return HTTPException(status_code=503, detail=message, headers={"Retry-After": "30"})
 
 # --- Input limits ---
 # Every request is checked against these before the app does any work with it.
@@ -752,6 +771,8 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
         
         log_action(db, req.correlation_id, user["id"], user["role"], "threat_match", "doc_current", backend_name, "success")
         return res
+    except RetrievalUnavailableError as e:
+        raise _retrieval_failure(db, user, req.correlation_id, backend_name, e)
     except LLMGatewayError as e:
         raise _ai_failure(db, user, req.correlation_id, "threat_match", backend_name, e)
     except Exception as e:
