@@ -186,3 +186,27 @@ def test_unwrap_container_keys():
     res = p.generate_structured("prompt", InvestigationResult)
     assert res.match_status == "Strong"
     assert res.potential_threat_actors == ["APT28"]
+
+
+def test_evidence_citation_observed_overlap_string_coercion():
+    """Verify that string observed_overlap from LLMs (e.g. 'Exact') coerces to list of strings."""
+    from llm.schemas.investigation import EvidenceCitation, InvestigationResult
+
+    c = EvidenceCitation.model_validate({
+        "document_id": "DOC-1",
+        "key_excerpt": "Quote",
+        "observed_overlap": "Exact"
+    })
+    assert c.observed_overlap == ["Exact"]
+
+    res = InvestigationResult.model_validate({
+        "query_observation": "Obs",
+        "match_status": "Exact",
+        "assessment_narrative": "Narrative",
+        "supporting_citations": [{
+            "document_id": "DOC-1",
+            "key_excerpt": "Quote",
+            "observed_overlap": "Weak"
+        }]
+    })
+    assert res.supporting_citations[0].observed_overlap == ["Weak"]
