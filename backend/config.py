@@ -20,13 +20,55 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 
 
+# Names whose value came from the .env file (not from the real environment).
+# For these, current_setting() re-reads the file, so an edit takes effect without a restart.
+_FROM_FILE: set = set()
+
+
+def _dotenv_enabled(path: Path) -> bool:
+    return os.environ.get("LOAD_DOTENV", "1") != "0" and path.is_file()
+
+
+def _read_env_file(path: Path) -> dict:
+    from dotenv import dotenv_values
+    return {name: value for name, value in dotenv_values(path).items() if value is not None}
+
+
 def load_env_file(path: Path = ENV_FILE) -> bool:
-    """Load settings from a .env file if there is one. Returns True if a file was loaded."""
-    if os.environ.get("LOAD_DOTENV", "1") == "0" or not path.is_file():
+    """
+    Load settings from a .env file if there is one. Returns True if a file was loaded.
+
+    A real environment variable wins over the file - but only if it has a value. An
+    EMPTY variable (for example "GEMINI_API_KEY=" passed in by Docker or set in a
+    terminal) does not hide the value written in .env.
+    """
+    if not _dotenv_enabled(path):
         return False
-    from dotenv import load_dotenv
-    load_dotenv(path, override=False)   # real environment variables take priority
+    for name, value in _read_env_file(path).items():
+        if os.environ.get(name, "").strip():
+            continue                      # set in the real environment: that wins
+        os.environ[name] = value
+        _FROM_FILE.add(name)
     return True
+
+
+def current_setting(name: str, default: str = "", path: Path = ENV_FILE) -> str:
+    """
+    A setting's value NOW, re-reading .env for settings that come from it.
+
+    Used for settings an admin may change while the app runs (the Gemini API key and
+    model), so that saving .env is enough - no restart. Settings given in the real
+    environment (e.g. by Docker) still win and are not re-read.
+    """
+    if (name in _FROM_FILE or not os.environ.get(name, "").strip()) and _dotenv_enabled(path):
+        value = _read_env_file(path).get(name)
+        if value is not None:
+            os.environ[name] = value
+            _FROM_FILE.add(name)
+        elif name in _FROM_FILE:
+            os.environ.pop(name, None)    # the line was removed from .env
+            _FROM_FILE.discard(name)
+    return os.environ.get(name, "").strip() or default
 
 
 def get_str(name: str, default: str = "") -> str:

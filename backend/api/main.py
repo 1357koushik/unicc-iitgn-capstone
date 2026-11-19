@@ -35,6 +35,8 @@ from backend.ingest.file_extractor import (
 from llm import summarize_report, extract_entities as llm_extract, investigate_threat, get_llm_provider
 from llm.gateway.interface import LLMGatewayError, LLMTimeoutError
 from llm.gateway.ioc_extractor import extract_iocs
+from llm.gateway.api.gemini_provider import check_gemini, clean_api_key, clean_model_name, valid_model_name
+from backend import gemini_settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,8 +74,9 @@ def _settings_warnings(db: Session) -> List[str]:
     if not get_bool("COOKIE_SECURE", False):
         warnings.append("COOKIE_SECURE is off: fine at http://127.0.0.1, but turn it on when the app is served over HTTPS.")
     backend = db.query(SystemConfig).filter(SystemConfig.key == "llm_backend").first()
-    if backend and backend.value == "gemini" and not os.environ.get("GEMINI_API_KEY"):
-        warnings.append("GEMINI_API_KEY is not set: AI summaries will fail until it is set in .env (or switch to Ollama).")
+    if backend and backend.value == "gemini" and not gemini_settings.current(db)["api_key"]:
+        warnings.append("No Gemini API key is set: AI summaries will fail until an admin pastes one in "
+                        "System Config (or sets GEMINI_API_KEY in .env), or switches to Ollama.")
     return warnings
 
 app = FastAPI(title="UNICC Cyber AI Gateway", lifespan=lifespan)
@@ -321,7 +324,13 @@ def get_llm_gateway(db: Session = Depends(get_db)):
     config = db.query(SystemConfig).filter(SystemConfig.key == "llm_backend").first()
     backend = config.value if config else "gemini"
     try:
-        provider = get_llm_provider(backend="local" if backend == "ollama" else "gemini")
+        if backend == "ollama":
+            provider = get_llm_provider(backend="local")
+        else:
+            # Read the key and model for EVERY request, so a key saved in System Config
+            # (or in .env) is used at once, without a restart.
+            gemini = gemini_settings.current(db)
+            provider = get_llm_provider(backend="gemini", model_name=gemini["model"], api_key=gemini["api_key"])
         return provider, backend
     except Exception as e:
         return _UnavailableGateway(f"The '{backend}' backend could not be set up: {e}"), backend
@@ -403,6 +412,17 @@ class DecisionRequest(BaseModel):
 
 class ConfigUpdate(BaseModel):
     llm_backend: str = Field(max_length=32)
+
+class GeminiConfigUpdate(BaseModel):
+    # Both optional: send only what changes. An empty string removes the dashboard
+    # value, so the one in .env is used again.
+    api_key: Optional[str] = Field(default=None, max_length=256)
+    model: Optional[str] = Field(default=None, max_length=128)
+
+class GeminiTestRequest(BaseModel):
+    # Test a key before saving it; empty = test the key and model in use now.
+    api_key: Optional[str] = Field(default=None, max_length=256)
+    model: Optional[str] = Field(default=None, max_length=128)
 
 class UserUpdate(BaseModel):
     allowed_datasets: str
@@ -523,7 +543,70 @@ def api_get_audit_logs(user: dict = Depends(get_auditor_user), db: Session = Dep
 @app.get("/api/v1/admin/config")
 def api_get_config(user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
     config = db.query(SystemConfig).filter(SystemConfig.key == "llm_backend").first()
-    return {"llm_backend": config.value if config else "gemini"}
+    return {"llm_backend": config.value if config else "gemini", "gemini": gemini_settings.public_view(db)}
+
+
+def _check_key_text(raw: str) -> str:
+    key = clean_api_key(raw)
+    if key and (any(ch.isspace() for ch in key) or not key.isprintable()):
+        raise HTTPException(status_code=400, detail="The API key contains spaces or invisible characters. "
+                                                    "Copy it again from https://aistudio.google.com/apikey.")
+    return key
+
+
+def _check_model_text(raw: str) -> str:
+    model = clean_model_name(raw)
+    if model and not valid_model_name(model):
+        raise HTTPException(status_code=400, detail="The model name may only contain letters, digits, '.', '_' and '-'.")
+    return model
+
+
+# Google answers that mean the key or model is wrong: such settings are not saved.
+# (If Google simply cannot be reached, the settings ARE saved, with a warning.)
+_GEMINI_REJECTIONS = ("key_rejected", "permission", "model_not_found", "bad_model_name")
+
+
+@app.post("/api/v1/admin/config/gemini")
+def api_update_gemini_config(req: GeminiConfigUpdate, user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """
+    Save the Gemini API key and/or model in the app's database. They are used at once.
+    A new key is first checked with Google; a key Google rejects is not saved.
+    """
+    if req.api_key is None and req.model is None:
+        raise HTTPException(status_code=400, detail="Nothing to save: send api_key and/or model.")
+    key = _check_key_text(req.api_key) if req.api_key is not None else None
+    model = _check_model_text(req.model) if req.model is not None else None
+
+    check = None
+    if key or model:
+        # Check what will be in use after saving: the new key with the new (or current) model.
+        after = gemini_settings.current(db, key=key, model=model)
+        check = check_gemini(after["api_key"], after["model"])
+        if not check["ok"] and check["problem"] in _GEMINI_REJECTIONS:
+            log_action(db, "admin", user["id"], user["role"], "config_change", "system_config", "gemini", "failure",
+                       {"setting": "gemini", "reason": check["problem"]})
+            raise HTTPException(status_code=400, detail=f"Not saved: {check['message']}")
+
+    changed = {}
+    if key is not None:
+        gemini_settings.store(db, gemini_settings.KEY_SETTING, key)
+        changed["api_key"] = gemini_settings.key_hint(key) if key else "removed (using .env)"
+    if model is not None:
+        gemini_settings.store(db, gemini_settings.MODEL_SETTING, model)
+        changed["model"] = model or "removed (using .env)"
+    # Audit entry: which settings changed - the key only as its last 4 characters.
+    log_action(db, "admin", user["id"], user["role"], "config_change", "system_config", "gemini", "success",
+               {"setting": "gemini", "changed": changed})
+    return {"message": "Gemini settings saved", "check": check, "gemini": gemini_settings.public_view(db)}
+
+
+@app.post("/api/v1/admin/config/gemini/test")
+def api_test_gemini_config(req: GeminiTestRequest, user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Ask Google whether a key and model work (the given ones, else the ones in use). Saves nothing."""
+    now = gemini_settings.current(db)
+    key = _check_key_text(req.api_key or "") or now["api_key"]
+    model = _check_model_text(req.model or "") or now["model"]
+    return check_gemini(key, model)
 
 @app.post("/api/v1/admin/config")
 def api_update_config(req: ConfigUpdate, user: dict = Depends(get_admin_user), db: Session = Depends(get_db)):
@@ -541,7 +624,10 @@ def api_update_config(req: ConfigUpdate, user: dict = Depends(get_admin_user), d
     db.commit()
     log_action(db, "admin", user["id"], user["role"], "config_change", "system_config", "none", "success",
                {"setting": "llm_backend", "old_value": old_value, "new_value": req.llm_backend})
-    return {"message": "Config updated"}
+    response = {"message": "Config updated"}
+    if req.llm_backend == "gemini" and not gemini_settings.current(db)["api_key"]:
+        response["warning"] = "Gemini is selected but no API key is set yet: add one below."
+    return response
 
 
 @app.post("/api/v1/investigation/analyze")

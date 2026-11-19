@@ -2,6 +2,8 @@
 Unit test suite verifying all LLM Subsystem components, schemas, gateways, and metrics.
 """
 
+import os
+
 import pytest
 from llm.schemas.cyber_entities import ExtractedCyberEntities, IndicatorOfCompromise, VulnerabilityReference
 from llm.schemas.investigation import InvestigationResult, EvidenceCitation, PatchDetails
@@ -88,9 +90,10 @@ def test_mock_llm_provider():
 
 def test_gemini_provider_url_and_fallback():
     """Verifies that GeminiProvider doesn't produce 'models/None:generateContent'."""
+    from llm.gateway.api.gemini_provider import DEFAULT_GEMINI_MODEL
     p = GeminiProvider(model_name=None, api_key="fake-test-key")
-    assert p.model_name == "gemini-1.5-flash"
-    assert "models/gemini-1.5-flash:generateContent" in p.url
+    assert p.model_name == (os.environ.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL)
+    assert f"models/{p.model_name}:generateContent" in p.url
 
 
 def test_groundedness_metrics_edge_cases():

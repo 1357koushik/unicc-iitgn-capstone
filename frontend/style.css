@@ -809,3 +809,19 @@ tr:hover {
 }
 
 .spark-bar.empty { background: #d5dbe1; }
+
+/* System Config: Google Gemini key and model */
+#gemini-config h3 { margin-bottom: 0.5rem; }
+.gemini-status { margin-bottom: 1rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.config-hint { font-size: 0.8rem; color: var(--text-secondary); margin: 0.5rem 0 0.75rem; overflow-wrap: anywhere; }
+.config-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.config-buttons .btn[hidden] { display: none; }
+.gemini-check {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--panel-border);
+    overflow-wrap: anywhere;
+}
+.gemini-check.ok { border-left-color: var(--secondary-color); background: rgba(16, 185, 129, 0.08); }
+.gemini-check.bad { border-left-color: var(--error-color); background: rgba(239, 68, 68, 0.08); }

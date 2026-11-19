@@ -99,7 +99,7 @@ def get_llm_provider(
 
     Args:
         backend: "local" (Ollama), "api" (Cloud), "gemini", or "mock". Defaults to LLM_BACKEND env var or "local".
-        model_name: Optional model identifier (e.g., 'llama3:8b', 'gpt-4o-mini', 'gemini-1.5-flash').
+        model_name: Optional model identifier (e.g., 'llama3:8b', 'gpt-4o-mini', 'gemma-4-26b-a4b-it').
         config: Optional configuration dictionary.
     """
     selected_backend = (backend or os.getenv("LLM_BACKEND", "local")).strip().lower()

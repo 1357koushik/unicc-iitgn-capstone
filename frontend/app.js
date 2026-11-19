@@ -44,6 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Remove what the previous user loaded, so the next person on this tab cannot read it (e.g. with F12).
         document.querySelector("#audit-table tbody").replaceChildren();
         document.querySelector("#users-table tbody").replaceChildren();
+        document.getElementById("gemini-key-input").value = "";
+        document.getElementById("gemini-check-result").hidden = true;
         document.getElementById("login-error").textContent = message || "";
     }
 
@@ -788,6 +790,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById("llm-backend-select").value = data.llm_backend;
+                showGeminiSettings(data.gemini);
             }
         } catch (e) {
             showToast("Failed to load config", "error");
@@ -802,9 +805,126 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ llm_backend: backend })
             });
-            if (res.ok) showToast("Configuration saved", "success");
+            if (res.ok) {
+                const data = await res.json();
+                showToast(data.warning || "Configuration saved", data.warning ? "error" : "success");
+            } else {
+                showToast(await errorText(res, "Failed to save config"), "error");
+            }
         } catch (e) {
             showToast("Failed to save config", "error");
+        }
+    });
+
+    // --- Google Gemini key and model (System Config) ---
+    // The server never sends the key itself back: only its last 4 characters.
+    const KEY_SOURCES = { dashboard: "saved here in System Config", env: "from the .env file / environment" };
+    const MODEL_SOURCES = { dashboard: "saved here", env: "from .env", default: "built-in default" };
+
+    async function errorText(res, fallback) {
+        try {
+            const detail = (await res.json()).detail;
+            if (typeof detail === "string") return detail;
+            if (Array.isArray(detail) && detail.length) return detail.map(d => d.msg).join("; ");
+        } catch (e) { /* keep fallback */ }
+        return fallback;
+    }
+
+    let currentGemini = null;
+
+    function showGeminiSettings(g) {
+        if (!g) return;
+        currentGemini = g;
+        const modelText = `Model: ${g.model} (${MODEL_SOURCES[g.model_source] || g.model_source}).`;
+        document.getElementById("gemini-status").textContent = g.key_set
+            ? `API key in use: ${g.key_hint} (${KEY_SOURCES[g.key_source] || g.key_source}). ${modelText}`
+            : `No API key is set - Gemini summaries will fail until you add one. ${modelText}`;
+        const modelInput = document.getElementById("gemini-model-input");
+        modelInput.value = g.model;
+        modelInput.placeholder = g.default_model;
+        document.getElementById("gemini-remove-btn").hidden = g.key_source !== "dashboard";
+    }
+
+    function showGeminiCheck(ok, message) {
+        const box = document.getElementById("gemini-check-result");
+        box.textContent = message;
+        box.className = `gemini-check ${ok ? "ok" : "bad"}`;
+        box.hidden = false;
+    }
+
+    function setGeminiBusy(busy) {
+        ["gemini-save-btn", "gemini-test-btn", "gemini-remove-btn"].forEach(id => {
+            document.getElementById(id).disabled = busy;
+        });
+    }
+
+    async function saveGemini(body, doneMessage) {
+        setGeminiBusy(true);
+        showGeminiCheck(true, "Checking with Google...");
+        try {
+            const res = await api("/api/v1/admin/config/gemini", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) {
+                showGeminiCheck(false, await errorText(res, "Could not save the Gemini settings."));
+                return;
+            }
+            const data = await res.json();
+            document.getElementById("gemini-key-input").value = "";
+            showGeminiSettings(data.gemini);
+            if (data.check) showGeminiCheck(data.check.ok, data.check.ok ? `Saved. ${data.check.message}` : `Saved, but: ${data.check.message}`);
+            else showGeminiCheck(true, doneMessage);
+            showToast(doneMessage, "success");
+        } catch (e) {
+            showGeminiCheck(false, "Could not reach the server.");
+        } finally {
+            setGeminiBusy(false);
+        }
+    }
+
+    document.getElementById("gemini-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const key = document.getElementById("gemini-key-input").value.trim();
+        const model = document.getElementById("gemini-model-input").value.trim();
+        const body = {};
+        if (key) body.api_key = key;
+        // Send the model only if it was changed; an emptied box goes back to the .env model.
+        if (!currentGemini || model !== currentGemini.model) body.model = model;
+        if (!Object.keys(body).length) {
+            showGeminiCheck(false, "Nothing changed: paste a new key or change the model first.");
+            return;
+        }
+        saveGemini(body, "Gemini settings saved");
+    });
+
+    document.getElementById("gemini-remove-btn").addEventListener("click", () => {
+        if (!confirm("Remove the API key saved here? The key in .env (if any) is used again.")) return;
+        saveGemini({ api_key: "" }, "Saved key removed");
+    });
+
+    document.getElementById("gemini-test-btn").addEventListener("click", async () => {
+        const key = document.getElementById("gemini-key-input").value.trim();
+        const model = document.getElementById("gemini-model-input").value.trim();
+        setGeminiBusy(true);
+        showGeminiCheck(true, "Asking Google...");
+        try {
+            const res = await api("/api/v1/admin/config/gemini/test", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ api_key: key || null, model: model || null })
+            });
+            if (!res.ok) {
+                showGeminiCheck(false, await errorText(res, "The test could not be run."));
+                return;
+            }
+            const result = await res.json();
+            showGeminiCheck(result.ok, result.message + (result.ok && key ? " (Not saved yet - press Check and save.)" : ""));
+        } catch (e) {
+            showGeminiCheck(false, "Could not reach the server.");
+        } finally {
+            setGeminiBusy(false);
         }
     });
 

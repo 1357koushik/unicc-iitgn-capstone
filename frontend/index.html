@@ -260,6 +260,28 @@
                             </select>
                             <button id="save-config-btn" class="btn primary-btn mt-2">Save Configuration</button>
                         </div>
+
+                        <!-- Gemini API key and model: saved in the app's database, used at once (no restart) -->
+                        <div class="config-group mt-4" id="gemini-config">
+                            <h3>Google Gemini</h3>
+                            <p id="gemini-status" class="gemini-status"></p>
+                            <form id="gemini-form" autocomplete="off">
+                                <label for="gemini-key-input">API key</label>
+                                <input type="password" id="gemini-key-input" autocomplete="new-password" spellcheck="false"
+                                       placeholder="Paste a new key from aistudio.google.com/apikey">
+                                <label for="gemini-model-input" class="mt-3">Model</label>
+                                <input type="text" id="gemini-model-input" spellcheck="false">
+                                <p class="config-hint">Current model names: ai.google.dev/gemini-api/docs/models. Leave the key box
+                                    empty to change only the model. A new key is checked with Google before it is saved, is never
+                                    shown again (only its last 4 characters), and is used at once - no restart.</p>
+                                <div class="config-buttons">
+                                    <button type="submit" id="gemini-save-btn" class="btn primary-btn small-btn">Check and save</button>
+                                    <button type="button" id="gemini-test-btn" class="btn secondary-btn small-btn">Test connection</button>
+                                    <button type="button" id="gemini-remove-btn" class="btn outline-btn small-btn" hidden>Remove saved key</button>
+                                </div>
+                            </form>
+                            <p id="gemini-check-result" class="gemini-check" role="status" hidden></p>
+                        </div>
                     </div>
                     
                     <div class="glass-panel mt-4">
