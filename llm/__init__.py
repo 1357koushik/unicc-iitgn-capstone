@@ -1,8 +1,8 @@
 """
 UNICC x IITGN AI & Cybersecurity Capstone Project
-Team 3: LLM Intelligence & Evaluation Layer
+LLM Intelligence & Evaluation Layer
 
-High-level SDK functions designed for seamless 1-line integration by Team 4 (UI/Backend):
+High-level SDK functions designed for seamless 1-line integration by UI/Backend:
 - summarize_report(report_text, backend="mock"|"local"|"api") -> dict
 - extract_entities(text, backend="mock"|"local"|"api") -> dict
 - investigate_threat(observation, retrieved_evidence, backend="mock"|"local"|"api") -> dict
@@ -25,7 +25,7 @@ def summarize_report(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Summarizes a cybersecurity report and returns a clean dictionary/JSON for Team 4.
+    Summarizes a cybersecurity report and returns a clean dictionary/JSON for the UI/dashboard.
     """
     provider = get_llm_provider(backend=backend, model_name=model_name, **kwargs)
     summarizer = ReportSummarizer(provider)
@@ -40,7 +40,7 @@ def extract_entities(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Extracts structured CVEs, IOCs, Malware, and Threat Actors into a clean dictionary/JSON for Team 4.
+    Extracts structured CVEs, IOCs, Malware, and Threat Actors into a clean dictionary/JSON for the UI/dashboard.
     """
     provider = get_llm_provider(backend=backend, model_name=model_name, **kwargs)
     extractor = CyberEntityExtractor(provider)
@@ -59,8 +59,8 @@ def investigate_threat(
 ) -> Dict[str, Any]:
     """
     Evidence-grounded threat investigation (RAG).
-    Takes a new threat query and Team 2's historical evidence (or queries Team 2's API automatically),
-    and returns a citation-backed assessment dictionary/JSON for Team 4.
+    Takes a new threat query and historical retrieval evidence (or queries the retrieval API automatically),
+    and returns a citation-backed assessment dictionary/JSON for the UI/dashboard.
     """
     provider = get_llm_provider(backend=backend, model_name=model_name, **kwargs)
     investigator = ThreatInvestigator(provider)

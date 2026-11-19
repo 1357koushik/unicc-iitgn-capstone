@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from ..interface import LLMProvider, LLMGatewayError, LLMTimeoutError
 
 class GeminiProvider(LLMProvider):
-    """API-based AI through Google Gemini using the Team 3 gateway interface."""
+    """API-based AI through Google Gemini using the LLM gateway interface."""
 
     def __init__(
         self,
