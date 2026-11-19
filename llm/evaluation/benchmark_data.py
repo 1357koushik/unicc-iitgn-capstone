@@ -1,5 +1,5 @@
 """
-Curated Ground-Truth Benchmark Dataset for Team 3 LLM Intelligence & Evaluation.
+Curated Ground-Truth Benchmark Dataset for LLM Intelligence & Evaluation.
 Grounded directly in authentic knowledge-base records (CISA KEV, NVD, EPSS, Abuse.ch)
 from the UNICC x IITGN Capstone corpus.
 
@@ -115,7 +115,7 @@ BENCHMARK_CASES = [
             "threat_actors": [],
             "malware_families": ["DarkComet RAT"],
             "cves": [],
-            "iocs": ["198.51.100.88", "WS-044"],
+            "iocs": ["198.51.100.88"],
         },
         "ground_truth_patch": {
             "patch_status": "Not Applicable",
@@ -148,7 +148,7 @@ BENCHMARK_CASES = [
             "threat_actors": [],
             "malware_families": [],
             "cves": [],
-            "iocs": ["SRV-MGMT-01", "port 445"],
+            "iocs": [],
         },
         "ground_truth_patch": {
             "patch_status": "Not Applicable",
@@ -181,7 +181,7 @@ BENCHMARK_CASES = [
             "threat_actors": [],
             "malware_families": [],
             "cves": [],
-            "iocs": ["DB-PROD-02", "10.0.4.15", "port 22"],
+            "iocs": ["10.0.4.15"],
         },
         "ground_truth_patch": {
             "patch_status": "Not Applicable",

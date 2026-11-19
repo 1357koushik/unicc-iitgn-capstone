@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-llm/evaluation/evaluate_team3.py
-================================
-Official Benchmark Evaluation Suite for Team 3 (LLM Intelligence & Evaluation).
+llm/evaluation/evaluate_llm.py
+==============================
+Official Benchmark Evaluation Suite for LLM Intelligence & Evaluation.
 
 Evaluates:
 1. Cyber Entity Extraction (Macro F1 across CVEs, IOCs, Malware Families, Threat Actors)
 2. Evidence Groundedness (RAG citation fidelity and hallucination detection)
 3. 5-Tier Historical Threat Classification Quality (EXACT, STRONG, PARTIAL, WEAK, UNSUPPORTED)
 4. Summarization Quality (Executive compression ratio, actionable mitigations)
-5. Patch & Remediation Intelligence (Task 3.0 status & version precision)
+5. Patch & Remediation Intelligence (Patch status & version precision)
 6. Workflow Latency SLA across Local (Ollama on-premise) and Cloud/API backends.
 
 Usage:
-    python evaluation/evaluate_team3.py
-    python evaluation/evaluate_team3.py --backend=local
-    python evaluation/evaluate_team3.py --backend=api
-    python evaluation/evaluate_team3.py --output=evaluation/benchmark_results.json
+    python llm/evaluation/evaluate_llm.py
+    python llm/evaluation/evaluate_llm.py --backend=local
+    python llm/evaluation/evaluate_llm.py --backend=api
+    python llm/evaluation/evaluate_llm.py --output=llm/evaluation/benchmark_results.json
 """
 
 import sys
@@ -66,7 +66,7 @@ GATE_TIER_ACCURACY = 0.80        # 80% 5-Tier Match Classification Accuracy
 
 def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
     print("=" * 76)
-    print(" UNICC x IITGN Capstone - Team 3 LLM Evaluation Benchmark Suite")
+    print(" UNICC x IITGN Capstone - LLM Evaluation Benchmark Suite")
     print(f" Target Backend: {backend.upper()} | Model: Ollama / Configured Provider")
     print(f" Time: {datetime.now(timezone.utc).isoformat()}")
     print("=" * 76)
@@ -102,7 +102,7 @@ def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
         summary_dict = summary_result.to_dict() if hasattr(summary_result, "to_dict") else summary_result
         exec_summary = summary_dict.get("executive_summary", "")
         raw_len = len(case["raw_text"])
-        comp_ratio = round(1.0 - (len(exec_summary) / max(1, raw_len)), 3)
+        comp_ratio = max(0.0, round(1.0 - (len(exec_summary) / max(1, raw_len)), 3))
         compression_ratios.append(comp_ratio)
 
         # 2. Structured Extraction Workflow
@@ -129,7 +129,7 @@ def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
         if tier_match:
             tier_correct_count += 1
 
-        # Patch Intelligence Tracking (Task 3.0)
+        # Patch Intelligence Tracking
         extracted_patch = inv_dict.get("patch_details", {})
         if hasattr(extracted_patch, "to_dict"):
             extracted_patch = extracted_patch.to_dict()
@@ -146,7 +146,7 @@ def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
               f"(CVE: {ext_metrics['cve']['f1']*100:.0f}%, "
               f"IOC: {ext_metrics['ioc']['f1']*100:.0f}%, "
               f"Malware: {ext_metrics['malware']['f1']*100:.0f}%, "
-              f"Actor: {ext_metrics['threat_actor']['f1']*100:.0f}%)")
+              f"Actor: {ext_metrics.get('actor', {}).get('f1', 0.0)*100:.0f}%)")
         print(f"       -> 5-Tier Match Status  : '{pred_tier}' (Expected: '{expected_tier}' | Match: {tier_match})")
         print(f"       -> Evidence Groundedness: {grounding['groundedness_score'] * 100:.1f}% "
               f"({grounding['verified_citations']}/{grounding['total_citations']} citations verified)")
@@ -213,7 +213,7 @@ def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
     print(f" Hallucination Rate           : {hallucination_rate * 100:.2f}%")
     print(f" 5-Tier Classification Acc    : {tier_accuracy * 100:.2f}%  [{'PASS' if gate_tier_pass else 'FAIL'} - Gate >= {GATE_TIER_ACCURACY*100:.0f}%]")
     print(f" Average Compression Ratio    : {avg_compression * 100:.2f}%")
-    print(f" Task 3.0 Patch Precision     : {avg_patch_precision * 100:.2f}% (Informational)")
+    print(f" Patch Intelligence Precision  : {avg_patch_precision * 100:.2f}% (Informational)")
     print(f" Average Workflow Latency     : {avg_latency:.2f} seconds")
     print("=" * 76)
 
@@ -228,8 +228,8 @@ def run_benchmark(backend: str = "local", output_file: str = None) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Team 3 LLM Evaluation Benchmark Suite")
-    parser.add_argument("--backend", default="local", choices=["local", "api"], help="Target LLM backend (local: Ollama on-premise, api: cloud provider)")
+    parser = argparse.ArgumentParser(description="LLM Evaluation Benchmark Suite")
+    parser.add_argument("--backend", default="local", choices=["local", "api", "mock"], help="Target LLM backend (local: Ollama on-premise, api: cloud provider, mock: offline test)")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Path to write structured JSON evaluation results")
     args = parser.parse_args()
 

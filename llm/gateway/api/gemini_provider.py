@@ -7,16 +7,16 @@ from typing import Any, Dict, Optional
 from ..interface import LLMProvider, LLMGatewayError, LLMTimeoutError
 
 class GeminiProvider(LLMProvider):
-    """API-based AI through Google Gemini using the Team 3 gateway interface."""
+    """API-based AI through Google Gemini using the LLM gateway interface."""
 
     def __init__(
         self,
-        model_name: str = "gemma-4-26b-a4b-it",
+        model_name: Optional[str] = "gemini-1.5-flash",
         api_key: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ):
         # Override with environment variables if available
-        model = os.environ.get("GEMINI_MODEL") or model_name
+        model = os.environ.get("GEMINI_MODEL") or model_name or "gemini-1.5-flash"
         super().__init__(model_name=model, config=config)
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
@@ -35,8 +35,7 @@ class GeminiProvider(LLMProvider):
         timeout = self.config.get("timeout", 120)
         max_retries = self.config.get("max_retries", 10)
         
-        # Combine system prompt with user prompt since Gemini API expects it in contents
-        # or use system_instruction if supported. Using parts combining for simplicity/robustness.
+        # Combine system prompt with user prompt
         combined_prompt = prompt
         if system_prompt:
             combined_prompt = f"System Instruction:\n{system_prompt}\n\nUser Request:\n{prompt}"
@@ -46,6 +45,9 @@ class GeminiProvider(LLMProvider):
             "maxOutputTokens": max_tokens,
         }
         
+        if kwargs.get("format") == "json":
+            generation_config["responseMimeType"] = "application/json"
+
         if self.model_name and self.model_name.startswith("gemma"):
             generation_config["thinkingConfig"] = {"thinkingLevel": "MINIMAL"}
 
@@ -71,8 +73,13 @@ class GeminiProvider(LLMProvider):
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
                     result = json.loads(resp.read().decode("utf-8"))
                     
+                    candidate = result.get("candidates", [{}])[0]
+                    finish_reason = candidate.get("finishReason", "")
+                    if finish_reason in ("SAFETY", "RECITATION", "BLOCKLIST"):
+                        raise LLMGatewayError(f"Gemini generation blocked by safety filters (finishReason: {finish_reason}).")
+
                     try:
-                        parts = result["candidates"][0]["content"]["parts"]
+                        parts = candidate.get("content", {}).get("parts", [])
                         content = next(p["text"] for p in parts if not p.get("thought", False))
                         return content
                     except (KeyError, IndexError, StopIteration):
@@ -87,7 +94,12 @@ class GeminiProvider(LLMProvider):
                     time.sleep(min(15, 2 ** attempt))
                     continue
                 elif e.code == 429:
-                    raise LLMGatewayError("Gemini Rate Limit Exceeded (429)")
+                    if attempt == max_retries - 1:
+                        raise LLMGatewayError(f"Gemini Rate Limit Exceeded (429) after {max_retries} attempts: {err_body}")
+                    wait_time = min(30, (2 ** attempt) + 2)
+                    print(f"INFO: Gemini rate limit (429). Backing off for {wait_time}s (attempt {attempt+1}/{max_retries})...")
+                    time.sleep(wait_time)
+                    continue
                 else:
                     raise LLMGatewayError(f"Gemini returned error status {e.code}: {err_body}")
                     
@@ -107,7 +119,9 @@ class GeminiProvider(LLMProvider):
                 time.sleep(2 ** attempt)
                 continue
                 
+            except LLMGatewayError:
+                raise
             except Exception as e:
                 raise LLMGatewayError(f"Gemini request failed: {e}")
                 
-        raise LLMGatewayError("Gemini failed after max retries due to 503 high demand.")
+        raise LLMGatewayError("Gemini failed after max retries due to high demand.")
