@@ -21,10 +21,10 @@ services:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.backend
-    # Only this computer can open the app (http://localhost:8080). To show it to other devices on
-    # the network on purpose, change this to "8080:8080".
+    # Other computers on the network open the app at http://<this computer's IP>:8080.
+    # To allow only this computer, change this to "127.0.0.1:8080:8080".
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     volumes:
       - ./data:/app/data
     env_file:

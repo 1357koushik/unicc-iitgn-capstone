@@ -338,8 +338,8 @@ Python 3.13 because the sensor's pinned packages need Python 3.12 or newer.
   folder, so a sensor trained on the host (`python -m network_sensor.train`) is used as it is.
   The login accounts and the audit log are kept there too (`data/app.db`), so they survive
   `docker compose down` and rebuilds; the passwords are shown only on the very first start.
-  The app is reachable only from this computer (http://localhost:8080), not from other devices
-  on the same network. The PoC Discovery service keeps its downloaded AI models in a Docker
+  Other computers on the same network can open the app at http://<this computer's IP>:8080;
+  the retrieval service stays reachable only from this computer. The PoC Discovery service keeps its downloaded AI models in a Docker
   volume (`huggingface-cache`), so only its very first start downloads them.
 - **`deployment/api`** and **`deployment/onprem`**: the sensor keeps its files on the
   `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`), so they survive
