@@ -133,3 +133,28 @@ def test_patch_metrics_includes_workarounds():
         }
     )
     assert patch_eval["composite_precision"] == 1.0
+
+
+def test_empty_evidence_returns_honest_unsupported():
+    """Verify that when zero evidence chunks exist, investigator returns Unsupported without hallucinating."""
+    from llm.workflows.investigator import ThreatInvestigator
+    provider = MockLLMProvider()
+    investigator = ThreatInvestigator(provider)
+    res = investigator.investigate("Unknown observation", retrieved_evidence=[])
+    assert res.match_status == "Unsupported"
+    assert res.supporting_citations == []
+    assert res.potential_threat_actors == []
+
+
+def test_zero_padded_citation_mapping():
+    """Verify that DOC-001 or doc-01 resolves to real document ID without Unverified Citation tag."""
+    from llm.workflows.investigator import ThreatInvestigator
+    provider = MockLLMProvider()
+    investigator = ThreatInvestigator(provider)
+    res = investigator.investigate(
+        "Observation",
+        retrieved_evidence=[{"document_id": "CVE-2017-0144_NVD", "content": "Evidence text"}]
+    )
+    assert len(res.supporting_citations) > 0
+    assert all("[Unverified Citation" not in c.key_excerpt for c in res.supporting_citations)
+    assert res.supporting_citations[0].document_id == "CVE-2017-0144_NVD"
