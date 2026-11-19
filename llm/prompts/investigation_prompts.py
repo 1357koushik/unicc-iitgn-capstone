@@ -70,7 +70,7 @@ def build_investigation_prompt(
     return (
         f"NEWLY OBSERVED THREAT / QUERY:\n"
         f"{observation.strip()}\n\n"
-        f"RETRIEVED HISTORICAL EVIDENCE FROM KNOWLEDGE BASE (Team 2 Retrieval & STIX Graph):\n"
+        f"RETRIEVED HISTORICAL EVIDENCE FROM KNOWLEDGE BASE (Retrieval & STIX Graph):\n"
         f"{evidence_text}\n"
         f"TASK:\n"
         f"Synthesize the historical evidence and determine whether this threat has been documented previously. "
@@ -83,6 +83,7 @@ def build_investigation_prompt(
         f"- potential_threat_actors: list of strings (include any threat actors from STIX graph/evidence)\n"
         f"- associated_malware: list of strings (include any malware/tools identified in evidence)\n"
         f"- associated_cves: list of strings\n"
+        f"- mitre_tactics: list of strings (e.g. ['Initial Access', 'Lateral Movement'])\n"
         f"- patch_details: object with keys:\n"
         f"    * patch_status: 'Available' | 'No Official Patch' | 'Workaround Only' | 'Not Applicable'\n"
         f"    * affected_versions: list of strings (e.g. ['Windows Server 2008', 'Windows 7', 'Windows 10'])\n"

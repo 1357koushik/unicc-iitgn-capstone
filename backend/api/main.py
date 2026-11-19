@@ -612,11 +612,11 @@ def upload_report_file(file: UploadFile = File(...), user: dict = Depends(get_in
 @app.post("/api/v1/investigation/entities")
 def extract_entities(req: EntitiesRequest, user: dict = Depends(get_investigator_user),
                      db: Session = Depends(get_db), gw_dep = Depends(get_llm_gateway)):
-    _, backend_name = gw_dep
+    provider, backend_name = gw_dep
     res = extract_iocs(req.report_text)
     
     try:
-        llm_result = llm_extract(req.report_text, backend="local" if backend_name == "ollama" else "gemini")
+        llm_result = llm_extract(req.report_text, provider=provider)
         res["threat_actors"] = llm_result.get("threat_actors", [])
         res["malware_families"] = llm_result.get("malware_families", [])
     except Exception as e:
@@ -627,7 +627,7 @@ def extract_entities(req: EntitiesRequest, user: dict = Depends(get_investigator
 
 @app.post("/api/v1/investigation/threats")
 def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigator_user), db: Session = Depends(get_db), gw_dep = Depends(get_llm_gateway)):
-    _, backend_name = gw_dep
+    provider, backend_name = gw_dep
     if any(len(entity) > MAX_ENTITY_CHARS for entity in req.entities):
         raise HTTPException(status_code=422, detail=f"Invalid input - each entity must be at most {MAX_ENTITY_CHARS} characters.")
     
@@ -638,7 +638,7 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
         
         result = investigate_threat(
             observation=obs_text,
-            backend="local" if backend_name == "ollama" else "gemini",
+            provider=provider,
             team2_api_url=os.getenv("TEAM2_API_URL", "http://retrieval:8000"),
             allowed_sources=allowed_sources
         )
@@ -673,9 +673,9 @@ def get_threat_matches(req: ThreatsRequest, user: dict = Depends(get_investigato
 @app.post("/api/v1/llm/summarize")
 def summarize_investigation(req: SummarizeRequest, user: dict = Depends(get_investigator_user), 
                             db: Session = Depends(get_db), gw_dep = Depends(get_llm_gateway)):
-    _, backend_name = gw_dep
+    provider, backend_name = gw_dep
     try:
-        result = summarize_report(req.evidence, backend="local" if backend_name == "ollama" else "gemini")
+        result = summarize_report(req.evidence, provider=provider)
         res = {
             "summary": result.get("executive_summary", ""),
             "key_points": [
