@@ -108,9 +108,10 @@ def get_llm_provider(
         return MockLLMProvider(model_name=model_name or "mock-model", config=config)
 
     elif selected_backend in ("local", "onprem", "ollama"):
-        host = kwargs.get("host") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        # An empty OLLAMA_HOST= line in .env means "the default", not an empty address.
+        host = kwargs.get("host") or (os.getenv("OLLAMA_HOST") or "").strip() or "http://localhost:11434"
         return OllamaLocalProvider(
-            model_name=model_name or os.getenv("OLLAMA_MODEL", "llama3:8b"),
+            model_name=model_name or (os.getenv("OLLAMA_MODEL") or "").strip() or "llama3:8b",
             host=host,
             config=config,
         )

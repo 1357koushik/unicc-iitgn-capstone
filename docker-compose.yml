@@ -1,30 +1,94 @@
+# UNICC Cyber AI - the whole system in Docker. Full guide: docs/DOCKER_SETUP.md
+#
+#   cp .env.example .env                 # then fill it in (at least JWT_SECRET)
+#   (put the retrieval data folder at ./retrieval-data, or set RETRIEVAL_DATA_DIR in .env)
+#   docker compose up -d --build         # web app on http://localhost:8080
+#   docker compose logs backend          # first start only: the login passwords, shown once
+#
+# With the bundled on-premise AI model (Ollama) as well:
+#   docker compose --profile ollama up -d --build
+#   docker compose exec ollama ollama pull llama3.2:3b
+#
+# Services
+#   backend    dashboard, login, audit log, AI gateway, network sensor     (port 8080)
+#   retrieval  Team 2 threat retrieval & matching, CPU only                (port 8000, this computer only)
+#   ollama     on-premise LLM, only with --profile ollama                  (port 11434, this computer only)
+
+name: unicc-cyber-ai
+
 services:
   retrieval:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.retrieval
+    image: unicc-cyber-ai/retrieval:local
     ports:
-      - "8000:8000"
+      # Only this computer can call the retrieval API directly; the web app reaches it inside Docker.
+      - "127.0.0.1:${RETRIEVAL_PORT:-8000}:8000"
     volumes:
-      - ./data:/app/data
+      # The indexes and models (about 8 GB), read-only. See "The retrieval data" in the guide.
+      - type: bind
+        source: ${RETRIEVAL_DATA_DIR:-./retrieval-data}
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: false
+      # PoC source logins (GITHUB_TOKEN, MASTODON_*, BLUESKY_*) are read from .env.
+      - type: bind
+        source: ./.env
+        target: /app/.env
+        read_only: true
+        bind:
+          create_host_path: false
+      # Writable: the PoC search cache.
+      - retrieval-state:/state
+    environment:
+      # Empty = chosen at start from the CPUs available (at most 8).
+      - TRE_NUM_THREADS=${TRE_NUM_THREADS:-}
+      - TRE_TECHNIQUES=${TRE_TECHNIQUES:-1}
     restart: unless-stopped
 
   backend:
     build:
       context: .
       dockerfile: deployment/docker/Dockerfile.backend
+    image: unicc-cyber-ai/backend:local
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
     volumes:
-      - ./data:/app/data
-    env_file:
-      - .env
+      # Settings, read-only. After editing .env: docker compose up -d --force-recreate backend
+      # (the Gemini key can also be set in the dashboard, no restart). Copy .env.example first.
+      - type: bind
+        source: ./.env
+        target: /app/.env
+        read_only: true
+        bind:
+          create_host_path: false
+      # Login accounts, audit log, saved settings, network sensor files. Survives rebuilds.
+      - app-data:/data
     environment:
       - TEAM2_API_URL=http://retrieval:8000
-      # Login accounts and the audit log are kept in the project's data/ folder (data/app.db),
-      # so they survive "docker compose down" and rebuilds. (Inside the container, the
-      # project's data/ folder is /app/data; four slashes = an absolute path.)
-      - DATABASE_URL=sqlite:////app/data/app.db
+      # The bundled Ollama when started with --profile ollama; otherwise set OLLAMA_HOST in .env.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+      # Behind an HTTPS reverse proxy: its address, so login limits see real visitor addresses.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
     depends_on:
-      - retrieval
+      retrieval:
+        # The web app starts at once; matching works as soon as the retrieval service is ready.
+        condition: service_started
     restart: unless-stopped
+
+  ollama:
+    profiles: ["ollama"]
+    # Pinned to an exact version (digest), like the other images.
+    image: ollama/ollama:0.40.16@sha256:910d0d8107b538fb0894e63163eb195de0cc7aefcbc666dc62d3b18f71124592
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  retrieval-state:
+  ollama-models:

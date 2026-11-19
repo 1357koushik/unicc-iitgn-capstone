@@ -150,9 +150,25 @@ unicc-iitgn-capstone/
 
 ## 🚀 Getting Started
 
+### Run the whole system with Docker (recommended)
+
+One command starts the web app (dashboard, login, audit log, AI gateway, network sensor) and the
+Team 2 retrieval service, with an optional on-premise AI model (Ollama):
+
+```bash
+cp .env.example .env                 # set JWT_SECRET; see the guide for the rest
+# put the retrieval data folder (about 8 GB, from the project team) at ./retrieval-data
+docker compose up -d --build         # then open http://localhost:8080
+```
+
+The complete guide - requirements, the retrieval data, settings, first login, Gemini or Ollama,
+checks, backups, security checklist and troubleshooting - is
+**[docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md)**.
+
+### Run from source (development)
+
 ### Prerequisites
 * **Python:** Version 3.10 or higher
-* **Container Runtime:** Docker & Docker Compose (for running Qdrant locally)
 * **Compute:** Minimum 8 GB RAM (16 GB + NVIDIA CUDA-enabled GPU recommended for local inference)
 
 ### 1. Set Up Virtual Environment

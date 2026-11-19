@@ -1,3 +1,5 @@
+# Web app: dashboard, login, audit log, AI gateway (Team 3/4) and network sensor (Team 4). Port 8080.
+#
 # Base images are pinned to an exact version (the sha256 digest). With only a name like
 # "python:3.13-slim", every rebuild after that name moved to a new version redid every
 # step, package installs included (12 minutes for a one-line code change). To update on
@@ -5,6 +7,14 @@
 # test the app and change the digest here.
 FROM python:3.13-slim@sha256:b3575dcf816cdacc5292df77a6e3e59b8941631078373a045efa2ac1e9c5c3b2
 COPY --from=ghcr.io/astral-sh/uv:latest@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /bin/
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    # Login accounts, audit log and saved settings (SQLite), and the network sensor's
+    # datasets, models and reports: all in /data, a Docker volume that survives rebuilds.
+    DATABASE_URL=sqlite:////data/app.db \
+    NETWORK_SENSOR_DATA_DIR=/data/network_sensor
+
 WORKDIR /app
 COPY requirements-backend.txt .
 RUN uv pip install --system --no-cache -r requirements-backend.txt
@@ -17,5 +27,18 @@ COPY llm/ llm/
 COPY frontend/ frontend/
 COPY network_sensor/ network_sensor/
 COPY .env.example .env.example
+
+# Run as an ordinary user, not root. /data is created here so a new Docker volume
+# mounted on it belongs to this user.
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin app \
+    && mkdir -p /data/network_sensor \
+    && chown -R app:app /data
+USER app
+
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/', timeout=4).status == 200 else 1)"]
+# Behind a reverse proxy (HTTPS), set FORWARDED_ALLOW_IPS to the proxy's address so the
+# real visitor addresses are used by the per-address login limit (docs/DOCKER_SETUP.md).
+# Never "*" when the app is reachable directly: anyone could then fake their address.
 CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -323,61 +323,55 @@ and tested the same way without the Infiltration flows, it reaches 97.3% precisi
 99.9% of the attacks with false alarms on 1.0%. This is what the 90% check is for: when labels
 do not match the traffic, the old sensor stays in place until the labels are fixed.
 
-In Docker with `docker-compose.yml`, run the command on the host as above (the app uses the
-project's `data/` folder). With `deployment/api` or `deployment/onprem`, copy the folder into the
-container first, for example
-`docker compose -f deployment/api/docker-compose.yml cp own-flows backend:/tmp/own-flows`, then
-`docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train --own-data /tmp/own-flows`.
+In Docker, copy the folder into the container first, then train there:
+`docker compose cp own-flows backend:/tmp/own-flows`, then
+`docker compose exec backend python -m network_sensor.train --own-data /tmp/own-flows`.
 
 ## Run it in Docker
 
 The backend image (`deployment/docker/Dockerfile.backend`) includes the sensor. It uses
-Python 3.13 because the sensor's pinned packages need Python 3.12 or newer.
+Python 3.13 because the sensor's pinned packages need Python 3.12 or newer. The whole system
+(web app, retrieval service, optional Ollama) is started with `docker-compose.yml` in the
+project folder; the full setup is in [docs/DOCKER_SETUP.md](../docs/DOCKER_SETUP.md).
 
-- **`docker-compose.yml`** in the project folder: the backend uses the project's `data/`
-  folder, so a sensor trained on the host (`python -m network_sensor.train`) is used as it is.
-  The login accounts and the audit log are kept there too (`data/app.db`), so they survive
-  `docker compose down` and rebuilds; the passwords are shown only on the very first start.
-- **`deployment/api`** and **`deployment/onprem`**: the sensor keeps its files on the
-  `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`), so they survive
-  rebuilds. Set it up once, from the project folder (for on-premise, use
-  `deployment/onprem/docker-compose.yml`):
+The sensor keeps its files on the `app-data` volume (`NETWORK_SENSOR_DATA_DIR=/data/network_sensor`),
+with the login accounts and the audit log, so they survive `docker compose down` and rebuilds.
+Set it up once, from the project folder:
 
 ```bash
-docker compose -f deployment/api/docker-compose.yml build backend
-docker compose -f deployment/api/docker-compose.yml up -d backend
-docker compose -f deployment/api/docker-compose.yml logs backend    # first start: the login passwords, shown once
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.download_data
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.evaluate
+docker compose up -d --build
+docker compose logs backend    # first start: the login passwords, shown once
+docker compose exec backend python -m network_sensor.download_data
+docker compose exec backend python -m network_sensor.train
+docker compose exec backend python -m network_sensor.evaluate
 ```
 
 Then open **http://localhost:8080** (the `0.0.0.0` address in the log is not a browser address).
 The app shows the login passwords only on its very first start; if they were missed, set a
 new one with
-`docker compose -f deployment/api/docker-compose.yml exec backend python -m backend.manage_users reset-password investigator_1`.
+`docker compose exec backend python -m backend.manage_users reset-password investigator_1`.
 
 If the container cannot reach GitHub, copy the two dataset files in first, then run the
 `download_data` command above: it keeps files whose fingerprints match.
 
 ```bash
-docker compose -f deployment/onprem/docker-compose.yml exec backend mkdir -p /data/network_sensor/nsl_kdd
-docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/nsl_kdd/KDDTrain+.txt backend:/data/network_sensor/nsl_kdd/
-docker compose -f deployment/onprem/docker-compose.yml cp data/network_sensor/nsl_kdd/KDDTest+.txt backend:/data/network_sensor/nsl_kdd/
+docker compose exec backend mkdir -p /data/network_sensor/nsl_kdd
+docker compose cp data/network_sensor/nsl_kdd/KDDTrain+.txt backend:/data/network_sensor/nsl_kdd/
+docker compose cp data/network_sensor/nsl_kdd/KDDTest+.txt backend:/data/network_sensor/nsl_kdd/
 ```
 
 For CIC-IDS2017, copy the downloaded zip in (give its path), prepare it inside the
 container, then train and evaluate:
 
 ```bash
-docker compose -f deployment/api/docker-compose.yml cp MachineLearningCSV.zip backend:/tmp/MachineLearningCSV.zip
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.cicids2017 /tmp/MachineLearningCSV.zip
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.train --dataset cicids2017
-docker compose -f deployment/api/docker-compose.yml exec backend python -m network_sensor.evaluate --dataset cicids2017
+docker compose cp MachineLearningCSV.zip backend:/tmp/MachineLearningCSV.zip
+docker compose exec backend python -m network_sensor.cicids2017 /tmp/MachineLearningCSV.zip
+docker compose exec backend python -m network_sensor.train --dataset cicids2017
+docker compose exec backend python -m network_sensor.evaluate --dataset cicids2017
 ```
 
-How this was checked: with Docker Desktop 4.96 on Windows (October 2026), the `build`
-command built the image in about 4 minutes, and inside the container the commands above set
+How this was checked: with Docker Desktop 4.96 on Windows (October 2026), with the compose file of
+that time (`deployment/api`, since replaced by `docker-compose.yml`), the `build` command built the image in about 4 minutes, and inside the container the commands above set
 up both sensors with the same results as outside Docker (NSL-KDD 96.7%, CIC-IDS2017 96.1%);
 the dashboard at http://localhost:8080 showed both sensors ready. `JWT_SECRET` and
 `GEMINI_API_KEY` were left unset for this check (the app then uses a temporary login key and

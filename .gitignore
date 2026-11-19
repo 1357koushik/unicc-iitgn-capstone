@@ -282,3 +282,9 @@ results/lexical/runs/*.jsonl
 data/dense/
 data/models/
 results/dense/runs/*.jsonl
+
+# ATT&CK technique-ranking builds (copied from the server)
+data/techniques/
+# The retrieval data bundle for Docker (about 8 GB; see docs/DOCKER_SETUP.md)
+retrieval-data/
+retrieval-data.tar
