@@ -158,3 +158,55 @@ def test_zero_padded_citation_mapping():
     assert len(res.supporting_citations) > 0
     assert all("[Unverified Citation" not in c.key_excerpt for c in res.supporting_citations)
     assert res.supporting_citations[0].document_id == "CVE-2017-0144_NVD"
+
+
+def test_unwrap_container_keys():
+    """Verify that if LLM wraps output in 'threat_summary' or 'result', it is unwrapped seamlessly."""
+    import json
+    from llm.schemas.investigation import InvestigationResult
+    from llm.gateway.interface import LLMProvider
+
+    class WrapperProvider(LLMProvider):
+        def generate(self, prompt, **kwargs):
+            return json.dumps({
+                "threat_summary": {
+                    "query_observation": "Test obs",
+                    "match_status": "Strong",
+                    "assessment_narrative": "Narrative",
+                    "potential_threat_actors": ["APT28"],
+                    "associated_malware": ["Cobalt Strike"],
+                    "associated_cves": ["CVE-2017-0144"],
+                    "patch_details": {"patch_status": "Available"},
+                    "confidence_level": "High",
+                    "supporting_citations": []
+                }
+            })
+
+    p = WrapperProvider("mock")
+    res = p.generate_structured("prompt", InvestigationResult)
+    assert res.match_status == "Strong"
+    assert res.potential_threat_actors == ["APT28"]
+
+
+def test_evidence_citation_observed_overlap_string_coercion():
+    """Verify that string observed_overlap from LLMs (e.g. 'Exact') coerces to list of strings."""
+    from llm.schemas.investigation import EvidenceCitation, InvestigationResult
+
+    c = EvidenceCitation.model_validate({
+        "document_id": "DOC-1",
+        "key_excerpt": "Quote",
+        "observed_overlap": "Exact"
+    })
+    assert c.observed_overlap == ["Exact"]
+
+    res = InvestigationResult.model_validate({
+        "query_observation": "Obs",
+        "match_status": "Exact",
+        "assessment_narrative": "Narrative",
+        "supporting_citations": [{
+            "document_id": "DOC-1",
+            "key_excerpt": "Quote",
+            "observed_overlap": "Weak"
+        }]
+    })
+    assert res.supporting_citations[0].observed_overlap == ["Weak"]

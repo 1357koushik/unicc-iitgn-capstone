@@ -54,11 +54,13 @@ class LLMProvider(ABC):
         schema_cls: Type[Any],
         system_prompt: Optional[str] = None,
         max_retries: int = 2,
+        _original_prompt: Optional[str] = None,
     ) -> Any:
         """
         Generates response and validates it against the provided schema class.
-        Includes built-in json sanitization, compact retry prompt, and schema fallback parsing.
+        Includes built-in json sanitization, auto-unwrapping, and non-destructive retries.
         """
+        base_prompt = _original_prompt or prompt
         structured_system = (
             f"{system_prompt or ''}\n\n"
             "CRITICAL INSTRUCTION: You MUST return strictly valid JSON matching the required schema. "
@@ -77,22 +79,28 @@ class LLMProvider(ABC):
 
         try:
             data = json.loads(cleaned_json)
+            # Auto-unwrap if model wrapped output in an extra container key (e.g. "threat_summary", "data", "result")
+            if isinstance(data, dict) and len(data) == 1:
+                single_key = next(iter(data))
+                if isinstance(data[single_key], dict) and not hasattr(schema_cls, single_key):
+                    data = data[single_key]
             if hasattr(schema_cls, "model_validate"):
                 return schema_cls.model_validate(data)
             return schema_cls(**data)
         except Exception as e:
             if max_retries > 0:
-                compact_prompt = prompt if len(prompt) < 2000 else f"{prompt[:1000]}...\n[Context truncated for retry]\n...{prompt[-1000:]}"
+                # Preserve the clean original prompt so critical evidence chunks are never lost or double-nested on retry
                 retry_prompt = (
                     f"CRITICAL: Your previous JSON output was invalid.\n"
                     f"Error details: {str(e)}\n"
-                    f"Return ONLY valid JSON matching the {schema_cls.__name__} schema for the task:\n{compact_prompt}"
+                    f"Return ONLY valid JSON matching the {schema_cls.__name__} schema directly at root (do NOT wrap in extra keys like 'threat_summary'):\n{base_prompt}"
                 )
                 return self.generate_structured(
                     prompt=retry_prompt,
                     schema_cls=schema_cls,
                     system_prompt=system_prompt,
                     max_retries=max_retries - 1,
+                    _original_prompt=base_prompt,
                 )
             raise LLMValidationError(f"Failed to parse and validate structured output: {e}\nRaw output: {raw_response}")
 

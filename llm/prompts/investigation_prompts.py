@@ -24,6 +24,7 @@ CRITICAL GROUNDING & ANTI-HALLUCINATION RULES:
    - List any remediation_workarounds (mitigations or workarounds from CISA KEV or vendor advisories). Never copy unrelated examples.
 5. Always include a disclaimer that this is an AI-assisted analysis requiring human investigator review.
 6. Return strictly valid JSON conforming to the schema.
+7. Return the JSON object directly at the root level. Do NOT wrap your output in an outer container key like 'threat_summary' or 'response'.
 """
 
 
@@ -76,7 +77,7 @@ def build_investigation_prompt(
         f"Synthesize the historical evidence and determine whether this threat has been documented previously. "
         f"Incorporate any identified threat actors, malware families, and MITRE relationships from the evidence. "
         f"Evaluate patch availability for any referenced CVE or vulnerability with explicit clarity. "
-        f"Provide your assessment in a JSON object with keys:\n"
+        f"Provide your assessment in a JSON object directly at the root level (do NOT wrap in 'threat_summary') with keys:\n"
         f"- query_observation: string\n"
         f"- match_status: 'Exact' | 'Strong' | 'Partial' | 'Weak' | 'Unsupported'\n"
         f"- assessment_narrative: detailed grounded synthesis\n"
@@ -90,6 +91,10 @@ def build_investigation_prompt(
         f"    * fixed_versions: list of strings (official patch bulletins or fixed versions explicitly stated in the evidence; leave empty if none stated, do NOT invent or copy examples)\n"
         f"    * remediation_workarounds: list of strings (mitigations or workarounds explicitly stated in the evidence; leave empty if none stated)\n"
         f"- confidence_level: 'High' | 'Medium' | 'Low'\n"
-        f"- supporting_citations: list of objects {{document_id, relevance_score, key_excerpt, observed_overlap}}\n"
+        f"- supporting_citations: list of objects with keys:\n"
+        f"    * document_id: string (the Document ID of the cited chunk, e.g. 'CVE-2024-21410_KEV')\n"
+        f"    * relevance_score: number between 0.0 and 1.0 (retrieval relevance score)\n"
+        f"    * key_excerpt: string (verbatim excerpt from document content proving the match)\n"
+        f"    * observed_overlap: list of strings (specific matched indicators, e.g. ['CVE-2017-0144'])\n"
         f"- investigator_notes: string reminding analyst of human verification\n"
     )
