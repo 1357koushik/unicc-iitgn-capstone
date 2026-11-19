@@ -374,9 +374,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 box.replaceChildren(textElement("strong", "Threat matching failed:"),
                                     textElement("p", reason, "placeholder-text"));
                 showToast(res.status === 503 ? "Threat matching not available yet" : "Threat matching failed", "error");
+                btn.disabled = false;      // so the investigator can try again
             }
         } catch (e) {
             showToast("Network error", "error");
+            btn.disabled = false;
         } finally {
             btn.textContent = "Run Threat Matching";
         }
