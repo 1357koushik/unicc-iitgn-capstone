@@ -58,9 +58,9 @@ class PoCFinderEngine:
         if timeout_seconds is None:
             try:
                 cfg = get_config()
-                timeout_seconds = getattr(cfg, "d_poc_seconds", 20.0)
+                timeout_seconds = getattr(cfg, "d_poc_seconds", 200.0)
             except Exception:
-                timeout_seconds = 20.0
+                timeout_seconds = 200.0
         self.timeout_seconds = float(timeout_seconds)
         self.sources: dict[str, BasePoCSource] = sources or {
             "github": GitHubPoCSource(timeout_seconds=timeout_seconds),
@@ -160,12 +160,15 @@ class PoCFinderEngine:
                     coverage_limitations.append(cov)
 
         # 4. Aggregate, deduplicate, validate, and score candidates
-        validated_results = self.aggregator.aggregate_and_validate(
+        # The cache keeps every result; the confidence threshold is applied per request, so a strict search
+        # cannot hide results from a later, less strict one.
+        all_results = self.aggregator.aggregate_and_validate(
             raw_candidates=raw_candidates,
             cve_id=cve_clean,
-            min_confidence=min_confidence,
+            min_confidence=0.0,
             max_results=max_results,
         )
+        validated_results = [r for r in all_results if r.confidence_score >= min_confidence]
 
         # 5. Compute relevance yield (not ground-truth production precision)
         precision = self.validator.calculate_precision(validated_results)
@@ -188,7 +191,7 @@ class PoCFinderEngine:
         if self.cache:
             self.cache.set(
                 cve_clean,
-                response,
+                response.model_copy(update={"results": all_results, "total_found": len(all_results)}),
                 sources=sources,
                 max_results=max_results,
                 min_confidence=min_confidence,

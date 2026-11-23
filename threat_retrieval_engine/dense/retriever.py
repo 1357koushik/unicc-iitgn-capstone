@@ -29,7 +29,7 @@ import numpy as np
 from . import models as M
 from .index import DenseIndex, set_blas_threads
 
-MAX_QUERY_CHARS = 20_000
+MAX_QUERY_CHARS = 200_000
 
 
 @dataclass

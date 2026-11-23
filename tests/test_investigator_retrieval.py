@@ -90,8 +90,8 @@ def test_long_report_is_searched_on_its_beginning(monkeypatch):
         return FakeResponse(json.dumps({"top_matches": []}).encode())
 
     monkeypatch.setattr(inv.urllib.request, "urlopen", urlopen)
-    inv.ThreatInvestigator(provider=MockLLMProvider()).investigate("A" * 10000, team2_api_url=URL)
-    assert len(sent["query"]) == inv.MAX_QUERY_CHARS == 4096
+    inv.ThreatInvestigator(provider=MockLLMProvider()).investigate("A" * 50000, team2_api_url=URL)
+    assert len(sent["query"]) == inv.MAX_QUERY_CHARS == 40960
 
 
 # ------------------------------------------------------------------ the web app's answer

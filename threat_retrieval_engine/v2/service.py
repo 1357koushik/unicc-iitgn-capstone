@@ -1,7 +1,7 @@
 """C6: the v2 pipeline behind the unchanged REST contract (``/api/v1/threats/match`` and friends).
 
 One ``V2Service`` per process: opens the store, lexical, dense, ATT&CK, nickname route and reranker once, then
-answers requests within a hard deadline (``TRE_MATCH_HARD_LIMIT``, default 3.0 s): each stage checks the time
+answers requests within a hard deadline (``TRE_MATCH_HARD_LIMIT``, default 30 s): each stage checks the time
 left, a skipped stage is named in ``skipped_stages``, and the response is built from what finished.
 
 Confidence (plan 4.7):
@@ -95,7 +95,7 @@ class V2Service:
         from .system import open_system
         self.r = retriever or open_system()
         self.calib = calibration if calibration is not None else Calibration.load()
-        self.hard_limit = float(hard_limit_s or os.environ.get("TRE_MATCH_HARD_LIMIT", 3.0))
+        self.hard_limit = float(hard_limit_s or os.environ.get("TRE_MATCH_HARD_LIMIT", 30.0))
         self.poc_finder = poc_finder
         self.store = self.r.store
         self.attack = self.r.attack
@@ -171,14 +171,45 @@ class V2Service:
             "matched_names": h.matched,
         }
 
+    # ------------------------------------------------------------------ dataset permissions
+    def _permitted(self, doc_ids, allowed: set[str]) -> set[str]:
+        """The documents these datasets cover. An unknown dataset covers nothing (access fails closed)."""
+        doc_ids = list(doc_ids)
+        rows = self.r.texts.rows(doc_ids) if doc_ids else {}
+        out = set()
+        for d in doc_ids:
+            if d.startswith("attack:"):
+                ok = "MITRE_ATTACK" in allowed
+            else:
+                row = rows.get(d, {})
+                sources = set((row.get("sources") or "").split(","))
+                ok = ("NVD" in allowed and "nvd" in sources) or ("CISA_KEV" in allowed and bool(row.get("kev_listed")))
+            if ok:
+                out.add(d)
+        return out
+
     # ------------------------------------------------------------------ endpoints
     def match(self, query: str, top_k: int = 5, include_pocs: bool = False,
-              include_techniques: bool | None = None) -> dict[str, Any]:
+              include_techniques: bool | None = None, allowed_sources: list[str] | None = None) -> dict[str, Any]:
+        allowed = _allowed_datasets(allowed_sources)
         t0 = time.perf_counter()
         deadline = t0 + self.hard_limit * 0.85
         notices: list[dict] = []
         iocs = self.iocs(query)
-        res = self.r.retrieve(query, k=max(top_k, 10), deadline=deadline)
+        res = self.r.retrieve(query, k=max(top_k, 10, RESTRICTED_DEPTH if allowed is not None else 0), deadline=deadline)
+        if allowed is not None:
+            before = len(res.hits)
+            ok = self._permitted([h.doc_id for h in res.hits], allowed)
+            res.hits = [h for h in res.hits if h.doc_id in ok]
+            for i, h in enumerate(res.hits, 1):
+                h.rank = i
+            ok_named = self._permitted({c for n in res.nicknames for c in n["cves"]}, allowed)
+            res.nicknames = [dict(n, cves=[c for c in n["cves"] if c in ok_named]) for n in res.nicknames]
+            res.nicknames = [n for n in res.nicknames if n["cves"]]
+            notices.append({"code": "restricted_to_datasets", "datasets": sorted(allowed),
+                            "results_hidden": before - len(res.hits)})
+            if "MITRE_ATTACK" not in allowed:
+                include_techniques = False
         for c in res.cve_ids_not_in_corpus:
             notices.append({"code": "not_in_corpus", "value": c})
         if iocs:
@@ -194,6 +225,9 @@ class V2Service:
         rows = self.r.texts.rows([h.doc_id for h in hits[:top_k]]) if hits else {}
         cin = set(res.cve_ids_in_query) | {e["doc_id"] for e in res.entities if e.get("matched_by") == "id"}
         matches = [self._match(h, rows.get(h.doc_id, {}), hits, query, cin) for h in hits[:top_k]]
+        if allowed is not None and "MITRE_ATTACK" not in allowed:
+            for m in matches:
+                m["stix_relationships"] = []          # these name ATT&CK documents
         t2 = time.perf_counter()
         skipped = list(res.skipped)
         techniques: list[dict] = []
@@ -257,8 +291,12 @@ class V2Service:
                 by[c]["poc_status"] = f"{type(exc).__name__}: {str(exc)[:200]}"
         return (time.perf_counter() - t) * 1000
 
-    def hybrid(self, query: str, top_k: int = 10) -> dict[str, Any]:
-        res = self.r.retrieve(query, k=top_k, rerank=False)
+    def hybrid(self, query: str, top_k: int = 10, allowed_sources: list[str] | None = None) -> dict[str, Any]:
+        allowed = _allowed_datasets(allowed_sources)
+        res = self.r.retrieve(query, k=max(top_k, RESTRICTED_DEPTH) if allowed is not None else top_k, rerank=False)
+        if allowed is not None:
+            ok = self._permitted([h.doc_id for h in res.hits], allowed)
+            res.hits = [h for h in res.hits if h.doc_id in ok][:top_k]
         return {"query": query, "pipeline_version": PIPELINE_VERSION, "results": [
             {"chunk_id": h.doc_id, "rrf_score": None, "fused_rank": h.fused_rank, "dense_rank": h.dense_rank,
              "lexical_rank": h.lexical_rank, "dense_score": h.dense_cosine, "route": h.route} for h in res.hits],
@@ -291,6 +329,15 @@ class V2Service:
 
 
 TECHNIQUES_K = 10
+RESTRICTED_DEPTH = 2000     # candidates searched for a user limited to some datasets, before the filter
+
+
+def _allowed_datasets(allowed_sources: list[str] | None) -> set[str] | None:
+    """None = every dataset. Otherwise the upper-case names; an empty list allows nothing."""
+    if allowed_sources is None:
+        return None
+    names = {str(s).strip().upper() for s in allowed_sources if str(s).strip()}
+    return None if "ALL" in names else names
 
 
 def techniques_default() -> bool:

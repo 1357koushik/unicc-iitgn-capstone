@@ -27,8 +27,8 @@ except ImportError:
 
 
 class MatchRequest(BaseModel):
-    query: str = Field(..., max_length=4096, description="Threat query string or incident report text (bounded, R35)")
-    top_k: int = Field(5, ge=1, le=50, description="Number of top threat matches to return")
+    query: str = Field(..., max_length=40960, description="Threat query string or incident report text (bounded, R35)")
+    top_k: int = Field(5, ge=1, le=500, description="Number of top threat matches to return")
     alpha: float = Field(0.5, ge=0.0, le=1.0, description="v1 only: dense/lexical weighting. Ignored by v2, whose fusion weights are tuned on the benchmark dev split")
     allowed_sources: list[str] | None = Field(None, description="List of allowed source_orgs. If None, all are allowed.")
     include_pocs: bool = Field(False, description="Whether to perform live OSINT PoC enrichment. Defaults to False for fast decoupled matching (R34)")
@@ -175,7 +175,7 @@ class MatchResponse(BaseModel):
 
 class PoCFindRequest(BaseModel):
     cve_id: str = Field(..., pattern=r"^CVE-\d{4}-\d{4,7}$", description="Target CVE identifier (e.g. CVE-2024-3400)")
-    max_results: int = Field(20, ge=1, le=100, description="Maximum total results to return")
+    max_results: int = Field(20, ge=1, le=1000, description="Maximum total results to return")
     sources: list[str] = Field(
         default_factory=lambda: ["github", "mastodon", "bluesky"],
         description="List of sources to search",

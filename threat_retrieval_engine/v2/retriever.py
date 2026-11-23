@@ -14,6 +14,7 @@ fused / lexical / dense rank, dense cosine, route hits) are returned for the cal
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 import re
 import time
@@ -126,12 +127,15 @@ class V2Retriever:
         T["routes"] = (time.perf_counter() - t0) * 1000
 
         t1 = time.perf_counter()
-        lex = self.lexical.search(query, k=self.candidates, kinds=None)
+        # The tuned depth, unless more results were asked for than it holds (results up to the depth are unchanged).
+        depth = max(self.candidates, int(k))
+        cfg = self.cfg if depth <= self.cfg.depth else dataclasses.replace(self.cfg, depth=depth)
+        lex = self.lexical.search(query, k=depth, kinds=None)
         T["lexical"] = (time.perf_counter() - t1) * 1000
         den_hits: list[tuple[str, float]] = []
         if left() > 0.3:
             t2 = time.perf_counter()
-            den = self.dense.search(query, k=self.candidates, kinds=None)
+            den = self.dense.search(query, k=depth, kinds=None)
             den_hits = den.hits
             T["dense_encode"] = den.timings_ms.get("encode", 0.0)
             T["dense_search"] = den.timings_ms.get("search", 0.0)
@@ -139,7 +143,7 @@ class V2Retriever:
             skipped.append("dense")
         lex_ids = [d for d, _ in lex.hits]
         den_ids = [d for d, _ in den_hits]
-        fused = rrf([lex_ids, den_ids], self.cfg, limit=self.candidates) if den_ids else \
+        fused = rrf([lex_ids, den_ids], cfg, limit=depth) if den_ids else \
             [(d, 0.0) for d in lex_ids]
         lrank = {d: i + 1 for i, d in enumerate(lex_ids)}
         drank = {d: i + 1 for i, d in enumerate(den_ids)}

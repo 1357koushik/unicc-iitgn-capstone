@@ -55,7 +55,7 @@ class MastodonPoCSource(BasePoCSource):
     def __init__(
         self,
         instances: list[str] | None = None,
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 100.0,
         access_token: str | None = None,
     ) -> None:
         if instances is not None:

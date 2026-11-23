@@ -23,13 +23,13 @@ def test_api_health_and_ready(client):
 
 
 def test_api_match_validation(client):
-    # Oversized query should be rejected (max_length=4096)
-    huge_query = "A" * 5000
+    # Oversized query should be rejected (max_length=40960)
+    huge_query = "A" * 50000
     r_bad = client.post("/match", json={"query": huge_query})
     assert r_bad.status_code == 422
 
-    # Query with top_k > 50 should be rejected
-    r_bad_k = client.post("/match", json={"query": "test query", "top_k": 100})
+    # Query with top_k > 500 should be rejected
+    r_bad_k = client.post("/match", json={"query": "test query", "top_k": 1000})
     assert r_bad_k.status_code == 422
 
 

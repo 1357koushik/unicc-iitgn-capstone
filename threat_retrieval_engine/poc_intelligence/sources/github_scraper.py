@@ -45,7 +45,7 @@ class GitHubPoCSource(BasePoCSource):
     def __init__(
         self,
         token: str | None = None,
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 100.0,
         *,
         enable_code_search: bool = True,
         retry_attempts: int = 2,

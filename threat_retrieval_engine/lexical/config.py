@@ -60,7 +60,7 @@ class RankingConfig:
         weights = tuple(float(w[c]) for c in COLUMNS) if isinstance(w, dict) else tuple(float(x) for x in w)
         return cls(weights=weights, stop_words=d.get("stop_words", "english"),
                    max_df_ratio=float(d.get("max_df_ratio", 1.0)), max_terms=int(d.get("max_terms", 64)),
-                   max_query_chars=int(d.get("max_query_chars", 20_000)))
+                   max_query_chars=int(d.get("max_query_chars", 200_000)))
 
     def with_(self, **kw) -> "RankingConfig":
         if "weights" in kw and isinstance(kw["weights"], dict):

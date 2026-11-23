@@ -217,7 +217,7 @@ class NetworkSensorApiTests(unittest.TestCase):
         res = self.clients["investigator"].get(STATUS)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.json()["ready"])
-        self.assertEqual(res.json()["max_file_mb"], 5)
+        self.assertEqual(res.json()["max_file_mb"], 50)
 
     def test_retrained_sensor_is_picked_up_without_restarting(self):
         before = self.clients["admin"].get(STATUS).json()["trained_at"]
@@ -239,13 +239,14 @@ class NetworkSensorApiTests(unittest.TestCase):
     def test_wrong_file_type_is_refused_and_audited(self):
         self.assert_refused(self.scan(b"MZ...", filename="tool.exe"), 415, "can't be scanned")
 
-    def test_file_over_5_mb_is_refused(self):
-        res = self.scan(b"0" * (5 * 1024 * 1024 + 10))
+    def test_file_over_50_mb_is_refused(self):
+        res = self.scan(b"0" * (50 * 1024 * 1024 + 10))
         self.assertEqual(res.status_code, 413)
 
     def test_too_many_connections_is_refused(self):
-        many = make_connections(25_001, 0, seed=14)
-        self.assert_refused(self.scan(raw_nsl_kdd(many, n_columns=41)), 413, "Too many connections")
+        many = make_connections(101, 0, seed=14)
+        with mock.patch.object(service, "MAX_CONNECTIONS", 100):
+            self.assert_refused(self.scan(raw_nsl_kdd(many, n_columns=41)), 413, "Too many connections")
 
     def test_missing_column_is_refused(self):
         columns = [c for c in FEATURE_COLUMNS if c != "src_bytes"]

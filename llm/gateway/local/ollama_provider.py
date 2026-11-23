@@ -77,7 +77,7 @@ class OllamaLocalProvider(LLMProvider):
             method="POST"
         )
 
-        timeout = self.config.get("timeout", 180)
+        timeout = self.config.get("timeout", 1800)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))

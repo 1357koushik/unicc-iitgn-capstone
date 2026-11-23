@@ -29,10 +29,10 @@ from typing import FrozenSet, List
 
 ALLOWED_EXTENSIONS: FrozenSet[str] = frozenset({".txt", ".pdf", ".docx"})
 
-MAX_PDF_PAGES = 500
-MAX_DOCX_UNPACKED_BYTES = 100 * 1024 * 1024   # everything inside the .docx, pictures included
-MAX_DOCX_XML_PART_BYTES = 20 * 1024 * 1024    # any single text/layout part inside it
-MAX_DOCX_PARTS = 2_000
+MAX_PDF_PAGES = 5000
+MAX_DOCX_UNPACKED_BYTES = 1000 * 1024 * 1024   # everything inside the .docx, pictures included
+MAX_DOCX_XML_PART_BYTES = 200 * 1024 * 1024    # any single text/layout part inside it
+MAX_DOCX_PARTS = 20_000
 
 
 class FileExtractionError(ValueError):

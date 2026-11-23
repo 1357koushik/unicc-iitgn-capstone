@@ -112,10 +112,10 @@ class RetrievalConfig:
 
         # Deadlines (V2)
         deadlines = cfg.get("deadlines", {})
-        self.d_match_seconds = float(os.getenv("D_MATCH_SECONDS", deadlines.get("d_match_seconds", 15.0)))
-        self.t_client_match_seconds = float(os.getenv("T_CLIENT_MATCH_SECONDS", deadlines.get("t_client_match_seconds", 20.0)))
-        self.d_poc_seconds = float(os.getenv("D_POC_SECONDS", deadlines.get("d_poc_seconds", 20.0)))
-        self.client_margin_seconds = float(deadlines.get("client_margin_seconds", 5.0))
+        self.d_match_seconds = float(os.getenv("D_MATCH_SECONDS", deadlines.get("d_match_seconds", 150.0)))
+        self.t_client_match_seconds = float(os.getenv("T_CLIENT_MATCH_SECONDS", deadlines.get("t_client_match_seconds", 200.0)))
+        self.d_poc_seconds = float(os.getenv("D_POC_SECONDS", deadlines.get("d_poc_seconds", 200.0)))
+        self.client_margin_seconds = float(deadlines.get("client_margin_seconds", 50.0))
 
         # Enforce V2 Invariant: T_client_match > D_match
         if self.t_client_match_seconds <= self.d_match_seconds:
@@ -156,10 +156,10 @@ class RetrievalConfig:
         self.poc_enabled = bool(poc.get("enabled", True))
         self.poc_cache_ttl_seconds = int(poc.get("cache_ttl_seconds", 21600))
         self.poc_kev_cache_ttl_seconds = int(poc.get("kev_cache_ttl_seconds", 3600))
-        self.poc_max_results_per_source = int(poc.get("max_results_per_source", 10))
-        self.poc_max_total_results = int(poc.get("max_total_results", 30))
+        self.poc_max_results_per_source = int(poc.get("max_results_per_source", 100))
+        self.poc_max_total_results = int(poc.get("max_total_results", 300))
         self.poc_min_confidence_threshold = float(poc.get("min_confidence_threshold", 0.0))
-        self.poc_request_timeout_seconds = float(poc.get("request_timeout_seconds", 10.0))
+        self.poc_request_timeout_seconds = float(poc.get("request_timeout_seconds", 100.0))
         self.x_allow_paid_requests = _env_bool(
             os.getenv("X_ALLOW_PAID_REQUESTS"),
             default=bool(poc.get("x_allow_paid_requests", False)),

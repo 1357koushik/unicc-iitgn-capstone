@@ -32,10 +32,10 @@ from network_sensor.features import InputError, prepare_features
 from network_sensor.spec import dataset_of_columns, get_spec
 
 SPEEDS = (10, 100, 1000)          # connections per second a user can choose
-MAX_BATCH = 2000                  # most connections checked in one step
-MAX_ALERTS_PER_STEP = 200         # alerts sent back per step (the totals count all of them)
-MAX_SESSIONS = 3                  # live replays running at the same time on the whole server
-IDLE_SECONDS = 600                # a replay nobody has asked about for this long is dropped
+MAX_BATCH = 20000                  # most connections checked in one step
+MAX_ALERTS_PER_STEP = 2000         # alerts sent back per step (the totals count all of them)
+MAX_SESSIONS = 30                 # live replays running at the same time on the whole server
+IDLE_SECONDS = 6000                # a replay nobody has asked about for this long is dropped
 
 
 @dataclass

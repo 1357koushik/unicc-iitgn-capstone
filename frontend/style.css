@@ -825,3 +825,16 @@ tr:hover {
 }
 .gemini-check.ok { border-left-color: var(--secondary-color); background: rgba(16, 185, 129, 0.08); }
 .gemini-check.bad { border-left-color: var(--error-color); background: rgba(239, 68, 68, 0.08); }
+
+/* PoC Discovery (the page's security policy blocks style="..." attributes, so these live here) */
+.poc-panel { width: 100%; }
+.poc-intro { margin-bottom: 1.5rem; }
+.poc-search-row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.input-group.poc-cve-field { flex: 2; min-width: 260px; margin-bottom: 0; }
+.input-group.poc-tier-field { flex: 1; min-width: 180px; margin-bottom: 0; }
+.btn.poc-search-submit { height: 44px; width: auto; }
+.poc-sources-row { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.poc-sources-label { font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; }
+label.poc-source-option { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0; }
+#poc-source-statuses { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; margin-bottom: 1.5rem; }
+#poc-stats-banner { display: none; padding: 0.75rem 1rem; background: rgba(3, 73, 180, 0.08); border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem; }

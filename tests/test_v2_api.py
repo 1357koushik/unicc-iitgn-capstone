@@ -179,6 +179,26 @@ def test_match_returns_attack_techniques_and_can_skip_them():
     assert out["attack_techniques"] == [] and tech.calls == 1
 
 
+def test_dataset_restriction_hides_other_datasets():
+    class Texts(_Texts):
+        def rows(self, ids):
+            return {d: {"title": d, "description": d, "kev_listed": int(d == "CVE-2017-0144"),
+                        "sources": "nvd,cve_list,kev" if d == "CVE-2017-0144" else "nvd,cve_list"} for d in ids}
+
+    class R(_Retriever):
+        texts = Texts()
+
+    svc = V2Service(retriever=R(), calibration=None, hard_limit_s=3.0, techniques=_Techniques())
+    ids = lambda **kw: [m["chunk_id"] for m in svc.match("EternalBlue over SMB", top_k=3, **kw)["top_matches"]]
+    assert len(ids()) == 3 and len(ids(allowed_sources=["ALL"])) == 3 and len(ids(allowed_sources=["nvd"])) == 3
+    assert ids(allowed_sources=["CISA_KEV"]) == ["CVE-2017-0144"]
+    assert ids(allowed_sources=["INTERNAL"]) == [] and ids(allowed_sources=["NOPE"]) == [] and ids(allowed_sources=[]) == []
+    out = svc.match("EternalBlue over SMB", top_k=3, allowed_sources=["CISA_KEV"])
+    assert out["top_matches"][0]["rank"] == 1 and out["attack_techniques"] == []
+    assert any(n["code"] == "restricted_to_datasets" and n["results_hidden"] == 2 for n in out["notices"])
+    assert svc.match("EternalBlue over SMB", allowed_sources=["MITRE_ATTACK"])["attack_techniques"]
+
+
 def test_missing_technique_route_is_a_skipped_stage():
     svc = V2Service(retriever=_Retriever(), calibration=None, hard_limit_s=3.0, techniques=None)
     svc.techniques = None

@@ -44,7 +44,7 @@ from .schema import COLUMNS, IMPACT_FILES, KIND_RANGES, LEXICAL_FORMAT
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = REPO_ROOT / "data" / "lexical"
 INDEX_FILE = "lexical.sqlite"
-MAX_K = 1000
+MAX_K = 10000
 
 
 class IndexError_(RuntimeError):

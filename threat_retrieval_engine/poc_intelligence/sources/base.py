@@ -45,7 +45,7 @@ class SearchConfig:
     result_limit: int = 10
     page_limit: int = 2
     request_limit: int = 4
-    timeout_seconds: float = 10.0
+    timeout_seconds: float = 100.0
 
 
 @dataclass

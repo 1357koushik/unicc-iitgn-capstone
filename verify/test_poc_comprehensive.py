@@ -241,6 +241,28 @@ async def test_cache_isolation_and_parameter_independence():
 
 
 @pytest.mark.asyncio
+async def test_cache_answers_only_the_same_sources_and_size():
+    def source(name):
+        return DummySource(name, SourceSearchResponse(source=name, status="success", candidates=[
+            RawCandidate(url=f"https://github.com/{name}/CVE-2024-3400-poc", title="Exploit CVE-2024-3400", source=name,
+                         stars=50, language="Python")]))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        engine = PoCFinderEngine(cache=PoCCache(db_path=Path(tmpdir) / "test.db"), sources={"a": source("a"), "b": source("b")})
+        both = await engine.find_pocs("CVE-2024-3400", sources=["a", "b"])
+        assert sorted(both.sources_queried) == ["a", "b"] and both.cached is False
+        one = await engine.find_pocs("CVE-2024-3400", sources=["a"])
+        assert one.sources_queried == ["a"] and one.cached is False
+        assert (await engine.find_pocs("CVE-2024-3400", sources=["b", "a"])).cached is True
+        small = await engine.find_pocs("CVE-2024-3400", sources=["b"], max_results=1)
+        assert len(small.results) == 1 and small.cached is False
+        assert (await engine.find_pocs("CVE-2024-3400", sources=["b"], max_results=50)).cached is False
+        strict = await engine.find_pocs("CVE-2024-3400", sources=["a"], max_results=7, min_confidence=1.01)
+        assert strict.results == []
+        assert len((await engine.find_pocs("CVE-2024-3400", sources=["a"], max_results=7)).results) == 1
+
+
+@pytest.mark.asyncio
 async def test_mastodon_status_error_handling():
     source = MastodonPoCSource(instances=["failing.instance.local"])
     mock_resp = MagicMock()

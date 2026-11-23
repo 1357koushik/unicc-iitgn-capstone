@@ -35,7 +35,7 @@ from .schema import DENSE_FORMAT, DOC_IDS_FILE, KINDS, MANIFEST_FILE, NORM_TOLER
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = REPO_ROOT / "data" / "dense"
 GROUPS_FILE = "groups.npy"
-MAX_K = 1000
+MAX_K = 10000
 
 
 class DenseIndexError(RuntimeError):

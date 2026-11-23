@@ -13,7 +13,7 @@ from ..schemas.investigation import InvestigationResult
 from ..prompts.investigation_prompts import INVESTIGATION_SYSTEM_PROMPT, build_investigation_prompt
 
 # Longest question the retrieval API accepts (MatchRequest.query, threat_retrieval_engine/api/schemas.py).
-MAX_QUERY_CHARS = 4096
+MAX_QUERY_CHARS = 40960
 
 
 class RetrievalUnavailableError(Exception):
@@ -173,7 +173,7 @@ class ThreatInvestigator:
         # If the search did not run, say so. Returning no evidence here would make the
         # investigation report "no matching records" - a false all-clear.
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=300) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as e:
             if e.code == 503:

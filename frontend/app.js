@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     // Report file upload: the same size limit as the server (MAX_UPLOAD_BYTES in main.py).
-    const MAX_UPLOAD_MB = 20;
+    const MAX_UPLOAD_MB = 200;
     const FILE_HINT = `.txt, .pdf or .docx, up to ${MAX_UPLOAD_MB} MB`;
 
     // ------------------------------------------------------------------
@@ -35,12 +35,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // we are logged in, and which role we have, instead of guessing.
     // ------------------------------------------------------------------
     let currentRole = null;
+    let sessionEpoch = 0;
+    let dropNextToast = false;
 
     function showLoggedOut(message) {
         currentRole = null;
+        sessionEpoch += 1;
         showView("login-view");
         resetWorkflow();
         resetNetworkTab();
+        resetPoCTab();
         // Remove what the previous user loaded, so the next person on this tab cannot read it (e.g. with F12).
         document.querySelector("#audit-table tbody").replaceChildren();
         document.querySelector("#users-table tbody").replaceChildren();
@@ -52,7 +56,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use this for every API call after login: if the server says the session
     // has ended (401), go back to the login screen with the reason.
     async function api(url, options) {
+        const startedIn = sessionEpoch;
         const res = await fetch(url, options);
+        // Started by the previous login: its answer must never appear for the next user.
+        if (startedIn !== sessionEpoch) {
+            dropNextToast = true;
+            throw new Error("answer from a previous login");
+        }
         if (res.status === 401) {
             let reason = "Your session has ended. Please log in again.";
             try { reason = (await res.clone().json()).detail || reason; } catch (e) { /* keep default */ }
@@ -378,7 +388,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } catch (e) {
             showToast("Network error", "error");
-            btn.disabled = false;
+            btn.disabled = !currentCorrelationId;
         } finally {
             btn.textContent = "Run Threat Matching";
         }
@@ -427,7 +437,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("Network error", "error");
         } finally {
             btn.textContent = "Synthesize Summary";
-            btn.disabled = false;
+            btn.disabled = !currentCorrelationId;
         }
     });
 
@@ -447,7 +457,9 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             if (res.ok) {
                 showToast("Decision recorded successfully!", "success");
-                setTimeout(resetWorkflow, 2000);
+                // Clear this investigation only: a new report started meanwhile must not be erased.
+                const decidedId = currentCorrelationId;
+                setTimeout(() => { if (currentCorrelationId === decidedId) resetWorkflow(); }, 2000);
             } else if (res.status !== 401) {
                 const err = await res.json().catch(() => ({}));
                 showToast(err.detail || "Failed to record decision", "error");
@@ -464,16 +476,24 @@ document.addEventListener("DOMContentLoaded", () => {
     // ------------------------------------------------------------------
     // Task 4: PoC & Exploit Discovery Logic
     // ------------------------------------------------------------------
-    const pocSearchBtn = document.getElementById("poc-search-btn");
-    if (pocSearchBtn) {
-        pocSearchBtn.addEventListener("click", runPoCSearch);
-    }
+    // The button is the form's submit button, so this one listener covers both a click and Enter.
     const pocSearchForm = document.getElementById("poc-search-form");
     if (pocSearchForm) {
         pocSearchForm.addEventListener("submit", (e) => {
             e.preventDefault();
             runPoCSearch();
         });
+    }
+
+    function resetPoCTab() {
+        document.getElementById("poc-cve-input").value = "";
+        document.getElementById("poc-source-statuses").replaceChildren();
+        const banner = document.getElementById("poc-stats-banner");
+        banner.replaceChildren();
+        banner.style.display = "none";
+        document.getElementById("poc-results-container").replaceChildren(textElement("p",
+            'Enter a CVE identifier above and click "Search OSINT PoCs" to discover public proof-of-concept repositories and discussions.',
+            "placeholder-text"));
     }
 
     async function runPoCSearch() {
@@ -1010,7 +1030,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // and from the sensor, so it is shown with textElement (plain text) only,
     // never innerHTML: a crafted file must not be able to put code in the page.
     // ------------------------------------------------------------------
-    const MAX_SCAN_MB = 5;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
+    const MAX_SCAN_MB = 50;     // same limit as MAX_NETWORK_FILE_BYTES in main.py
     const SCAN_HINT = `.csv or .txt (NSL-KDD, CIC-IDS2017 or CICFlowMeter format), up to ${MAX_SCAN_MB} MB`;
     const scanInput = document.getElementById("scan-file-input");
     const scanBtn = document.getElementById("scan-file-btn");
@@ -1584,6 +1604,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function showToast(msg, type = "error") {
+        if (dropNextToast) {          // the error of a request from the previous login
+            dropNextToast = false;
+            return;
+        }
         const container = document.getElementById("toast-container");
         const toast = document.createElement("div");
         toast.className = `toast ${type}`;

@@ -54,10 +54,10 @@ attack_build_dir: "./data/attack"
 # Deadlines and Latency Contracts (V2)
 # ---------------------------------------------------------------------------
 deadlines:
-  d_match_seconds: 15.0         # Server-side hard deadline for synchronous /match (PoC excluded)
-  t_client_match_seconds: 20.0  # Client timeout for Team 3 investigator (must be > d_match_seconds)
-  d_poc_seconds: 20.0           # Deadline for outbound PoC discovery (own deadline, separate from the match deadline)
-  client_margin_seconds: 5.0
+  d_match_seconds: 150.0         # Server-side hard deadline for synchronous /match (PoC excluded)
+  t_client_match_seconds: 200.0  # Client timeout for Team 3 investigator (must be > d_match_seconds)
+  d_poc_seconds: 200.0           # Deadline for outbound PoC discovery (own deadline, separate from the match deadline)
+  client_margin_seconds: 50.0
 
 # ---------------------------------------------------------------------------
 # Security & Network Hardening (R36)
@@ -80,10 +80,10 @@ poc_intelligence:
   enabled: true
   cache_ttl_seconds: 21600          # 6 hours default
   kev_cache_ttl_seconds: 3600       # 1 hour for CISA KEV listed vulnerabilities
-  max_results_per_source: 10        # cap per individual scraper
-  max_total_results: 30             # cap on merged results
+  max_results_per_source: 100        # cap per individual scraper
+  max_total_results: 300             # cap on merged results
   min_confidence_threshold: 0.0     # 0.0 = return all (including SUSPICIOUS with warning flags)
-  request_timeout_seconds: 10.0     # per-source async HTTP timeout
+  request_timeout_seconds: 100.0     # per-source async HTTP timeout
   x_allow_paid_requests: false      # R28: default false to protect against unexpected spend
   sources:
     github:

@@ -17,12 +17,12 @@ def _build_cache_key(
     cve_id: str,
     sources: list[str] | None = None,
 ) -> str:
-    """Build a deterministic composite cache key incorporating queried sources (R5)."""
-    cve_clean = cve_id.strip().upper()
-    if not sources:
-        return cve_clean
-    src_part = ",".join(sorted(s.lower() for s in sources))
-    return f"{cve_clean}::{src_part}"
+    """Build a deterministic composite cache key from the queried sources (R5): a search of other
+    sources is never answered from this entry."""
+    key = cve_id.strip().upper()
+    if sources:
+        key += "::" + ",".join(sorted(s.lower() for s in sources))
+    return key
 
 
 class PoCCache:
@@ -52,8 +52,8 @@ class PoCCache:
 
     def _get_connection(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
-        conn.execute("PRAGMA busy_timeout=30000;")
+        conn = sqlite3.connect(str(self.db_path), timeout=300.0)
+        conn.execute("PRAGMA busy_timeout=300000;")
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -134,17 +134,10 @@ class PoCCache:
         conn = None
         try:
             conn = self._get_connection()
-            # Try composite key first, fall back to cve_clean
             row = conn.execute(
                 "SELECT response_json, cached_at, ttl_seconds FROM poc_cache WHERE cve_id = ?",
                 (cache_key,),
             ).fetchone()
-
-            if row is None and cache_key != cve_clean:
-                row = conn.execute(
-                    "SELECT response_json, cached_at, ttl_seconds FROM poc_cache WHERE cve_id = ?",
-                    (cve_clean,),
-                ).fetchone()
 
             if row is None:
                 return None
@@ -156,6 +149,11 @@ class PoCCache:
                 return None
 
             data = json.loads(row["response_json"])
+            # The entry was cut at the size asked for then: it cannot answer a request for more.
+            stored_max = data.pop("cache_max_results", None)
+            if max_results is not None and stored_max is not None and max_results > stored_max \
+                    and len(data.get("results", [])) >= stored_max:
+                return None
             resp = PoCFindResponse(**data)
             resp.cached = True
             return resp
@@ -188,6 +186,8 @@ class PoCCache:
         now = int(time.time())
         payload = response.model_dump()
         payload["cached"] = True
+        if max_results is not None:
+            payload["cache_max_results"] = int(max_results)
 
         conn = None
         try:

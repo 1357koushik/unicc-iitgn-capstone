@@ -35,7 +35,7 @@ class BlueSkyPoCSource(BasePoCSource):
 
     def __init__(
         self,
-        timeout_seconds: float = 10.0,
+        timeout_seconds: float = 100.0,
         handle: str | None = None,
         app_password: str | None = None,
     ) -> None:

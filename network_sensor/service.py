@@ -39,7 +39,7 @@ from network_sensor.own_data import TRAINED_ON, own_data_evaluation
 from network_sensor.paths import model_path, reports_dir
 from network_sensor.spec import DATASETS, DEFAULT_DATASET, dataset_of_columns, get_spec
 
-MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few seconds
+MAX_CONNECTIONS = 250_000               # rows per file; keeps one scan to a few seconds
 # Alerts sent back per scan. The dashboard shows all alerts, or only known attack
 # patterns, or only possible new attacks (raised only by the anomaly models), or one
 # priority, and each of those views shows its MAX_ALERTS_PER_FILTER most serious alerts.
@@ -47,7 +47,7 @@ MAX_CONNECTIONS = 25_000               # rows per file; keeps one scan to a few 
 # sent back: every view's most serious alerts are then among them. One shared cap would
 # be filled entirely by the most serious group (known patterns at High priority), and the
 # other views would find nothing. The totals are always reported.
-MAX_ALERTS_PER_FILTER = 300
+MAX_ALERTS_PER_FILTER = 3000
 MAX_TEXT_VALUE_CHARS = 40              # protocol / service / flag / port names are short
 TEXT_COLUMNS = ("protocol_type", "service", "flag", "label") + IDENTITY_COLUMNS
 

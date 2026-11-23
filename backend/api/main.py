@@ -386,20 +386,20 @@ def _retrieval_failure(db: Session, user: dict, correlation_id: str, backend_nam
 
 # --- Input limits ---
 # Every request is checked against these before the app does any work with it.
-MAX_REPORT_CHARS = 200_000          # roughly a 50-60 page report
-MAX_EVIDENCE_CHARS = MAX_REPORT_CHARS + 20_000
-MAX_NOTES_CHARS = 5_000
-MAX_ENTITIES = 500
-MAX_ENTITY_CHARS = 512
-MAX_BODY_BYTES = 2 * 1024 * 1024    # 2 MB for any single request...
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # ...except a report file: PDFs with pictures are often several MB
+MAX_REPORT_CHARS = 2_000_000          # roughly a 50-60 page report
+MAX_EVIDENCE_CHARS = MAX_REPORT_CHARS + 200_000
+MAX_NOTES_CHARS = 50_000
+MAX_ENTITIES = 5000
+MAX_ENTITY_CHARS = 5120
+MAX_BODY_BYTES = 20 * 1024 * 1024    # 2 MB for any single request...
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # ...except a report file: PDFs with pictures are often several MB
 MULTIPART_OVERHEAD_BYTES = 64 * 1024 # the few extra bytes a browser adds around an uploaded file
 UPLOAD_PATH = "/api/v1/investigation/upload"
 # Network sensor (Task 5.0): a file of connection records to check for attacks
 NETWORK_SCAN_PATH = "/api/v1/network/scan"
 NETWORK_LIVE_START_PATH = "/api/v1/network/live/start"
 NETWORK_ALERTS_CSV_PATH = "/api/v1/network/scan/alerts.csv"   # every alert of a file, for download
-MAX_NETWORK_FILE_BYTES = 5 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
+MAX_NETWORK_FILE_BYTES = 50 * 1024 * 1024    # the whole NSL-KDD test file (3.4 MB) fits
 NETWORK_FILE_EXTENSIONS = {".csv", ".txt"}
 CORRELATION_ID = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
 
@@ -448,7 +448,7 @@ class UserUpdate(BaseModel):
 
 class PoCFindRequest(BaseModel):
     cve_id: str = Field(pattern=r"^CVE-\d{4}-\d{4,7}$")
-    max_results: int = Field(default=20, ge=1, le=100)
+    max_results: int = Field(default=20, ge=1, le=1000)
     sources: Optional[List[str]] = None
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
@@ -816,7 +816,7 @@ async def find_pocs_endpoint(
     team2_url = os.getenv("TEAM2_API_URL", "http://localhost:8000")
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(f"{team2_url}/api/v1/pocs/find", json=req.model_dump())
             if resp.status_code == 200:
                 log_action(db, "poc_query", user["id"], user["role"], "poc_find", cve_id, "retrieval", "success")

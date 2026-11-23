@@ -148,13 +148,13 @@ def get_thread_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, readonly: bool = F
         p = Path(sqlite_path)
         if readonly and p.is_file():
             uri = f"file:{p.resolve().as_posix()}?mode=ro"
-            conn = sqlite3.connect(uri, uri=True, timeout=30.0)
+            conn = sqlite3.connect(uri, uri=True, timeout=300.0)
         else:
             p.parent.mkdir(parents=True, exist_ok=True)
-            conn = sqlite3.connect(sqlite_path, timeout=30.0)
+            conn = sqlite3.connect(sqlite_path, timeout=300.0)
         conn.execute("PRAGMA synchronous=NORMAL;")
         conn.execute("PRAGMA case_sensitive_like=ON;")
-        conn.execute("PRAGMA busy_timeout=30000;")
+        conn.execute("PRAGMA busy_timeout=300000;")
         conns[key] = conn
     return conn
 
@@ -165,11 +165,11 @@ def setup_sqlite(sqlite_path: str = DEFAULT_SQLITE_PATH, reset: bool = False) ->
     Creates the table and indexes if they do not exist (R15, R35).
     """
     Path(sqlite_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(sqlite_path, check_same_thread=False, timeout=30.0)
+    conn = sqlite3.connect(sqlite_path, check_same_thread=False, timeout=300.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA case_sensitive_like=ON;")
-    conn.execute("PRAGMA busy_timeout=30000;")
+    conn.execute("PRAGMA busy_timeout=300000;")
     if reset:
         logger.info("Resetting SQLite tables …")
         conn.execute("DROP TABLE IF EXISTS corpus;")

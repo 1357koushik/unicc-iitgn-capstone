@@ -72,7 +72,7 @@ class APILLMProvider(LLMProvider):
             method="POST"
         )
 
-        timeout = self.config.get("timeout", 60)
+        timeout = self.config.get("timeout", 600)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))

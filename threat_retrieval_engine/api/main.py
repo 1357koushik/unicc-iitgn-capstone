@@ -72,7 +72,7 @@ class Admission:
             self.sem().release()
 
 
-admission = Admission(int(os.environ.get("TRE_INFERENCE_SLOTS", "2")), int(os.environ.get("TRE_ADMISSION_QUEUE", "8")))
+admission = Admission(int(os.environ.get("TRE_INFERENCE_SLOTS", "2")), int(os.environ.get("TRE_ADMISSION_QUEUE", "80")))
 
 
 def _v2():
@@ -240,16 +240,17 @@ async def match_threat_query(request: MatchRequest) -> MatchResponse:
       2. Vector Hybrid Engine (BGE-M3 dense embeddings + BM25 RRF)
       3. Knowledge Graph Engine (MITRE ATT&CK STIX graph expansion)
     Offloaded to worker threadpool with hard deadline enforcement (R-2.4).
-    v2: admission control, a 3.0 s hard limit on matching (stages are skipped to meet it), PoC lookup on its own
+    v2: admission control, a 30 s hard limit on matching (stages are skipped to meet it), PoC lookup on its own
     deadline after matching, HTTP 503 (never 504) when the service is overloaded.
     """
     svc = _v2()
     if svc is not None:
         cfg2 = get_config()
-        budget = svc.hard_limit + 0.5 + ((cfg2.d_poc_seconds + 1.0) if request.include_pocs else 0.0)
+        budget = svc.hard_limit + 5.0 + ((cfg2.d_poc_seconds + 1.0) if request.include_pocs else 0.0)
         return await admission.run(lambda: svc.match(request.query, top_k=request.top_k,
                                                      include_pocs=request.include_pocs,
-                                                     include_techniques=request.include_techniques), budget)
+                                                     include_techniques=request.include_techniques,
+                                                     allowed_sources=request.allowed_sources), budget)
     orchestrator = get_orchestrator()
     current_cfg = get_config()
     try:
@@ -277,7 +278,8 @@ async def search_hybrid_endpoint(request: MatchRequest) -> dict[str, Any]:
     """Dedicated Hybrid Search endpoint (BM25 + BGE-M3 RRF) (R14). v2: lexical + dense fused, no reranker."""
     svc = _v2()
     if svc is not None:
-        return await admission.run(lambda: svc.hybrid(request.query, top_k=request.top_k), svc.hard_limit)
+        return await admission.run(lambda: svc.hybrid(request.query, top_k=request.top_k,
+                                                       allowed_sources=request.allowed_sources), svc.hard_limit)
     orchestrator = get_orchestrator()
     if not orchestrator.hybrid_searcher:
         raise HTTPException(status_code=503, detail="Hybrid search engine unavailable")
@@ -305,9 +307,18 @@ async def search_hybrid_endpoint(request: MatchRequest) -> dict[str, Any]:
 
 @app.get("/api/v1/entities/lookup", tags=["Search Engines"], dependencies=[Depends(verify_service_auth)])
 @app.post("/api/v1/entities/lookup", tags=["Search Engines"], dependencies=[Depends(verify_service_auth)])
-async def lookup_entities_endpoint(value: str | None = None, query: str | None = None) -> dict[str, Any]:
-    """Exact identifier entity lookup endpoint (R14). v2: CVE IDs, nicknames, ATT&CK IDs and names."""
+async def lookup_entities_endpoint(request: Request, value: str | None = None,
+                                   query: str | None = None) -> dict[str, Any]:
+    """Exact identifier entity lookup endpoint (R14). v2: CVE IDs, nicknames, ATT&CK IDs and names.
+    The value comes from the URL (?value= or ?query=) or, on POST, a JSON body {"value": ...} or {"query": ...}."""
     target = value or query or ""
+    if not target and request.method == "POST":
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        if isinstance(body, dict):
+            target = str(body.get("value") or body.get("query") or "")
     if not target:
         raise HTTPException(status_code=400, detail="Missing entity query parameter")
     svc = _v2()

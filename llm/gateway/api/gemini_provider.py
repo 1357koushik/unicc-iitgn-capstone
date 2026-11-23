@@ -85,7 +85,7 @@ def classify_gemini_error(code: int, body: str, model: str) -> Tuple[str, str]:
     return "error", f"Gemini returned error status {code}: {message or body[:300]}"
 
 
-def check_gemini(api_key: Optional[str], model: Optional[str], timeout: float = 10) -> Dict[str, Any]:
+def check_gemini(api_key: Optional[str], model: Optional[str], timeout: float = 100) -> Dict[str, Any]:
     """
     Check a key and model with Google WITHOUT generating text (no tokens are used):
     asks Google for the model's details, which needs a valid key and an existing model.
@@ -145,7 +145,7 @@ class GeminiProvider(LLMProvider):
             raise LLMGatewayError("GEMINI_API_KEY is not set or empty. An admin can paste the key in System Config "
                                   "(or set GEMINI_API_KEY in .env), or switch to Ollama.")
 
-        timeout = self.config.get("timeout", 12)
+        timeout = self.config.get("timeout", 120)
         max_retries = self.config.get("max_retries", 2)
 
         # Combine system prompt with user prompt

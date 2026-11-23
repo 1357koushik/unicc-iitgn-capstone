@@ -56,7 +56,7 @@
                             <div class="file-upload-row">
                                 <button type="button" id="upload-file-btn" class="btn secondary-btn small-btn">Upload file</button>
                                 <input type="file" id="report-file-input" accept=".txt,.pdf,.docx" hidden>
-                                <span id="report-file-name" class="file-name">.txt, .pdf or .docx, up to 20 MB</span>
+                                <span id="report-file-name" class="file-name">.txt, .pdf or .docx, up to 200 MB</span>
                             </div>
                             <button id="analyze-btn" class="btn primary-btn">Analyze & Extract Entities</button>
                         </div>
@@ -95,19 +95,19 @@
                                 <!-- PoC Discovery Tab -->
                 <div id="poc-tab" class="tab-content">
                     <div class="workflow-container">
-                        <div class="glass-panel" style="width: 100%;">
+                        <div class="glass-panel poc-panel">
                             <h2>Multi-Source OSINT PoC Discovery (Task 4)</h2>
-                            <p class="placeholder-text" style="margin-bottom: 1.5rem;">
-                                Search for public Proof-of-Concept exploits across GitHub, X, Mastodon, and Bluesky.
+                            <p class="placeholder-text poc-intro">
+                                Search for public Proof-of-Concept exploits across GitHub, Mastodon, and Bluesky.
                                 Uses deterministic evidence scoring, anti-deception filters, and cross-source corroboration.
                             </p>
-                            <form id="poc-search-form" onsubmit="return false;">
-                                <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.25rem;">
-                                    <div class="input-group" style="flex: 2; min-width: 260px; margin-bottom: 0;">
+                            <form id="poc-search-form">
+                                <div class="poc-search-row">
+                                    <div class="input-group poc-cve-field">
                                         <label for="poc-cve-input">Target CVE Identifier</label>
                                         <input type="text" id="poc-cve-input" placeholder="e.g. CVE-2024-3400, CVE-2021-44228" required autocomplete="off">
                                     </div>
-                                    <div class="input-group" style="flex: 1; min-width: 180px; margin-bottom: 0;">
+                                    <div class="input-group poc-tier-field">
                                         <label for="poc-min-confidence">Min Relevance Tier</label>
                                         <select id="poc-min-confidence">
                                             <option value="0.0">All Findings (0.0+)</option>
@@ -116,30 +116,30 @@
                                             <option value="0.70" selected>High Relevance Only (0.70+)</option>
                                         </select>
                                     </div>
-                                    <button type="submit" id="poc-search-btn" class="btn primary-btn" style="height: 44px;">Search OSINT PoCs</button>
+                                    <button type="submit" id="poc-search-btn" class="btn primary-btn poc-search-submit">Search OSINT PoCs</button>
                                 </div>
-                                <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
-                                    <span style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500;">Sources to Query:</span>
-                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                <div class="poc-sources-row">
+                                    <span class="poc-sources-label">Sources to Query:</span>
+                                    <label class="poc-source-option">
                                         <input type="checkbox" id="poc-src-github" checked> GitHub
                                     </label>
-                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                    <label class="poc-source-option">
                                         <input type="checkbox" id="poc-src-mastodon" checked> Mastodon
                                     </label>
-                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
+                                    <label class="poc-source-option">
                                         <input type="checkbox" id="poc-src-bluesky" checked> Bluesky
                                     </label>
-                                    <label style="display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0;">
-                                        <input type="checkbox" id="poc-src-x" checked> X (Twitter)
+                                    <label class="poc-source-option">
+                                        <input type="checkbox" id="poc-src-x" disabled> X (needs a paid API)
                                     </label>
                                 </div>
                             </form>
 
                             <!-- Source Status Badges -->
-                            <div id="poc-source-statuses" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; margin-bottom: 1.5rem;"></div>
+                            <div id="poc-source-statuses"></div>
 
                             <!-- Summary / Stats Banner -->
-                            <div id="poc-stats-banner" style="display: none; padding: 0.75rem 1rem; background: rgba(3, 73, 180, 0.08); border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.875rem;"></div>
+                            <div id="poc-stats-banner"></div>
 
                             <!-- Results Container -->
                             <div id="poc-results-container">
@@ -160,7 +160,7 @@
                         <div class="file-upload-row">
                             <button type="button" id="scan-file-btn" class="btn primary-btn small-btn">Choose file and scan</button>
                             <input type="file" id="scan-file-input" accept=".csv,.txt" hidden>
-                            <span id="scan-file-name" class="file-name">.csv or .txt (NSL-KDD, CIC-IDS2017 or CICFlowMeter format), up to 5 MB</span>
+                            <span id="scan-file-name" class="file-name">.csv or .txt (NSL-KDD, CIC-IDS2017 or CICFlowMeter format), up to 50 MB</span>
                         </div>
                     </div>
 
