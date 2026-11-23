@@ -6,7 +6,7 @@ column names, the repeated column, "Infinity" values, the odd dash in the web at
 labels), so they need no download and take under a minute.
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor_cicids2017 -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor_cicids2017.py -v
 """
 import os
 

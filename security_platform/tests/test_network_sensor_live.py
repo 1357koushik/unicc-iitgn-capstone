@@ -5,7 +5,7 @@ A fake clock makes time pass instantly, so the checks are exact and quick. The s
 group runs the real app (in-memory database, small sensor trained on made-up data).
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor_live -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor_live.py -v
 """
 import os
 

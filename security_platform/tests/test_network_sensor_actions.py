@@ -5,7 +5,7 @@ the likely attack type, the priority, the certainty and the suggested next step.
 They use small made-up datasets, so they never touch your real database, model or dataset.
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor_actions -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor_actions.py -v
 """
 import os
 
@@ -404,7 +404,7 @@ class DashboardTests(unittest.TestCase):
     def test_network_tab_markup_follows_the_security_policy(self):
         """The app's Content-Security-Policy blocks styles and scripts written into the
         page, so the Network Sensor tab must not use style="..." or onclick="..."."""
-        html = Path("frontend/index.html").read_text(encoding="utf-8")
+        html = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text(encoding="utf-8")
         start = html.index('<div id="network-tab"')
         end = html.index("<!-- Audit Logs Tab -->")
         tab = html[start:end]
@@ -415,16 +415,16 @@ class DashboardTests(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', tab)
 
     def test_page_asks_for_the_new_script_and_style_versions(self):
-        html = Path("frontend/index.html").read_text(encoding="utf-8")
+        html = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text(encoding="utf-8")
         self.assertRegex(html, r'src="app\.js\?v=12"')
         self.assertRegex(html, r'href="style\.css\?v=12"')
-        script = Path("frontend/app.js").read_text(encoding="utf-8")
+        script = (Path(__file__).resolve().parents[1] / "frontend/app.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"setAttribute\(\s*['\"]style['\"]", script))
 
     def test_user_table_is_built_as_plain_text(self):
         """System Config's user table must not put stored text (usernames, roles, dataset
         names) into the page as HTML, so a crafted username can never run as code."""
-        script = Path("frontend/app.js").read_text(encoding="utf-8")
+        script = (Path(__file__).resolve().parents[1] / "frontend/app.js").read_text(encoding="utf-8")
         start = script.index("const DATASET_CHOICES")
         end = script.index('getElementById("refresh-users-btn")')
         user_table = script[start:end]

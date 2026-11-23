@@ -16,6 +16,8 @@ from pathlib import Path
 from network_sensor.spec import DEFAULT_DATASET
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if PROJECT_ROOT.name == "security_platform":   # in the repository; in Docker this folder is /app
+    PROJECT_ROOT = PROJECT_ROOT.parent
 
 
 def data_dir() -> Path:

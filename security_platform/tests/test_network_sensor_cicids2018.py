@@ -5,7 +5,7 @@ cross-dataset check (network_sensor/cicids2018.py).
 They use small made-up files, so they never touch your real database, model or dataset.
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor_cicids2018 -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor_cicids2018.py -v
 """
 import os
 

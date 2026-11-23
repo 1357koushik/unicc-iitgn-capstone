@@ -131,12 +131,12 @@ unicc-iitgn-capstone/
 │       ├── benchmark_results.json     # Calibrated benchmark scorecard output
 │       └── README.md                  # LLM evaluation documentation
 │
-├── network_sensor/                    # Network Intrusion Detection & Telemetry Subsystem
-│   ├── core/                          # Traffic flow parsing, CICFlowMeter features & inference
-│   └── models/                        # Pre-trained flow classification models
+├── security_platform/                 # Team 4: the application people use
+│   ├── backend/                       # Application backend APIs, authentication & RBAC
+│   ├── frontend/                      # Security Analyst & Investigator Web Dashboard
+│   ├── network_sensor/                # Network Intrusion Detection & Telemetry Subsystem
+│   └── tests/                         # Network sensor test suite
 │
-├── backend/                           # Application backend APIs, authentication & RBAC
-├── frontend/                          # Security Analyst & Investigator Web Dashboard
 ├── benchmarks_v2/                     # Ground-truth retrieval and evaluation pipelines
 ├── results/                           # Evaluation metrics, latency profiles & baseline scorecards
 ├── config/                            # Runtime parameters (retrieval_config.yaml)

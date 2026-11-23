@@ -1008,8 +1008,8 @@ def stop_network_live_replay(session_id: str, user: dict = Depends(get_investiga
 
 
 # Serve frontend static files
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_FRONTEND_DIR = _REPO_ROOT / "frontend"
+_APP_ROOT = Path(__file__).resolve().parent.parent.parent   # security_platform/ (in Docker: /app)
+_FRONTEND_DIR = _APP_ROOT / "frontend"
 
 
 def set_file_types():

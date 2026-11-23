@@ -288,3 +288,22 @@ data/techniques/
 # The retrieval data bundle for Docker (about 8 GB; see docs/DOCKER_SETUP.md)
 retrieval-data/
 retrieval-data.tar
+
+# ---------------------------------------------------------------------------
+# Local tools, release packages and working files: never committed
+# ---------------------------------------------------------------------------
+.claude/
+state/
+exports/
+unicc-capstone-package*
+unicc-capstone*.zip
+
+# Team working notes and generated analysis
+TEAM2_REPORT.md
+docs/TEAM2_CONTRIBUTIONS.*
+docs/TEAM2_QUERY_WALKTHROUGH.md
+docs/Member_Contribution_Template.xlsx
+data/judging/
+results/walkthrough/
+results/server_ram_single_query.png
+scripts/explain/

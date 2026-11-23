@@ -6,7 +6,7 @@ They run the real app with a throwaway in-memory database and a small sensor tra
 on made-up data, so they never touch your real database, model or dataset.
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor_api -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor_api.py -v
 """
 import os
 

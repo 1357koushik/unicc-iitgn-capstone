@@ -180,7 +180,7 @@ python -m network_sensor.download_data   # downloads NSL-KDD (~22 MB), checks fi
 python -m network_sensor.train           # trains the three models and the attack-type classifier (under a minute)
 python -m network_sensor.evaluate        # precision / recall report on the official test file
 
-python -m unittest test_network_sensor test_network_sensor_api test_network_sensor_live test_network_sensor_cicids2017 test_network_sensor_actions test_network_sensor_cicids2018 test_network_sensor_own_data -v   # automatic checks
+python -m unittest discover -s security_platform/tests
 ```
 
 **CIC-IDS2017** (optional, larger): download `MachineLearningCSV.zip` from the
@@ -255,7 +255,7 @@ writes them in the report's "Speed" section.
 - The start and the end of every replay (completed, stopped, or logged out) go in the
   audit log, with the file's fingerprint, the speed and the number of alerts.
 - Replays are kept in the server's memory, so they assume one server process (the
-  normal `uvicorn backend.api.main:app`).
+  normal `uvicorn backend.api.main:app --app-dir security_platform`).
 
 ### Scanning your own traffic
 
@@ -328,6 +328,8 @@ In Docker, copy the folder into the container first, then train there:
 `docker compose exec backend python -m network_sensor.train --own-data /tmp/own-flows`.
 
 ## Run it in Docker
+
+Without Docker, first set the Python path from the project folder: `$env:PYTHONPATH = ".;security_platform"` (PowerShell) or `export PYTHONPATH=.:security_platform` (Linux/macOS).
 
 The backend image (`deployment/docker/Dockerfile.backend`) includes the sensor. It uses
 Python 3.13 because the sensor's pinned packages need Python 3.12 or newer. The whole system

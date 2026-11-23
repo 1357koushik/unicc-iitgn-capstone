@@ -22,10 +22,10 @@ RUN uv pip install --system --no-cache -r requirements-backend.txt
 # this image uses python:3.13 - the version the whole app is tested with.
 COPY requirements-network-sensor.txt .
 RUN uv pip install --system --no-cache -r requirements-network-sensor.txt
-COPY backend/ backend/
+COPY security_platform/backend/ backend/
 COPY llm/ llm/
-COPY frontend/ frontend/
-COPY network_sensor/ network_sensor/
+COPY security_platform/frontend/ frontend/
+COPY security_platform/network_sensor/ network_sensor/
 COPY .env.example .env.example
 
 # Run as an ordinary user, not root. /data is created here so a new Docker volume

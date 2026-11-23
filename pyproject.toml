@@ -41,5 +41,5 @@ include = ["threat_retrieval_engine*"]
 threat_retrieval_engine = ["models/*.json", "benchmarks/*.json", "store/data/*.jsonl"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "security_platform"]
 testpaths = ["verify", "tests"]

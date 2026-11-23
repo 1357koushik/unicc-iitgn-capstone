@@ -7,10 +7,10 @@
 !requirements-network-sensor.txt
 !requirements-retrieval-docker.txt
 !.env.example
-!backend/
+!security_platform/backend/
 !llm/
-!frontend/
-!network_sensor/
+!security_platform/frontend/
+!security_platform/network_sensor/
 !threat_retrieval_engine/
 !config/
 !scripts/docker/retrieval_data.py

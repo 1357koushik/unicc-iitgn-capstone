@@ -13,10 +13,8 @@ on:
       - .dockerignore
       - .env.example
       - requirements-*.txt
-      - backend/**
+      - security_platform/**
       - llm/**
-      - frontend/**
-      - network_sensor/**
       - threat_retrieval_engine/**
       - config/**
       - scripts/docker/**
@@ -29,10 +27,8 @@ on:
       - .dockerignore
       - .env.example
       - requirements-*.txt
-      - backend/**
+      - security_platform/**
       - llm/**
-      - frontend/**
-      - network_sensor/**
       - threat_retrieval_engine/**
       - config/**
       - scripts/docker/**

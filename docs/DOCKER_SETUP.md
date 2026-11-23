@@ -326,7 +326,7 @@ docker compose cp KDDTest+.txt backend:/data/network_sensor/nsl_kdd/
 ```
 
 Other datasets (CIC-IDS2017, your own traffic) and what the reports mean:
-`network_sensor/README.md`.
+`security_platform/network_sensor/README.md`.
 
 ## 10. Day-to-day operation
 
@@ -395,4 +395,4 @@ To keep the old accounts and audit log, copy the old file in once, before the fi
 | Building fails while downloading packages | The build needs internet (section 2). Behind a company proxy, configure Docker's proxy settings (Docker Desktop: *Settings → Resources → Proxies*) |
 
 Details for each part: the root `README.md`, `docs/API_REFERENCE.md` (retrieval API),
-`docs/V2_API_CHANGES.md`, `network_sensor/README.md`, and `TEAM2_REPORT.md`.
+`docs/V2_API_CHANGES.md`, `security_platform/network_sensor/README.md`, and `TEAM2_REPORT.md`.

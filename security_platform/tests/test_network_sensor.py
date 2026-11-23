@@ -2,7 +2,7 @@
 Automatic checks for the network sensor (Task 5.0).
 
 Run them in the project folder, with the .venv switched on:
-    python -m unittest test_network_sensor -v
+    python -m unittest discover -s security_platform/tests -p test_network_sensor.py -v
 
 They use small made-up data, so they need no download and take a few seconds.
 The last check also runs the real NSL-KDD evaluation if the dataset has been

@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if PROJECT_ROOT.name == "security_platform":   # in the repository; in Docker this folder is /app
+    PROJECT_ROOT = PROJECT_ROOT.parent
 ENV_FILE = PROJECT_ROOT / ".env"
 
 
